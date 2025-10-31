@@ -1,0 +1,29 @@
+.DS_Store
+
+
+# Ignore all content inside Data but keep the folder
+Data/*
+!Data/.gitkeep
+!Data/Balabit-dataset
+!Data/Balabit_PeakClick
+
+# Ignore all content inside Images but keep the folder
+Images/*
+!Images/.gitkeep
+
+# Ignore all content in error_logs 
+# Don't ignore output_logs! It's not large
+error_logs/*
+saved_models/*
+
+# Ignore all content in any folder titled error_logs
+**/error_logs/*
+**/output_logs/*
+
+
+# Ignore all .pyc files
+*.pyc
+
+
+# Ignore node_modules
+node_modules/
