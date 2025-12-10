@@ -154,9 +154,9 @@ if __name__ == "__main__":
     # ==== Train ====
     model, best_model, *_ = trainer.train(
         optim_name='sgd',
-        num_epochs=25,
+        num_epochs=100,
         learning_rate=0.01,
-        step_size=7,
+        step_size=20,
         learning_rate_decay=0.1,
         acc_frequency=1,
         verbose=True

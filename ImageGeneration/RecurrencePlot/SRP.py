@@ -91,7 +91,7 @@ def draw_recurrence_plots(data_path=None, out_path=None, img_size=224, ratio=95,
             plt.savefig(img_path, dpi=100)
             plt.close(fig)
 
-    print("✅ SRP generation done.")
+    print("SRP generation done.")
 
 
 if __name__ == "__main__":
