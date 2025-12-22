@@ -6,6 +6,7 @@ Data/*
 !Data/.gitkeep
 !Data/Balabit-dataset
 !Data/Balabit_PeakClick
+!Data/Balabit_chunk
 
 # Ignore all content inside Images but keep the folder
 Images/*
