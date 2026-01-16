@@ -1,69 +1,85 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import math
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import math
 
-# ----- Patch Embedding -----
-class PatchEmbedding(nn.Module):
-    def __init__(self, dim, img_size, patch_size, n_channels):
+# =============== Swish 激活 ===============
+class Swish(nn.Module):
+    def forward(self, x):
+        return x * torch.sigmoid(x)
+
+
+# =============== Patch Embedding ===============
+class PatchEmbed(nn.Module):
+    def __init__(self, img_size=224, patch_size=15, in_chans=3, embed_dim=225):
         super().__init__()
-        self.dim = dim
         self.img_size = img_size
         self.patch_size = patch_size
-        self.n_channels = n_channels
+        self.grid_size = img_size // patch_size
+        self.num_patches = self.grid_size ** 2
 
-        self.num_patches = (img_size // patch_size) ** 2
-        self.patch_dim = n_channels * (patch_size ** 2)
-        self.linear_project = nn.Linear(self.patch_dim, dim)
+        self.proj = nn.Conv2d(
+            in_chans,
+            embed_dim,
+            kernel_size=patch_size,
+            stride=patch_size
+        )
 
     def forward(self, x):
-        B, C, H, W = x.shape
-        P = self.patch_size
-
-        # Split into patches
-        x = x.reshape(B, C, H // P, P, W // P, P)
-        x = x.permute(0, 2, 4, 1, 3, 5)  # [B, H/P, W/P, C, P, P]
-        x = x.reshape(B, -1, self.patch_dim)  # [B, N, patch_dim]
-        x = self.linear_project(x)  # [B, N, dim]
+        # [B, 3, 224, 224] -> [B, embed_dim, H/P, W/P]
+        x = self.proj(x)                 # [B, 225, 14, 14]
+        x = x.flatten(2).transpose(1, 2) # [B, N, D]
         return x
 
-# ----- Multi-head Self Attention -----
-class MultiHeadSelfAttention(nn.Module):
-    def __init__(self, dim, heads):
-        super().__init__()
-        assert dim % heads == 0, "Embedding dim must be divisible by number of heads"
-        self.heads = heads
-        self.head_dim = dim // heads
 
-        self.qkv = nn.Linear(dim, dim * 3)
-        self.out_proj = nn.Linear(dim, dim)
+# =============== Efficient Attention (linearized) ===============
+class EfficientAttention(nn.Module):
+    def __init__(self, dim, num_heads=3, qkv_bias=True):
+        super().__init__()
+        self.num_heads = num_heads
+        self.dim = dim
+        self.head_dim = dim // num_heads
+
+        self.q = nn.Linear(dim, dim, bias=qkv_bias)
+        self.k = nn.Linear(dim, dim, bias=qkv_bias)
+        self.v = nn.Linear(dim, dim, bias=qkv_bias)
+        self.proj = nn.Linear(dim, dim)
 
     def forward(self, x):
-        B, N, D = x.shape
-        qkv = self.qkv(x).reshape(B, N, 3, self.heads, self.head_dim).permute(2, 0, 3, 1, 4)
-        q, k, v = qkv[0], qkv[1], qkv[2]
+        B, N, C = x.shape
 
-        attn = (q @ k.transpose(-2, -1)) / math.sqrt(self.head_dim)
-        attn = F.softmax(attn, dim=-1)
-        out = (attn @ v).transpose(1, 2).reshape(B, N, D)
-        return self.out_proj(out)
+        q = self.q(x).reshape(B, N, self.num_heads, self.head_dim)
+        k = self.k(x).reshape(B, N, self.num_heads, self.head_dim)
+        v = self.v(x).reshape(B, N, self.num_heads, self.head_dim)
 
-# ----- Transformer Block -----
+        q = q.permute(0, 2, 1, 3)  # [B,H,N,D]
+        k = k.permute(0, 2, 1, 3)
+        v = v.permute(0, 2, 1, 3)
+
+        # Linearized Attention
+        q = F.softmax(q, dim=-1)
+        k = F.softmax(k, dim=-2)
+
+        kv = torch.einsum('bhnd,bhne->bhde', k, v)
+        out = torch.einsum('bhnd,bhde->bhne', q, kv)
+
+        out = out.permute(0, 2, 1, 3).reshape(B, N, C)
+        return self.proj(out)
+
+
+# =============== Transformer Encoder Block ===============
 class TransformerBlock(nn.Module):
-    def __init__(self, dim, heads, mlp_dim):
+    def __init__(self, dim=225, num_heads=3, mlp_ratio=512/225):
         super().__init__()
         self.norm1 = nn.LayerNorm(dim)
-        self.attn = MultiHeadSelfAttention(dim, heads)
+        self.attn = EfficientAttention(dim, num_heads=num_heads)
         self.norm2 = nn.LayerNorm(dim)
+
+        hidden_dim = int(dim * mlp_ratio)
         self.mlp = nn.Sequential(
-            nn.Linear(dim, mlp_dim),
+            nn.Linear(dim, hidden_dim),
             nn.GELU(),
-            nn.Linear(mlp_dim, dim)
+            nn.Linear(hidden_dim, dim),
         )
 
     def forward(self, x):
@@ -71,67 +87,66 @@ class TransformerBlock(nn.Module):
         x = x + self.mlp(self.norm2(x))
         return x
 
-# ----- Vision Transformer -----
-class ViT(nn.Module):
-    def __init__(self, image_size, patch_size, in_channels, num_classes, dim, depth, heads, mlp_dim):
+
+# =============== Scratch MiniViT (Binary Classifier) ===============
+class ScratchMiniViT_Binary(nn.Module):
+    def __init__(
+        self,
+        img_size=224,
+        patch_size=15,
+        in_chans=3,
+        embed_dim=225,
+        depth=3,
+        num_heads=3,
+        mlp_ratio=512/225
+    ):
         super().__init__()
-        self.image_size = image_size
-        self.patch_size = patch_size
-        self.in_channels = in_channels
-        self.num_classes = num_classes
-        self.dim = dim
-        self.depth = depth
-        self.heads = heads
-        self.mlp_dim = mlp_dim
 
-        self.patch_embed = PatchEmbedding(dim, image_size, patch_size, in_channels)
-        num_patches = (image_size // patch_size) ** 2
+        self.patch_embed = PatchEmbed(
+            img_size, patch_size, in_chans, embed_dim
+        )
 
-        # CLS token & positional embedding
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, dim))
-        self.pos_embedding = nn.Parameter(torch.zeros(1, num_patches + 1, dim))
+        # Transformer blocks
+        self.blocks = nn.ModuleList([
+            TransformerBlock(embed_dim, num_heads, mlp_ratio)
+            for _ in range(depth)
+        ])
+        self.norm = nn.LayerNorm(embed_dim)
 
-        self.transformer = nn.Sequential(*[TransformerBlock(dim, heads, mlp_dim) for _ in range(depth)])
-        self.norm = nn.LayerNorm(dim)
+        # 单一 Binary FC Head（结构与 multi-user head 完全一致）
+        self.binary_head = nn.Sequential(
+            nn.Linear(embed_dim, 1024),
+            Swish(),
+            nn.Dropout(0.2),
 
-        # MLP Head (2-layer, better than single linear)
-        self.mlp_head = nn.Sequential(
-            nn.Linear(dim, mlp_dim),
-            nn.GELU(),
-            nn.Dropout(0.3),
-            nn.Linear(mlp_dim, num_classes)
+            nn.Linear(1024, 512),
+            Swish(),
+            nn.Dropout(0.1),
+
+            nn.Linear(512, 256),
+            Swish(),
+            nn.Dropout(0.05),
+
+            nn.Linear(256, 128),
+            Swish(),
+            nn.Dropout(0.05),
+
+            nn.Linear(128, 1)
         )
 
     def forward(self, x):
-        B = x.shape[0]
-        x = self.patch_embed(x)  # [B, N, dim]
+        # Patch embedding
+        x = self.patch_embed(x)  # [B, N, D]
 
-        # prepend CLS token
-        cls_tokens = self.cls_token.expand(B, -1, -1)  # [B, 1, dim]
-        x = torch.cat((cls_tokens, x), dim=1)  # [B, N+1, dim]
+        # Transformer
+        for blk in self.blocks:
+            x = blk(x)
 
-        # add positional embedding
-        x = x + self.pos_embedding[:, :x.size(1), :]
-
-        # transformer encoder
-        x = self.transformer(x)
         x = self.norm(x)
 
-        # take CLS token
-        cls_output = x[:, 0]
-        return self.mlp_head(cls_output)
+        # MAX-AGGR-2 pooling
+        x = x.max(dim=1)[0]  # [B, D]
 
-# ----- InsiderThreatViT -----
-class InsiderThreatViT(ViT):
-    def __init__(self):
-        super().__init__(
-            image_size=224,
-            patch_size=8,
-            in_channels=3,
-            num_classes=1,
-            dim=384,
-            depth=6,
-            heads=6,
-            mlp_dim=512
-        )
-
+        # Binary logit
+        logit = self.binary_head(x)  # [B, 1]
+        return logit

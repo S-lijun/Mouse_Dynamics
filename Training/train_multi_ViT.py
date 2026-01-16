@@ -38,6 +38,7 @@ print(f"[INFO] Logging training output to:   {log_path}")
 
 # --- Model  ---
 #from models.pretrained_VIT_B16_multi import PretrainedViT_B16_Multilabel as insiderThreatViT
+#from models.pretrained_VIT_B16_multi_new import PretrainedViT_B16_Multilabel_NoCLS_NoPos as insiderThreatViT
 #from models.pretrained_VIT_DEIT_Tiny import PretrainedDeiT_Tiny_Multilabel as insiderThreatViT
 from models.scratch_ViT_multi import ScratchMiniViT_MultiLabel as insiderThreatViT
 
@@ -107,8 +108,16 @@ if __name__ == "__main__":
     print("[INFO] Training Start:")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("[INFO] Using device:", device)
+    print("Pretrained ImageNet ViT")
 
-    Images = ["Balabit_arp/training", "Balabit_srp/training"]
+    Images = ["Chunck/Balabit_chunks_baseline/event30","Chunck/Balabit_chunks_baseline/event15","Chunck/Balabit_chunks_baseline/event10"]
+
+    Images = ["Chunck/Balabit_chunks_baseline/event300","Chunck/Balabit_chunks_baseline/event120","Chunck/Balabit_chunks_baseline/event60",
+              "Chunck/Balabit_chunks_baseline/event30"]
+    
+    Images = ["Balabit_chunk_RP/chunk_120/training","Balabit_chunk_RP/chunk_60/training"]
+    
+    #Images = ["Chunk/Balabit_chunks_cdf/event15", "Chunk/Balabit_chunks_cdf/event10"]
     
     for images in Images:
         print(f"This is {images}: ")
@@ -158,10 +167,10 @@ if __name__ == "__main__":
             torch.cuda.reset_peak_memory_stats()
 
             model, best_model, *_ = trainer.train(
-                optim_name='sgd',
+                optim_name='sgd', # "sgd or adam" 
                 num_epochs=15,
                 learning_rate=0.01,
-                step_size=7,
+                step_size=4,
                 learning_rate_decay=0.1,
                 acc_frequency=1,
                 verbose=True
@@ -209,7 +218,7 @@ if __name__ == "__main__":
             results_dir = os.path.join(project_root, "Training", "Results")
             os.makedirs(results_dir, exist_ok=True)
 
-            results_path = os.path.join(results_dir, f"train_multi_ViT/score_fusion_results_ViT_{timestamp}.json")
+            results_path = os.path.join(results_dir, f"score_fusion_results_ViT_{timestamp}.json")
             with open(results_path, "w") as f:
                 json.dump(user_result_dict, f, indent=2)
 

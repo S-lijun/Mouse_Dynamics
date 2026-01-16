@@ -114,112 +114,108 @@ if __name__ == "__main__":
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("[INFO] Using device:", device)
-    images = input("Images: ")
-    image_dir = os.path.join(project_root, 'Images', images)
-    #user_list = sorted([u for u in os.listdir(image_dir) if os.path.isdir(os.path.join(image_dir, u))])
+    Images = ["Balabit_chunk_RP/chunk_120/training","Balabit_chunk_RP/chunk_60/training"]
+
+    for image in Images:
+        
+        image_dir = os.path.join(project_root, 'Images', Images)
+        print(f"[INFO] Dataset: {Images}")
+
+        user_list = ["user12", "user15", "user16", "user20", "user21","user23","user29","user35","user7","user9"]
+    
+
+        print(f"[INFO] Users: {user_list}")
+        raw_tensor_transform = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor()
+        ])
+
+        global_start = time.perf_counter()
+        final_results = {}
+        for target_user in user_list:
+
+            print(f"\n[INFO] Training for user: {target_user}")
+
+            full_dataset = RawMouseDataset(image_dir, target_user, transform=raw_tensor_transform)
+
+            total_labels = full_dataset.labels ##
+            raw_pos_count = sum(total_labels)
+            raw_neg_count = len(total_labels) - raw_pos_count
 
 
-    print(f"[INFO] Dataset: {images}")
-    #user_list = ["user2","user3","user4","user5","user7","user8","user9","user10","user11","user12","user13","user14","user15","user16","user19","user20"]
-    #user_list = ["user0","user1", "user6", "user17", "user24","user21","user22","user23","user25","user26","user27","user28","user29","user30"]
-    user_list = ["user7","user9","user12","user15","user16"]
-    #user_list = ["user0", "user1", "user6", "user14" ,"user17", "user24","user29"]
-    #user_list = ["user0", "user1", "user6", "user14"]
-    #user_list = ["user17", "user24","user29"]
-    #user_list = ["user0"]
+            pos_train, pos_val = train_test_split(full_dataset.positive_indices, test_size=0.2, random_state=42)
+            neg_train, neg_val = train_test_split(full_dataset.negative_indices, test_size=0.2, random_state=42)
 
-    print(f"[INFO] Users: {user_list}")
-    raw_tensor_transform = transforms.Compose([
-        transforms.Resize((224, 224)),
-        transforms.ToTensor()
-    ])
-
-    global_start = time.perf_counter()
-    final_results = {}
-    for target_user in user_list:
-
-        print(f"\n[INFO] Training for user: {target_user}")
-
-        full_dataset = RawMouseDataset(image_dir, target_user, transform=raw_tensor_transform)
-
-        total_labels = full_dataset.labels ##
-        raw_pos_count = sum(total_labels)
-        raw_neg_count = len(total_labels) - raw_pos_count
+            train_dataset = OversampledTrainDataset(full_dataset, pos_train, neg_train)
 
 
-        pos_train, pos_val = train_test_split(full_dataset.positive_indices, test_size=0.2, random_state=42)
-        neg_train, neg_val = train_test_split(full_dataset.negative_indices, test_size=0.2, random_state=42)
+            val_indices = pos_val + neg_val
+            val_dataset = Subset(full_dataset, val_indices)
 
-        train_dataset = OversampledTrainDataset(full_dataset, pos_train, neg_train)
+            train_loader = DataLoader(train_dataset, batch_size=512, shuffle=True)
+            val_loader = DataLoader(val_dataset, batch_size=512, shuffle=False)
 
+            net = insiderThreatCNN().to(device)
 
-        val_indices = pos_val + neg_val
-        val_dataset = Subset(full_dataset, val_indices)
+            trainer = BinaryClassTrainer(net=net, train_loader=train_loader, val_loader=val_loader,
+                                        pos_count = raw_pos_count, neg_count = raw_neg_count,
+                                        neg_weight_value= raw_neg_count/max(raw_pos_count,1))
 
-        train_loader = DataLoader(train_dataset, batch_size=512, shuffle=True)
-        val_loader = DataLoader(val_dataset, batch_size=512, shuffle=False)
+            import torch
+            torch.cuda.empty_cache()
+            torch.cuda.reset_peak_memory_stats()
 
-        net = insiderThreatCNN().to(device)
+            model, best_model, train_losses, val_losses, train_accs, val_accs, val_eer, val_auc = trainer.train(
+                optim_name='sgd', # SGD
+                num_epochs=15,
+                learning_rate=0.01, # 0.01 for complex images
+                step_size=5,
+                learning_rate_decay=0.1,
+                acc_frequency=1,
+                verbose=True
+            )
 
-        trainer = BinaryClassTrainer(net=net, train_loader=train_loader, val_loader=val_loader,
-                                    pos_count = raw_pos_count, neg_count = raw_neg_count,
-                                    neg_weight_value= raw_neg_count/max(raw_pos_count,1))
+            # ---- Save best model to saved_models/ ----
+            saved_model_dir = Path(project_root) / "saved_models"
+            saved_model_dir.mkdir(exist_ok=True)
+            model_filename = f"{target_user}_best_model_{timestamp}.pth"
+            model_path = saved_model_dir / model_filename
+            torch.save(best_model.state_dict(), model_path)
+            print(f"[INFO] Best model saved to: {model_path}")
 
-        import torch
-        torch.cuda.empty_cache()
-        torch.cuda.reset_peak_memory_stats()
+            # ---------- Score Fusion Evaluation -----------
+            from Training.Score_Fusion.Score_Fusion import get_scores, binary_test
 
-        model, best_model, train_losses, val_losses, train_accs, val_accs, val_eer, val_auc = trainer.train(
-            optim_name='sgd', # SGD
-            num_epochs=15,
-            learning_rate=0.01, # 0.01 for complex images
-            step_size=5,
-            learning_rate_decay=0.1,
-            acc_frequency=1,
-            verbose=True
-        )
+            val_loader_fusion = DataLoader(val_dataset, batch_size=256, shuffle=False)
+            all_outs, all_ys = get_scores(val_loader_fusion, model_path=model_path, device=device, model_class=insiderThreatCNN)
 
-        # ---- Save best model to saved_models/ ----
-        saved_model_dir = Path(project_root) / "saved_models"
-        saved_model_dir.mkdir(exist_ok=True)
-        model_filename = f"{target_user}_best_model_{timestamp}.pth"
-        model_path = saved_model_dir / model_filename
-        torch.save(best_model.state_dict(), model_path)
-        print(f"[INFO] Best model saved to: {model_path}")
+            user_result_dict = {}
+            for n in range(1,50):
+                print(f"\n=== Score Fusion (n={n}) ===")
+                results = binary_test(all_outs, all_ys, n=n, user_id=target_user)
+                user_result_dict[n] = results
 
-        # ---------- Score Fusion Evaluation -----------
-        from Training.Score_Fusion.Score_Fusion import get_scores, binary_test
-        from torch.utils.data import DataLoader
+            final_results[target_user] = user_result_dict
 
-        val_loader_fusion = DataLoader(val_dataset, batch_size=256, shuffle=False)
-        all_outs, all_ys = get_scores(val_loader_fusion, model_path=model_path, device=device, model_class=insiderThreatCNN)
+            del model, best_model, trainer, net, train_loader, val_loader
+            gc.collect()
+            torch.cuda.empty_cache()
+            print("[INFO] Training finished. CUDA memory allocated:", torch.cuda.memory_allocated())
 
-        user_result_dict = {}
-        for n in range(1,50):
-            print(f"\n=== Score Fusion (n={n}) ===")
-            results = binary_test(all_outs, all_ys, n=n, user_id=target_user)
-            user_result_dict[n] = results
+        # ----- Save final_results to JSON -----
+        import json
+        results_dir = os.path.join(project_root, "Training", "Results")
+        os.makedirs(results_dir, exist_ok=True)
 
-        final_results[target_user] = user_result_dict
+        image_tag = image.replace("/", "_")
+        results_path = os.path.join(results_dir, f"score_fusion_results_CNN_{image_tag}_{timestamp}.json")
+        with open(results_path, "w") as f:
+            json.dump(final_results, f, indent=2)
 
-        del model, best_model, trainer, net, train_loader, val_loader
-        gc.collect()
-        torch.cuda.empty_cache()
-        print("[INFO] Training finished. CUDA memory allocated:", torch.cuda.memory_allocated())
+        print(f"[INFO] Score fusion results saved to: {results_path}")
 
-    # ----- Save final_results to JSON -----
-    import json
-    results_dir = os.path.join(project_root, "Training", "Results")
-    os.makedirs(results_dir, exist_ok=True)
-
-    results_path = os.path.join(results_dir, f"train_all_user_CNN/score_fusion_results_{timestamp}.json")
-    with open(results_path, "w") as f:
-        json.dump(final_results, f, indent=2)
-
-    print(f"[INFO] Score fusion results saved to: {results_path}")
-
-    total_elapsed = time.perf_counter() - global_start
-    human_readable = str(datetime.timedelta(seconds=int(total_elapsed)))
-    print(f"\n[INFO] All User training finished, total time consumption: {human_readable} "
-        f"({total_elapsed:.2f} sec)")
+        total_elapsed = time.perf_counter() - global_start
+        human_readable = str(datetime.timedelta(seconds=int(total_elapsed)))
+        print(f"\n[INFO] All User training finished, total time consumption: {human_readable} "
+            f"({total_elapsed:.2f} sec)")
 
