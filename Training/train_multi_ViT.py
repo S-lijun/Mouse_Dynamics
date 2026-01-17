@@ -115,7 +115,7 @@ if __name__ == "__main__":
     Images = ["Chunck/Balabit_chunks_baseline/event300","Chunck/Balabit_chunks_baseline/event120","Chunck/Balabit_chunks_baseline/event60",
               "Chunck/Balabit_chunks_baseline/event30"]
     
-    Images = ["Balabit_chunk_RP/chunk_120/training","Balabit_chunk_RP/chunk_60/training"]
+    Images = ["Chunk/Balabit_chunks_XY/event60","Chunk/Balabit_chunks_XY/event30"]
     
     #Images = ["Chunk/Balabit_chunks_cdf/event15", "Chunk/Balabit_chunks_cdf/event10"]
     
