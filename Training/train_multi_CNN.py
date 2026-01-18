@@ -44,7 +44,7 @@ print(f"[INFO] Logging training output to:   {log_path}")
 from models.pretrained_googlenet_multi import PretrainedGoogLeNet_Multilabel as insiderThreatCNN
 #from models.pretrained_ResNet18_multi import PretrainedResNet18_Multilabel as insiderThreatCNN
 
-from Training.Trainers.multi_class_trainer_CNN import MultiLabelTrainerCNN as MultiLabelTrainer
+from Training.Trainers.multi_class_trainer import MultiLabelTrainerCNN as MultiLabelTrainer
 #from Training.Trainers.multi_class_trainer_CNN import MultiLabelTrainerCNN as MultiLabelTrainer
 #from models.binary_CNN import flexCNN #---Use flexCNN
 from torch.utils.data import WeightedRandomSampler
@@ -114,7 +114,8 @@ if __name__ == "__main__":
 
     #images = input("Image: ")
     # event 15, event 30 ， event 60, event 120, event 300 are done!
-    Images = ["Balabit_arp/training", "Balabit_srp/training"]
+    Images = ["Chunk/Balabit_chunks_XY_/event300","Chunk/Balabit_chunks_XY_/event120","Chunk/Balabit_chunks_XY_/event60",
+              "Chunk/Balabit_chunks_XY_/event30"]
     
     for images in Images:
         print(f"This is {images}: ")
