@@ -38,9 +38,9 @@ print(f"[INFO] Logging training output to:   {log_path}")
 
 # --- Model  ---
 #from models.pretrained_VIT_B16_multi import PretrainedViT_B16_Multilabel as insiderThreatViT
-from models.pretrained_VIT_B16_multi_new import PretrainedViT_B16_Multilabel_NoCLS_NoPos as insiderThreatViT
+#from models.pretrained_VIT_B16_multi_new import PretrainedViT_B16_Multilabel_NoCLS_NoPos as insiderThreatViT
 #from models.pretrained_VIT_DEIT_Tiny import PretrainedDeiT_Tiny_Multilabel as insiderThreatViT
-#from models.scratch_ViT_multi import ScratchMiniViT_MultiLabel as insiderThreatViT
+from models.scratch_ViT_multi import ScratchMiniViT_MultiLabel as insiderThreatViT
 
 # --- Trainer ---
 from Training.Trainers.multi_class_trainer_ViT import MultiLabelTrainerViT as MultiLabelTrainer
@@ -118,6 +118,7 @@ if __name__ == "__main__":
     Images = ["Chunk/Balabit_chunks_XY_/event60","Chunk/Balabit_chunks_XY_/event30"]
     Images = ["Chunk/Balabit_chunks_XY_/event300","Chunk/Balabit_chunks_XY_/event120"]
     Images = ["Chunk/Balabit_chunks_XY_/event60", "Chunk/Balabit_chunks_XY_/event30"]
+    Images = ["Chunk/Balabit_chunks_XY_black_white/event300", "Chunk/Balabit_chunks_XY_black_white/event120"]
     
     #Images = ["Chunk/Balabit_chunks_cdf/event15", "Chunk/Balabit_chunks_cdf/event10"]
     
