@@ -171,7 +171,7 @@ if __name__ == "__main__":
             model, best_model, *_ = trainer.train(
                 optim_name='sgd', # "sgd or adam" 
                 num_epochs=25,
-                learning_rate=0.01,
+                learning_rate=0.001,
                 step_size=7,
                 learning_rate_decay=0.1,
                 acc_frequency=1,
