@@ -116,6 +116,8 @@ if __name__ == "__main__":
     # event 15, event 30 ， event 60, event 120, event 300 are done!
     Images = ["Chunk/Balabit_chunks_XY_/event300","Chunk/Balabit_chunks_XY_/event120","Chunk/Balabit_chunks_XY_/event60",
               "Chunk/Balabit_chunks_XY_/event30"]
+    Images = ["Chunk/Balabit_chunks_XY_black_white/event300","Chunk/Balabit_chunks_XY_black_white/event120","Chunk/Balabit_chunks_XY_black_white/event60",
+              "Chunk/Balabit_chunks_XY_black_white/event30"]
     
     for images in Images:
         print(f"This is {images}: ")
