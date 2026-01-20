@@ -218,7 +218,7 @@ if __name__ == "__main__":
 
             # ----- Save final_results to JSON -----
             import json
-            results_dir = os.path.join(project_root, "Results", "train_multi_ViT")
+            results_dir = os.path.join(project_root, "Training", "Results")
             os.makedirs(results_dir, exist_ok=True)
 
             results_path = os.path.join(results_dir, f"score_fusion_results_ViT_{timestamp}.json")
