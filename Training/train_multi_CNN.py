@@ -127,7 +127,6 @@ if __name__ == "__main__":
             #C_pos = float(input("C_pos = "))
             #C_neg = float(input("C_neg = "))
 
-
             #C_list = [[1,20],[20,1],[1,1],[20,20]]
             # [40,40] is the best
 
@@ -164,8 +163,8 @@ if __name__ == "__main__":
             train_dataset = Subset(dataset, train_indices)
             val_dataset = Subset(dataset, val_indices)
 
-            train_loader = DataLoader(train_dataset, batch_size=512, shuffle=True)
-            val_loader = DataLoader(val_dataset, batch_size=512, shuffle=False)
+            train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True)
+            val_loader = DataLoader(val_dataset, batch_size=128, shuffle=False)
 
             net = insiderThreatCNN(num_users=num_users).to(device)
 
