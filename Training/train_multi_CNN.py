@@ -37,12 +37,9 @@ print(f"[INFO] Logging training output from: {os.path.basename(__file__)}")
 print(f"[INFO] Logging training output to:   {log_path}")
 
 # --- Model and Trainer ---
-#from models.binary_CNN import insiderThreatCNN
-#from models.binary_CNN1 import insiderThreatCNN
-#from models.binary_CNN2 import insiderThreatCNN
-#from models.pretrained_googlenet import PretrainedGoogLeNet as insiderThreatCNN
-from models.pretrained_googlenet_multi import PretrainedGoogLeNet_Multilabel as insiderThreatCNN
-#from models.pretrained_ResNet18_multi import PretrainedResNet18_Multilabel as insiderThreatCNN
+
+#from models.pretrained_googlenet_multi import PretrainedGoogLeNet_Multilabel as insiderThreatCNN
+from models.scratch_CNN_multi import ScratchMultiCNN as insiderThreatCNN
 
 from Training.Trainers.multi_class_trainer import MultiLabelTrainerCNN as MultiLabelTrainer
 #from Training.Trainers.multi_class_trainer_CNN import MultiLabelTrainerCNN as MultiLabelTrainer
