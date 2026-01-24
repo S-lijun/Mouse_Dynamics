@@ -102,7 +102,7 @@ class MultiLabelTrainerCNN:
 
         '''
         min_delta = 0.001  
-        patience = 15
+        patience = 5
         patience_counter = 0
 
         '''

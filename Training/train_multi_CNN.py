@@ -113,7 +113,7 @@ if __name__ == "__main__":
     # event 15, event 30 ， event 60, event 120, event 300 are done!
     Images = ["Chunk/Balabit_chunks_XY_/event300","Chunk/Balabit_chunks_XY_/event120","Chunk/Balabit_chunks_XY_/event60",
               "Chunk/Balabit_chunks_XY_/event30"]
-    Images = ["Chunk/Balabit_chunks_XY_black_white_cdf/training/event15","Chunk/Balabit_chunks_XY_black_white/event15"]
+    Images = ["Chunk/Balabit_chunks_XY_black_white/event15"]
     
     for images in Images:
         print(f"This is {images}: ")
@@ -182,7 +182,7 @@ if __name__ == "__main__":
 
             model, best_model, *_ = trainer.train(
                 optim_name='sgd',
-                num_epochs=25,
+                num_epochs=22,
                 learning_rate=0.01, # 0.01 is the best
                 step_size=7,
                 learning_rate_decay=0.1,
