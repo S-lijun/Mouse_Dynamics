@@ -171,7 +171,7 @@ if __name__ == "__main__":
             torch.cuda.reset_peak_memory_stats()
 
             model, best_model, *_ = trainer.train(
-                optim_name='adamW', # "sgd or adam or adamW" 
+                optim_name='adamw', # "sgd or adam or adamw" 
                 num_epochs=17,
                 learning_rate=0.0001,
                 step_size=5,

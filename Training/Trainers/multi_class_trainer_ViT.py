@@ -97,7 +97,7 @@ class MultiLabelTrainerViT:
         # ------------------ Optimizer ------------------ #
         if optim_name.lower() == 'adam':
             optimizer = optim.Adam(self.net.parameters(), lr=learning_rate)
-        elif optim_name.lower() == 'adamW':
+        elif optim_name.lower() == 'adamw':
             optimizer = optim.AdamW(self.net.parameters(),lr=learning_rate)
         elif optim_name.lower() == 'sgd':
             optimizer = optim.SGD(self.net.parameters(), lr=learning_rate, momentum=0.9)
