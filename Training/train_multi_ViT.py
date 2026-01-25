@@ -172,7 +172,7 @@ if __name__ == "__main__":
 
             model, best_model, *_ = trainer.train(
                 optim_name='sgd', # "sgd or adam" 
-                num_epochs=25,
+                num_epochs=22,
                 learning_rate=0.01,
                 step_size=7,
                 learning_rate_decay=0.1,
