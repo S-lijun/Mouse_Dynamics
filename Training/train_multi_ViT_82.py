@@ -252,13 +252,13 @@ if __name__ == "__main__":
             print("\n===== Score Fusion Curve =====")
             for n in range(1, 50):
                 res = multilabel_score_fusion(
-                    scores,
-                    labels,
-                    session_ids,
-                    thresholds,
-                    user_ids,
-                    n
-                )
+                        scores,
+                        labels,
+                        session_ids,
+                        user_ids,
+                        n
+                    )
+
                 avg_eer = np.mean([v["EER"] for v in res.values()])
                 avg_auc = np.mean([v["AUC"] for v in res.values()])
 

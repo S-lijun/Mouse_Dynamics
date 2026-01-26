@@ -13,8 +13,14 @@ from scipy.optimize import brentq
 #                             EER / AUC
 ################################################################################
 
-def calculate_eer(y_true: np.ndarray, y_score: np.ndarray) -> Tuple[float, float, float]:
-    """Return (EER, AUC, threshold) for binary classification."""
+def calculate_eer(
+    y_true: np.ndarray,
+    y_score: np.ndarray
+) -> Tuple[float, float, float]:
+    """
+    Return (EER, AUC, threshold) for binary classification.
+    Threshold is estimated on the SAME score distribution.
+    """
     if len(np.unique(y_true)) < 2:
         return 0.0, 1.0, 0.5
 
@@ -22,13 +28,20 @@ def calculate_eer(y_true: np.ndarray, y_score: np.ndarray) -> Tuple[float, float
     auc = roc_auc_score(y_true, y_score)
 
     try:
-        eer = brentq(lambda x: 1.0 - x - interp1d(fpr, tpr)(x), 0.0, 1.0)
-        eer_thr = thresholds[np.nanargmin(np.abs((1 - tpr) - fpr))]
+        eer = brentq(
+            lambda x: 1.0 - x - interp1d(fpr, tpr)(x),
+            0.0,
+            1.0
+        )
+        eer_thr = thresholds[
+            np.nanargmin(np.abs((1.0 - tpr) - fpr))
+        ]
     except (ValueError, RuntimeError):
         eer, eer_thr = 0.5, 0.5
 
     eer = min(eer, 1.0 - eer)
     auc = max(auc, 1.0 - auc)
+
     return float(eer), float(auc), float(eer_thr)
 
 ################################################################################
@@ -46,12 +59,12 @@ def grouping_by_session(
 
     - Group by session_id (NOT by label)
     - Within each session, fuse every n consecutive samples
-    - Label is assigned AFTER fusion (majority vote; safe under LOSO)
+    - Labels are ONLY used for metric assignment after fusion
 
     Args:
         scores: shape (N,)
-        labels: shape (N,) binary
-        session_ids: shape (N,) hashable (str or int)
+        labels: shape (N,) binary (user-vs-rest)
+        session_ids: shape (N,)
         n: fusion window size
 
     Returns:
@@ -72,8 +85,7 @@ def grouping_by_session(
         for i in range(0, total, n):
             fused_scores.append(sess_scores[i:i + n].mean())
 
-            # label is NOT used for grouping, only for metric assignment
-            # majority vote (under LOSO this is constant anyway)
+            # LOSO: session label is constant; this is safe
             lab = int(np.round(sess_labels[i:i + n].mean()))
             fused_labels.append(lab)
 
@@ -90,17 +102,22 @@ def multilabel_score_fusion_one(
     scores: np.ndarray,
     labels: np.ndarray,
     session_ids: np.ndarray,
-    thr: float,
     n: int = 1
 ) -> Dict[str, float]:
     """
-    Score fusion for ONE user (binary: user vs rest),
-    session-aware and label-independent grouping.
+    Score fusion for ONE user (binary: user vs rest).
+
+    IMPORTANT:
+    - Fusion is session-aware
+    - Threshold is re-estimated AFTER fusion (Option B)
     """
     if n > 1:
-        scores, labels = grouping_by_session(scores, labels, session_ids, n)
+        scores, labels = grouping_by_session(
+            scores, labels, session_ids, n
+        )
 
-    eer, auc, _ = calculate_eer(labels, scores)
+    # 🔑 Re-estimate threshold on fused score distribution
+    eer, auc, thr = calculate_eer(labels, scores)
     preds = scores >= thr
 
     tp = int(np.logical_and(preds, labels == 1).sum())
@@ -109,7 +126,7 @@ def multilabel_score_fusion_one(
 
     prec = tp / (tp + fp + 1e-6)
     rec  = tp / (tp + fn + 1e-6)
-    f1   = 2 * prec * rec / (prec + rec + 1e-6)
+    f1   = 2.0 * prec * rec / (prec + rec + 1e-6)
 
     return dict(
         EER=eer,
@@ -117,7 +134,8 @@ def multilabel_score_fusion_one(
         Precision=prec,
         Recall=rec,
         F1=f1,
-        Samples=len(labels)
+        Samples=len(labels),
+        Threshold=thr
     )
 
 
@@ -125,16 +143,22 @@ def multilabel_score_fusion(
     all_scores: np.ndarray,
     all_labels: np.ndarray,
     all_session_ids: np.ndarray,
-    thresholds: np.ndarray,
     user_ids: List[int],
     n: int = 1
 ) -> Dict[str, Dict[str, float]]:
     """
-    all_scores: [N, U]
-    all_labels: [N, U]
-    all_session_ids: [N]  (shared across users)
+    Multi-user score fusion.
+
+    Args:
+        all_scores: shape (N, U)
+        all_labels: shape (N, U)
+        all_session_ids: shape (N,)
+        user_ids: list of user indices
+        n: fusion window size
     """
-    assert all_scores.shape == all_labels.shape, "scores & labels shape mismatch"
+    assert all_scores.shape == all_labels.shape, \
+        "scores & labels shape mismatch"
+
     res = {}
 
     for u in user_ids:
@@ -142,7 +166,6 @@ def multilabel_score_fusion(
             all_scores[:, u],
             all_labels[:, u],
             all_session_ids,
-            thresholds[u],
             n
         )
 
