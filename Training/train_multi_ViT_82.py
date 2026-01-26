@@ -43,7 +43,8 @@ sys.stdout = TeeLogger(log_path)
 # ======================================================
 # Imports (Model / Trainer / Score Fusion)
 # ======================================================
-from models.scratch_ViT_multi import ScratchMiniViT_MultiLabel as insiderThreatViT
+#from models.scratch_ViT_multi import ScratchMiniViT_MultiLabel as insiderThreatViT
+from models.pretrained_VIT_B16_multi_new import PretrainedViT_B16_Multilabel_NoCLS_NoPos as insiderThreatViT
 from Training.Trainers.multi_class_trainer_ViT_test import MultiLabelTrainerViT as MultiLabelTrainer
 from Training.Score_Fusion.Score_Fusion_Multi_82 import (
     multilabel_score_fusion,
@@ -198,7 +199,7 @@ if __name__ == "__main__":
 
     C_pos = 60
     C_neg = 60
-    K_FOLD = 1
+    K_FOLD = 5
 
     cv_root = Path(project_root) / "Training" / "Results" / f"CV_{K_FOLD}_fold" / timestamp
 
