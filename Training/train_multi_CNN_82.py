@@ -43,8 +43,8 @@ sys.stdout = TeeLogger(log_path)
 # ======================================================
 # Imports (Model / Trainer / Score Fusion)
 # ======================================================
-from models.scratch_ViT_multi import ScratchMiniViT_MultiLabel as insiderThreatViT
-from Training.Trainers.multi_class_trainer_ViT_test import MultiLabelTrainerViT as MultiLabelTrainer
+from models.scratch_CNN_multi import ScratchMultiCNN as insiderThreatViT
+from Training.Trainers.multi_class_trainer_test import MultiLabelTrainerCNN as MultiLabelTrainer
 from Training.Score_Fusion.Score_Fusion_Multi_82 import (
     multilabel_score_fusion,
     calculate_eer
@@ -164,7 +164,7 @@ if __name__ == "__main__":
     print("=" * 80)
 
     Images = [
-        "Chunk/Balabit_chunks_XY_black_white/event120", "Chunk/Balabit_chunks_XY_black_white/event60"
+        "Chunk/Balabit_chunks_XY_black_white/event300","Chunk/Balabit_chunks_XY_black_white/event120" ,"Chunk/Balabit_chunks_XY_black_white/event60"
     ]
 
     C_pos = 60
@@ -226,9 +226,9 @@ if __name__ == "__main__":
             )
 
             _, best_model, *_ = trainer.train(
-                optim_name="adamw",
+                optim_name="sgd",
                 num_epochs=17,
-                learning_rate=1e-4,
+                learning_rate=0.01,
                 step_size=5,
                 learning_rate_decay=0.1,
                 verbose=True
