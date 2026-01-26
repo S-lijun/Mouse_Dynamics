@@ -164,7 +164,8 @@ if __name__ == "__main__":
     print("=" * 80)
 
     Images = [
-        "Chunk/Balabit_chunks_XY_black_white/event30","Chunk/Balabit_chunks_XY_black_white/event15", "Chunk/Balabit_chunks_XY_black_white/event10"
+        "Chunk/Balabit_chunks_XY_black_white/event300","Chunk/Balabit_chunks_XY_black_white/event120", 
+        "Chunk/Balabit_chunks_XY_black_white/event60"
     ]
 
     C_pos = 60
@@ -250,7 +251,7 @@ if __name__ == "__main__":
             result = {"n": [], "avg_eer": [], "avg_auc": []}
 
             print("\n===== Score Fusion Curve =====")
-            for n in range(1, 50):
+            for n in range(1, 61):
                 res = multilabel_score_fusion(
                         scores,
                         labels,
