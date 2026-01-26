@@ -116,7 +116,7 @@ def multilabel_score_fusion_one(
             scores, labels, session_ids, n
         )
 
-    # 🔑 Re-estimate threshold on fused score distribution
+    # Re-estimate threshold on fused score distribution
     eer, auc, thr = calculate_eer(labels, scores)
     preds = scores >= thr
 
