@@ -39,7 +39,7 @@ sys.stdout = TeeLogger(log_path)
 # ======================================================
 from models.scratch_ViT_multi import ScratchMiniViT_MultiLabel as insiderThreatViT
 from Training.Trainers.multi_class_trainer_ViT import MultiLabelTrainerViT as MultiLabelTrainer
-from Training.Score_Fusion.Score_Fusion_Multi_82 import (
+from Training.Score_Fusion.Score_Fusion_Multi import (
     multilabel_score_fusion,
     calculate_eer
 )
@@ -207,10 +207,10 @@ if __name__ == "__main__":
             test_ds  = Subset(dataset, fold["test"])
 
             train_loader = DataLoader(
-                train_ds, batch_size=128, shuffle=True, num_workers=4
+                train_ds, batch_size=128, shuffle=True, num_workers=2
             )
             test_loader = DataLoader(
-                test_ds, batch_size=128, shuffle=False, num_workers=4
+                test_ds, batch_size=128, shuffle=False, num_workers=2
             )
 
             net = insiderThreatViT(num_users=num_users).to(device)
