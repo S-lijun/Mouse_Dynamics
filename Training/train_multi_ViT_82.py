@@ -164,7 +164,7 @@ if __name__ == "__main__":
     print("=" * 80)
 
     Images = [
-        "Chunk/Balabit_chunks_XY_black_white/event30","Chunk/Balabit_chunks_XY_black_white/event15"
+        "Chunk/Balabit_chunks_XY_black_white/event30","Chunk/Balabit_chunks_XY_black_white/event15", "Chunk/Balabit_chunks_XY_black_white/event10"
     ]
 
     C_pos = 60
