@@ -38,8 +38,8 @@ sys.stdout = TeeLogger(log_path)
 # Model / Trainer / Score Fusion
 # ======================================================
 from models.scratch_ViT_multi import ScratchMiniViT_MultiLabel as insiderThreatViT
-from Training.Trainers.multi_class_trainer_ViT import MultiLabelTrainerViT as MultiLabelTrainer
-from Training.Score_Fusion.Score_Fusion_Multi import (
+from Training.Trainers.multi_class_trainer_ViT_test import MultiLabelTrainerViT as MultiLabelTrainer
+from Training.Score_Fusion.Score_Fusion_Multi_82 import (
     multilabel_score_fusion,
     calculate_eer
 )
