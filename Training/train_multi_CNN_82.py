@@ -44,7 +44,7 @@ sys.stdout = TeeLogger(log_path)
 # Imports (Model / Trainer / Score Fusion)
 # ======================================================
 #from models.scratch_ViT_multi import ScratchMiniViT_MultiLabel as insiderThreatViT
-from models.pretrained_googlenet_multi import PretrainedGoogLeNet_Multilabel as insiderThreatViT
+from models.scratch_CNN_multi import ScratchMultiCNN as insiderThreatViT
 from Training.Trainers.multi_class_trainer_82 import MultiLabelTrainerCNN as MultiLabelTrainer
 from Training.Score_Fusion.Score_Fusion_Multi_82 import (
     multilabel_score_fusion,
@@ -248,9 +248,9 @@ if __name__ == "__main__":
             )
 
             _, best_model, *_ = trainer.train(
-                optim_name="adamw",
+                optim_name="sgd",
                 num_epochs=17,
-                learning_rate=1e-4,
+                learning_rate=0.01,
                 step_size=5,
                 learning_rate_decay=0.1,
                 verbose=True
