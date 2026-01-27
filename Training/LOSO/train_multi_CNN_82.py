@@ -12,10 +12,10 @@ import numpy as np
 # ======================================================
 # Env / Path
 # ======================================================
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:32"
 
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
 # ======================================================
@@ -23,7 +23,7 @@ timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 # ======================================================
 log_dir = Path(project_root) / "output_logs" / "train_multi_label"
 log_dir.mkdir(parents=True, exist_ok=True)
-log_path = log_dir / f"ViT_training_{timestamp}.out"
+log_path = log_dir / f"CNN_training_{timestamp}.out"
 
 class TeeLogger:
     def __init__(self, file_path):
@@ -44,8 +44,8 @@ sys.stdout = TeeLogger(log_path)
 # Imports (Model / Trainer / Score Fusion)
 # ======================================================
 #from models.scratch_ViT_multi import ScratchMiniViT_MultiLabel as insiderThreatViT
-from models.pretrained_VIT_B16_multi_new import PretrainedViT_B16_Multilabel_NoCLS_NoPos as insiderThreatViT
-from Training.Trainers.multi_class_trainer_ViT_82 import MultiLabelTrainerViT as MultiLabelTrainer
+from models.scratch_CNN_multi import ScratchMultiCNN as insiderThreatViT
+from Training.Trainers.multi_class_trainer_82 import MultiLabelTrainerCNN as MultiLabelTrainer
 from Training.Score_Fusion.Score_Fusion_Multi_82 import (
     multilabel_score_fusion,
     calculate_eer
@@ -193,9 +193,8 @@ if __name__ == "__main__":
     print("=" * 80)
 
     Images = [
-        "Chunk/Balabit_chunks_SRP_black_white/training/event300","Chunk/Balabit_chunks_SRP_black_white/training/event120",
-        "Chunk/Balabit_chunks_SRP_black_white/training/event60","Chunk/Balabit_chunks_SRP_black_white/training/event30",
-        "Chunk/Balabit_chunks_SRP_black_white/training/event15"
+        "Chunk/Balabit_chunks_XY_black_white/event60","Chunk/Balabit_chunks_XY_black_white_cdf/training/event60",
+        "Chunk/Balabit_chunks_XY_black_white/event30","Chunk/Balabit_chunks_XY_black_white_cdf/training/event30"
     ]
 
     C_pos = 60
@@ -251,7 +250,7 @@ if __name__ == "__main__":
             _, best_model, *_ = trainer.train(
                 optim_name="adamw",
                 num_epochs=17,
-                learning_rate=1e-4,
+                learning_rate=0.0001,
                 step_size=5,
                 learning_rate_decay=0.1,
                 verbose=True

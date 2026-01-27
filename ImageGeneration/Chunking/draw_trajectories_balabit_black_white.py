@@ -24,7 +24,10 @@ import matplotlib.pyplot as plt
 # Automatically detect project ROOT
 # ============================================================
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "training_files")
+############### Original training_files ############################
+#DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "training_files")
+############### protocol 1 testing_files ############################
+DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "testing_files_protocol1")
 
 print(f"[AutoRoot] Project root detected = {ROOT}")
 print(f"[AutoRoot] Using data_dir = {DATA_ROOT}")
@@ -230,7 +233,7 @@ def parse_args():
     p = argparse.ArgumentParser(
         description="Pure spatial mouse trajectory chunking (movement only)"
     )
-    p.add_argument("--out_dir", type=str, default="Images/Chunk/Balabit_chunks_XY_black_white")
+    p.add_argument("--out_dir", type=str, default="Images/Chunk/Balabit_chunks_XY_black_white/testing_protocol1")
     p.add_argument(
         "--sizes", type=int, nargs="+", default=[10, 15, 30, 60, 120, 300]
     )
