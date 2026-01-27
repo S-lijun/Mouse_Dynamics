@@ -195,7 +195,6 @@ if __name__ == "__main__":
     Images = [
         "Chunk/Balabit_chunks_XY_black_white/event60","Chunk/Balabit_chunks_XY_black_white_cdf/training/event60",
         "Chunk/Balabit_chunks_XY_black_white/event30","Chunk/Balabit_chunks_XY_black_white_cdf/training/event30"
-
     ]
 
     C_pos = 60
@@ -257,6 +256,13 @@ if __name__ == "__main__":
                 verbose=True
             )
 
+            # ================= Save Best Model =================
+            model_dir = Path(project_root) / "saved_models"
+            model_dir.mkdir(exist_ok=True)
+            model_path = model_dir / f"multilabel_ViT_{timestamp}.pth"
+            torch.save(best_model.state_dict(), model_path)
+            print(f"[INFO] Best model saved to: {model_path}")
+
             scores, labels, session_ids, _ = collect_val_scores(
                 best_model, test_loader, device
             )
@@ -265,7 +271,7 @@ if __name__ == "__main__":
             result = {"n": [], "avg_eer": [], "avg_auc": []}
 
             print("\n===== Score Fusion Curve =====")
-            for n in range(1, 61):
+            for n in range(1, 101):
                 res = multilabel_score_fusion(
                     scores, labels, session_ids, user_ids, n
                 )
@@ -279,10 +285,16 @@ if __name__ == "__main__":
                 result["avg_eer"].append(avg_eer)
                 result["avg_auc"].append(avg_auc)
 
-            with open(out_dir / f"MultiViT_score_fusion_{timestamp}_fold_{fold_id}.json", "w") as f:
+            result_path = out_dir / f"MultiViT_score_fusion_{timestamp}_fold_{fold_id}.json"
+            with open(result_path, "w") as f:
                 json.dump(result, f, indent=2)
+
+            print(f"[INFO] Score fusion results saved to: {result_path}")
 
             gc.collect()
             torch.cuda.empty_cache()
+
+            print("[INFO] CUDA memory allocated:",
+                torch.cuda.memory_allocated())
 
     print("\n[INFO] All folds finished.")

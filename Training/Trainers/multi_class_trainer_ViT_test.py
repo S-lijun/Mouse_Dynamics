@@ -92,7 +92,7 @@ class MultiLabelTrainerViT:
         train_losses, val_losses = [], []
         val_eer_history, val_auc_history = [], []
 
-        patience = 10
+        patience = 5
         patience_counter = 0
         min_delta = 0.001
 
