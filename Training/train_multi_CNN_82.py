@@ -23,7 +23,7 @@ timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 # ======================================================
 log_dir = Path(project_root) / "output_logs" / "train_multi_label"
 log_dir.mkdir(parents=True, exist_ok=True)
-log_path = log_dir / f"ViT_training_{timestamp}.out"
+log_path = log_dir / f"CNN_training_{timestamp}.out"
 
 class TeeLogger:
     def __init__(self, file_path):
@@ -43,7 +43,8 @@ sys.stdout = TeeLogger(log_path)
 # ======================================================
 # Imports (Model / Trainer / Score Fusion)
 # ======================================================
-from models.scratch_CNN_multi import ScratchMultiCNN as insiderThreatViT
+#from models.scratch_ViT_multi import ScratchMiniViT_MultiLabel as insiderThreatViT
+from models.pretrained_googlenet_multi import PretrainedGoogLeNet_Multilabel as insiderThreatViT
 from Training.Trainers.multi_class_trainer_82 import MultiLabelTrainerCNN as MultiLabelTrainer
 from Training.Score_Fusion.Score_Fusion_Multi_82 import (
     multilabel_score_fusion,
@@ -53,15 +54,18 @@ from Training.Score_Fusion.Score_Fusion_Multi_82 import (
 # ======================================================
 # Utils
 # ======================================================
-def parse_session_id(img_path: str) -> str:
-    name = os.path.basename(img_path)
-    m = re.match(r"(session_\d+)-\d+\.png", name)
+def parse_session_and_index(filename: str):
+    """
+    session_2144641057-32.png
+    -> ("session_2144641057", 32)
+    """
+    m = re.match(r"(session_\d+)-(\d+)\.png", filename)
     if m is None:
-        raise RuntimeError(f"Bad filename: {name}")
-    return m.group(1)
+        raise RuntimeError(f"Bad filename: {filename}")
+    return m.group(1), int(m.group(2))
 
 # ======================================================
-# Dataset (image, label, session_id)
+# Dataset (image, label, session_id)  FIXED ORDERING
 # ======================================================
 class RawMouseDataset(Dataset):
     def __init__(self, root_dir, all_users, transform=None):
@@ -75,10 +79,17 @@ class RawMouseDataset(Dataset):
 
         for user in all_users:
             user_path = os.path.join(root_dir, user)
-            for f in sorted(os.listdir(user_path)):
-                if not f.endswith(".png"):
-                    continue
 
+            files = []
+            for f in os.listdir(user_path):
+                if f.endswith(".png"):
+                    sess, idx = parse_session_and_index(f)
+                    files.append((sess, idx, f))
+
+            # sorted by (session_id, time_index)
+            files.sort(key=lambda x: (x[0], x[1]))
+
+            for sess, idx, f in files:
                 path = os.path.join(user_path, f)
                 self.samples.append(path)
 
@@ -86,7 +97,7 @@ class RawMouseDataset(Dataset):
                 y[self.user2index[user]] = 1.0
                 self.labels.append(y)
 
-                self.session_ids.append(parse_session_id(path))
+                self.session_ids.append(sess)
 
         print(f"[INFO] Loaded {len(self.samples)} samples from {len(all_users)} users.")
 
@@ -100,27 +111,46 @@ class RawMouseDataset(Dataset):
         return img, self.labels[idx], self.session_ids[idx]
 
 # ======================================================
-# Session-aware K-Fold (LOSO when K=1)
+# Session-aware K-Fold (per-user, without replacement)
 # ======================================================
-def build_kfold_session_splits(dataset, user_list, k=1, seed=42):
+def build_kfold_session_splits(dataset, user_list, k, seed=42):
     random.seed(seed)
+
     user_session_indices = {u: defaultdict(list) for u in user_list}
 
     for idx, path in enumerate(dataset.samples):
         user = os.path.basename(os.path.dirname(path))
-        sess = parse_session_id(path)
+        sess, _ = parse_session_and_index(os.path.basename(path))
         user_session_indices[user][sess].append(idx)
 
+    min_sessions = min(len(sess_dict) for sess_dict in user_session_indices.values())
+    if k > min_sessions:
+        raise ValueError(
+            f"K={k} is larger than the minimum number of sessions per user ({min_sessions})."
+        )
+
+    user_shuffled_sessions = {}
+    for u, sess_dict in user_session_indices.items():
+        sess_list = list(sess_dict.keys())
+        random.shuffle(sess_list)
+        user_shuffled_sessions[u] = sess_list
+
     folds = []
-    for _ in range(k):
+
+    for fold_id in range(k):
         train_idx, test_idx = [], []
-        for u, sess_dict in user_session_indices.items():
-            test_sess = sorted(sess_dict.keys())[0]  # LOSO
-            for s, idxs in sess_dict.items():
-                if s == test_sess:
+        print(f"\n[Fold {fold_id}] Test sessions:")
+
+        for u in user_list:
+            test_sess = user_shuffled_sessions[u][fold_id]
+            print(f"  {u}: {test_sess}")
+
+            for sess, idxs in user_session_indices[u].items():
+                if sess == test_sess:
                     test_idx.extend(idxs)
                 else:
                     train_idx.extend(idxs)
+
         folds.append({"train": train_idx, "test": test_idx})
 
     return folds
@@ -160,24 +190,18 @@ if __name__ == "__main__":
     print("[INFO] Training Start")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("[INFO] Using device:", device)
-    print("[INFO] Scratch ViT (single C=60)")
     print("=" * 80)
 
     Images = [
-        "Chunk/Balabit_chunks_XY_black_white/event300","Chunk/Balabit_chunks_XY_black_white/event120" ,"Chunk/Balabit_chunks_XY_black_white/event60"
+        "Chunk/Balabit_chunks_XY_black_white/event120","Chunk/Balabit_chunks_XY_black_white_cdf/training/event120",
+        "Chunk/Balabit_chunks_XY_black_white/event60","Chunk/Balabit_chunks_XY_black_white_cdf/event60"
     ]
 
     C_pos = 60
     C_neg = 60
     K_FOLD = 1
 
-    cv_root = (
-        Path(project_root)
-        / "Training"
-        / "Results"
-        / f"CV_{K_FOLD}_fold"
-        / timestamp
-    )
+    cv_root = Path(project_root) / "Training" / "Results" / f"CV_{K_FOLD}_fold" / timestamp
 
     for images in Images:
         print("\n" + "=" * 80)
@@ -191,7 +215,6 @@ if __name__ == "__main__":
             if os.path.isdir(os.path.join(image_dir, u))
         ])
         num_users = len(user_list)
-        print(f"[INFO] Users ({num_users}): {user_list}")
 
         transform = transforms.Compose([
             transforms.Resize((224, 224)),
@@ -205,7 +228,6 @@ if __name__ == "__main__":
         out_dir.mkdir(parents=True, exist_ok=True)
 
         for fold_id, fold in enumerate(folds):
-
             print(f"\n========== Fold {fold_id+1}/{K_FOLD} ==========")
 
             train_ds = Subset(dataset, fold["train"])
@@ -226,9 +248,9 @@ if __name__ == "__main__":
             )
 
             _, best_model, *_ = trainer.train(
-                optim_name="sgd",
+                optim_name="adamw",
                 num_epochs=17,
-                learning_rate=0.01,
+                learning_rate=1e-4,
                 step_size=5,
                 learning_rate_decay=0.1,
                 verbose=True
@@ -241,8 +263,7 @@ if __name__ == "__main__":
             torch.save(best_model.state_dict(), model_path)
             print(f"[INFO] Best model saved to: {model_path}")
 
-            # ================= Score Fusion =================
-            scores, labels, session_ids, thresholds = collect_val_scores(
+            scores, labels, session_ids, _ = collect_val_scores(
                 best_model, test_loader, device
             )
 
@@ -250,15 +271,11 @@ if __name__ == "__main__":
             result = {"n": [], "avg_eer": [], "avg_auc": []}
 
             print("\n===== Score Fusion Curve =====")
-            for n in range(1, 50):
+            for n in range(1, 101):
                 res = multilabel_score_fusion(
-                    scores,
-                    labels,
-                    session_ids,
-                    thresholds,
-                    user_ids,
-                    n
+                    scores, labels, session_ids, user_ids, n
                 )
+
                 avg_eer = np.mean([v["EER"] for v in res.values()])
                 avg_auc = np.mean([v["AUC"] for v in res.values()])
 
@@ -274,11 +291,10 @@ if __name__ == "__main__":
 
             print(f"[INFO] Score fusion results saved to: {result_path}")
 
-            del net, trainer, train_loader, test_loader
             gc.collect()
             torch.cuda.empty_cache()
 
             print("[INFO] CUDA memory allocated:",
-                  torch.cuda.memory_allocated())
+                torch.cuda.memory_allocated())
 
     print("\n[INFO] All folds finished.")

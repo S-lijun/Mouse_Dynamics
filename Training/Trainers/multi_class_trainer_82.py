@@ -36,7 +36,7 @@ def calculate_eer(y_true, y_scores):
 
 
 # ------------------ Trainer ------------------ #
-class MultiLabelTrainerCNN:
+class MultiLabelTrainerViT:
     def __init__(self, net=None, train_loader=None, val_loader=None,
                  pos_count=None, neg_count=None,
                  neg_weight_value=1.0, C_pos=5.0, C_neg=10.0):
