@@ -45,7 +45,7 @@ sys.stdout = TeeLogger(log_path)
 # ======================================================
 #from models.scratch_ViT_multi import ScratchMiniViT_MultiLabel as insiderThreatViT
 from models.pretrained_VIT_B16_multi_new import PretrainedViT_B16_Multilabel_NoCLS_NoPos as insiderThreatViT
-from Training.Trainers.multi_class_trainer_ViT_test import MultiLabelTrainerViT as MultiLabelTrainer
+from Training.Trainers.multi_class_trainer_ViT_82 import MultiLabelTrainerViT as MultiLabelTrainer
 from Training.Score_Fusion.Score_Fusion_Multi_82 import (
     multilabel_score_fusion,
     calculate_eer
@@ -86,7 +86,7 @@ class RawMouseDataset(Dataset):
                     sess, idx = parse_session_and_index(f)
                     files.append((sess, idx, f))
 
-            # 🔑 核心修复：显式按 (session_id, time_index) 排序
+            # sorted by (session_id, time_index)
             files.sort(key=lambda x: (x[0], x[1]))
 
             for sess, idx, f in files:
