@@ -43,8 +43,8 @@ sys.stdout = TeeLogger(log_path)
 # ======================================================
 # Imports (Model / Trainer / Score Fusion)
 # ======================================================
-from models.scratch_ViT_multi import ScratchMiniViT_MultiLabel as insiderThreatViT
-#from models.pretrained_VIT_B16_multi_new import PretrainedViT_B16_Multilabel_NoCLS_NoPos as insiderThreatViT
+#from models.scratch_ViT_multi import ScratchMiniViT_MultiLabel as insiderThreatViT
+from models.pretrained_VIT_B16_multi_new import PretrainedViT_B16_Multilabel_NoCLS_NoPos as insiderThreatViT
 from Training.Trainers.multi_class_trainer_ViT_82 import MultiLabelTrainerViT as MultiLabelTrainer
 from Training.Score_Fusion.Score_Fusion_Multi_82 import (
     multilabel_score_fusion,
@@ -195,8 +195,7 @@ if __name__ == "__main__":
     Images = [
         "Chunk/Balabit_chunks_XY_black_white/event300","Chunk/Balabit_chunks_XY_global_cdf/training/event300",
         "Chunk/Balabit_chunks_XY_black_white/event120","Chunk/Balabit_chunks_XY_global_cdf/training/event120",
-        "Chunk/Balabit_chunks_XY_black_white/event60","Chunk/Balabit_chunks_XY_global_cdf/training/event60",
-        "Chunk/Balabit_chunks_XY_black_white/event30","Chunk/Balabit_chunks_XY_global_cdf/training/event30"
+        "Chunk/Balabit_chunks_XY_black_white/event60","Chunk/Balabit_chunks_XY_global_cdf/training/event60"
     ]
 
     C_pos = 60
