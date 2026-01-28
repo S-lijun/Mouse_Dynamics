@@ -129,8 +129,6 @@ if __name__ == "__main__":
     print("[INFO] Using device:", device)
 
     event_folders = [
-        "event30",
-        "event60",
         "event120"
     ]
 
