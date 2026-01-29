@@ -195,7 +195,8 @@ if __name__ == "__main__":
     Images = [
         "Chunk/Balabit_chunks_XY_black_white/event300","Chunk/Balabit_chunks_XY_global_cdf/training/event300",
         "Chunk/Balabit_chunks_XY_black_white/event120","Chunk/Balabit_chunks_XY_global_cdf/training/event120",
-        "Chunk/Balabit_chunks_XY_black_white/event60","Chunk/Balabit_chunks_XY_global_cdf/training/event60"
+        "Chunk/Balabit_chunks_XY_black_white/event60","Chunk/Balabit_chunks_XY_global_cdf/training/event60",
+        "Chunk/Balabit_chunks_XY_black_white/event30","Chunk/Balabit_chunks_XY_global_cdf/training/event30"
     ]
 
     C_pos = 60

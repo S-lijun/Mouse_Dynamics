@@ -259,7 +259,7 @@ if __name__ == "__main__":
             # ================= Save Best Model =================
             model_dir = Path(project_root) / "saved_models"
             model_dir.mkdir(exist_ok=True)
-            model_path = model_dir / f"multilabel_ViT_{timestamp}.pth"
+            model_path = model_dir / f"multilabel_CNN_{timestamp}.pth"
             torch.save(best_model.state_dict(), model_path)
             print(f"[INFO] Best model saved to: {model_path}")
 
