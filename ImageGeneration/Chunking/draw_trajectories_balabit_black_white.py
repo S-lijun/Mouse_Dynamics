@@ -25,9 +25,9 @@ import matplotlib.pyplot as plt
 # ============================================================
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 ############### Original training_files ############################
-#DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "training_files")
+DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "training_files")
 ############### protocol 1 testing_files ############################
-DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "testing_files_protocol1")
+#DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "testing_files_protocol1")
 
 print(f"[AutoRoot] Project root detected = {ROOT}")
 print(f"[AutoRoot] Using data_dir = {DATA_ROOT}")
