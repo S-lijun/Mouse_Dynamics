@@ -36,7 +36,9 @@ print(f"[AutoRoot] Using data_dir = {DATA_ROOT}")
 # Drawing Utils
 # ----------------------------
 IMG_SIZE = (224, 224)
+IMG_SIZE = (448, 448)
 DPI = 100
+DPI = 200
 
 
 def _scaled(val, min_val, scale, offset):
@@ -233,7 +235,7 @@ def parse_args():
     p = argparse.ArgumentParser(
         description="Pure spatial mouse trajectory chunking (movement only)"
     )
-    p.add_argument("--out_dir", type=str, default="Images/Chunk/Balabit_chunks_XY_black_white/testing_protocol1")
+    p.add_argument("--out_dir", type=str, default="Images/Chunk/Balabit_chunks_XY_black_white_448")
     p.add_argument(
         "--sizes", type=int, nargs="+", default=[10, 15, 30, 60, 120, 300]
     )
