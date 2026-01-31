@@ -218,7 +218,7 @@ if __name__ == "__main__":
         num_users = len(user_list)
 
         transform = transforms.Compose([
-            transforms.Resize(316, 316), # -> 448 sizes
+            transforms.Resize((316, 316)), # -> 448 sizes
             transforms.ToTensor()
         ])
 
