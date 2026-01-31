@@ -194,7 +194,7 @@ if __name__ == "__main__":
     print("=" * 80)
 
     Images = [
-        "pixel_vs_chunk/even60/event60"
+        "pixel_vs_chunk/event_60/event60"
         ]
     
 
