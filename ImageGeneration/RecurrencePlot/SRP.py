@@ -32,6 +32,7 @@ IMG_SIZE = (224, 224)
 IMG_SIZE = (np.sqrt(10*224*224),np.sqrt(10*224*224))
 IMG_SIZE = (np.sqrt(4*224*224),np.sqrt(4*224*224))
 IMG_SIZE = (np.sqrt(2*224*224),np.sqrt(2*224*224))
+IMG_SIZE = (np.sqrt(224*224),np.sqrt(224*224))
 
 DPI = 100
 
@@ -202,7 +203,7 @@ def parse_args():
     p = argparse.ArgumentParser(
         description="SRP generation with unified style (Balabit)"
     )
-    p.add_argument("--out_dir", type=str, default="Images/pixel_vs_chunk_SRP/event_60")
+    p.add_argument("--out_dir", type=str, default="Images/pixel_vs_chunk_SRP/event_30")
     p.add_argument("--sizes", type=int, nargs="+", default=[10, 15, 30, 60, 120, 300])
     p.add_argument("--users", type=str, nargs="+", default=[])
     p.add_argument("--sessions", type=str, nargs="+", default=[])
