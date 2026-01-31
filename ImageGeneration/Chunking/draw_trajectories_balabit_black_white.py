@@ -39,6 +39,7 @@ IMG_SIZE = (224, 224)
 IMG_SIZE = (448, 448)
 IMG_SIZE = (np.sqrt(2*224*224),np.sqrt(2*224*224))
 IMG_SIZE = (np.sqrt(4*224*224),np.sqrt(4*224*224))
+IMG_SIZE = (np.sqrt(10*224*224),np.sqrt(10*224*224))
 
 DPI = 100
 DPI = 200
@@ -238,7 +239,7 @@ def parse_args():
     p = argparse.ArgumentParser(
         description="Pure spatial mouse trajectory chunking (movement only)"
     )
-    p.add_argument("--out_dir", type=str, default="Images/pixel_vs_chunk/event_120")
+    p.add_argument("--out_dir", type=str, default="Images/pixel_vs_chunk/event_300")
     p.add_argument(
         "--sizes", type=int, nargs="+", default=[10, 15, 30, 60, 120, 300]
     )
