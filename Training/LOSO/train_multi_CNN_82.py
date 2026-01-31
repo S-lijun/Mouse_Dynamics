@@ -194,7 +194,7 @@ if __name__ == "__main__":
     print("=" * 80)
 
     Images = [
-        "pixel_vs_chunk/event_60/event60"
+        "pixel_vs_chunk/event_300/event300"
         ]
     
 
@@ -218,7 +218,7 @@ if __name__ == "__main__":
         num_users = len(user_list)
 
         transform = transforms.Compose([
-            transforms.Resize((316, 316)), # -> 448 sizes
+            transforms.Resize((708, 708)), # -> 448 sizes
             transforms.ToTensor()
         ])
 
