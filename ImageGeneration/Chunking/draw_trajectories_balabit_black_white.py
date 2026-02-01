@@ -83,6 +83,10 @@ def draw_mouse_chunk(chunk, save_path, chunk_size):
 
     IMG_SIZE = get_img_size(chunk_size)
     linewidth, markersize = get_stroke_params(chunk_size)
+    linewidth = linewidth * 0.5
+    
+    markersize = markersize * 0.5
+    
 
     x_coords = np.array([float(e["x"]) for e in chunk])
     y_coords = np.array([float(e["y"]) for e in chunk])
@@ -247,7 +251,7 @@ def parse_args():
     p = argparse.ArgumentParser(
         description="Pixel-mass normalized mouse trajectory chunking"
     )
-    p.add_argument("--out_dir", type=str, default="Images/pixel_vs_chunk")
+    p.add_argument("--out_dir", type=str, default="Images/pixel_vs_chunk_test")
     p.add_argument(
         "--sizes", type=int, nargs="+", default=[15, 30, 60, 120, 300]
     )
