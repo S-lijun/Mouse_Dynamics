@@ -236,8 +236,8 @@ if __name__ == "__main__":
             train_ds = Subset(dataset, fold["train"])
             test_ds  = Subset(dataset, fold["test"])
 
-            train_loader = DataLoader(train_ds, batch_size=32, shuffle=True, num_workers=2)
-            test_loader  = DataLoader(test_ds, batch_size=32, shuffle=False, num_workers=2)
+            train_loader = DataLoader(train_ds, batch_size=64, shuffle=True, num_workers=2)
+            test_loader  = DataLoader(test_ds, batch_size=64, shuffle=False, num_workers=2)
 
             net = insiderThreatViT(num_users=num_users).to(device)
 
@@ -252,9 +252,9 @@ if __name__ == "__main__":
 
             _, best_model, *_ = trainer.train(
                 optim_name="adamw",
-                num_epochs=34,
-                learning_rate=0.00005,
-                step_size=10,
+                num_epochs=17,
+                learning_rate=0.0001,
+                step_size=5,
                 learning_rate_decay=0.1,
                 verbose=True
             )
