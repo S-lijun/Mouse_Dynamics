@@ -194,7 +194,7 @@ if __name__ == "__main__":
     print("=" * 80)
 
     Images = [
-        "pixel_vs_chunk/event300"
+        "pixel_vs_chunk_test/event300"
         ]
     
     ImagesSize = [1002,634,448,317]
