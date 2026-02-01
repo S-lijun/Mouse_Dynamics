@@ -194,11 +194,10 @@ if __name__ == "__main__":
     print("=" * 80)
 
     Images = [
-        "pixel_vs_chunk_SRP/event_300/event300", "pixel_vs_chunk_SRP/event_120/event120","pixel_vs_chunk_SRP/event_60/event60",
-        "pixel_vs_chunk_SRP/event_30/event30"
+        "pixel_vs_chunk/event300","pixel_vs_chunk/event120","pixel_vs_chunk/event60","pixel_vs_chunk/event30"
         ]
     
-    ImagesSize = [708,448,316,224]
+    ImagesSize = [1002,634,448,317]
 
     C_pos = 60
     C_neg = 60

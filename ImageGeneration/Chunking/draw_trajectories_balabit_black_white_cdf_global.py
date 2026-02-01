@@ -12,6 +12,7 @@ Velocity representation:
 - no click semantics
 - WHITE background
 - velocity encoded via GLOBAL CDF (plasma)
+- image size & stroke width scaled with chunk size (pixel-mass normalized)
 """
 
 import os
@@ -30,7 +31,13 @@ DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "training_files")
 print(f"[AutoRoot] Project root detected = {ROOT}")
 print(f"[AutoRoot] Using data_dir = {DATA_ROOT}")
 
-IMG_SIZE = (224, 224)
+# ============================================================
+# Global Anchors (DO NOT CHANGE SEMANTICS)
+# ============================================================
+BASE_EVENT = 15
+BASE_IMG_SIZE = 224
+BASE_LINEWIDTH = 2.0
+BASE_MARKERSIZE = 5.0
 DPI = 100
 
 # ============================================================
@@ -41,8 +48,22 @@ GLOBAL_CDF_ALL = None
 
 
 # ============================================================
-# Utils
+# Scaling Utils
 # ============================================================
+def get_img_size(chunk_size, base_event=BASE_EVENT, base_size=BASE_IMG_SIZE):
+    scale = chunk_size / base_event
+    side = np.sqrt(scale * base_size * base_size)
+    side = int(round(side))
+    return (side, side)
+
+
+def get_stroke_params(chunk_size, base_event=BASE_EVENT):
+    scale = np.sqrt(chunk_size / base_event)
+    lw = BASE_LINEWIDTH * scale
+    ms = BASE_MARKERSIZE * scale
+    return lw, ms
+
+
 def _scaled(val, min_val, scale, offset):
     return (val - min_val) * scale + offset
 
@@ -72,7 +93,7 @@ def clean_and_rename_cols(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ============================================================
-# Build GLOBAL velocity CDF (respect user/session filters)
+# Build GLOBAL velocity CDF
 # ============================================================
 def build_global_velocity_cdf(data_dir, target_users=None, target_sessions=None):
     velocities = []
@@ -93,8 +114,7 @@ def build_global_velocity_cdf(data_dir, target_users=None, target_sessions=None)
             if target_sessions and session not in target_sessions:
                 continue
 
-            df = pd.read_csv(os.path.join(user_dir, file))
-            df = clean_and_rename_cols(df)
+            df = clean_and_rename_cols(pd.read_csv(os.path.join(user_dir, file)))
 
             xs = df["x"].values
             ys = df["y"].values
@@ -108,7 +128,7 @@ def build_global_velocity_cdf(data_dir, target_users=None, target_sessions=None)
             dt = np.diff(ts)
             dt[dt <= 0] = 1e-5
 
-            v = np.sqrt(dx ** 2 + dy ** 2) / dt
+            v = np.sqrt(dx**2 + dy**2) / dt
             v = v[np.isfinite(v)]
 
             if len(v) > 0:
@@ -124,11 +144,14 @@ def build_global_velocity_cdf(data_dir, target_users=None, target_sessions=None)
 
 
 # ============================================================
-# Drawing (UNCHANGED except color source)
+# Drawing (Velocity CDF + scaled geometry)
 # ============================================================
-def draw_mouse_chunk(chunk, save_path):
+def draw_mouse_chunk(chunk, save_path, chunk_size):
     if len(chunk) < 2:
         return
+
+    IMG_SIZE = get_img_size(chunk_size)
+    linewidth, markersize = get_stroke_params(chunk_size)
 
     xs = np.array([float(e["x"]) for e in chunk])
     ys = np.array([float(e["y"]) for e in chunk])
@@ -139,10 +162,9 @@ def draw_mouse_chunk(chunk, save_path):
     dt = np.diff(ts)
     dt[dt <= 0] = 1e-5
 
-    velocity = np.sqrt(dx ** 2 + dy ** 2) / dt
+    velocity = np.sqrt(dx**2 + dy**2) / dt
     velocity += 1e-5
 
-    # ---- GLOBAL CDF COLOR ----
     v_norm = np.interp(
         velocity,
         GLOBAL_V_ALL,
@@ -154,7 +176,6 @@ def draw_mouse_chunk(chunk, save_path):
     cmap = plt.get_cmap("plasma")
     seg_colors = cmap(v_norm)
 
-    # ---- spatial scaling (UNCHANGED) ----
     min_x, max_x = np.min(xs), np.max(xs)
     min_y, max_y = np.min(ys), np.max(ys)
 
@@ -207,9 +228,9 @@ def draw_mouse_chunk(chunk, save_path):
                 [prev_x_s, x_s],
                 [prev_y_s, y_s],
                 color=color,
-                linewidth=2,
+                linewidth=linewidth,
                 marker="o",
-                markersize=5,
+                markersize=markersize,
                 markerfacecolor=color,
                 markeredgewidth=0,
             )
@@ -233,11 +254,11 @@ def chunk_and_draw(events, out_dir, user, session_name, chunk_size):
         chunk = events[i * chunk_size:(i + 1) * chunk_size]
         save_dir = os.path.join(out_dir, f"event{chunk_size}", user)
         save_path = os.path.join(save_dir, f"{session_name}-{i}.png")
-        draw_mouse_chunk(chunk, save_path)
+        draw_mouse_chunk(chunk, save_path, chunk_size)
 
 
 # ============================================================
-# Dataset processing with progress printing
+# Dataset processing (UNCHANGED PRINT STYLE)
 # ============================================================
 def process_dataset(data_dir, out_dir, sizes, target_users=None, target_sessions=None):
     users = sorted(os.listdir(data_dir))
@@ -284,26 +305,16 @@ def main():
     parser.add_argument(
         "--out_dir",
         type=str,
-        default="Images/Chunk/Balabit_chunks_XY_global_cdf/training"
+        default="Images/pixel_vs_chunk_cdf/training"
     )
     parser.add_argument(
         "--sizes",
         type=int,
         nargs="+",
-        default=[10, 15, 30, 60, 120, 300]
+        default=[15, 30, 60, 120, 300]
     )
-    parser.add_argument(
-        "--users",
-        type=str,
-        nargs="+",
-        default=[]
-    )
-    parser.add_argument(
-        "--sessions",
-        type=str,
-        nargs="+",
-        default=[]
-    )
+    parser.add_argument("--users", type=str, nargs="+", default=[])
+    parser.add_argument("--sessions", type=str, nargs="+", default=[])
     args = parser.parse_args()
 
     target_users = set(args.users) if args.users else None
@@ -314,9 +325,7 @@ def main():
 
     print("[GlobalCDF] Building global velocity CDF...")
     GLOBAL_V_ALL, GLOBAL_CDF_ALL = build_global_velocity_cdf(
-        DATA_ROOT,
-        target_users,
-        target_sessions
+        DATA_ROOT, target_users, target_sessions
     )
 
     print("[GlobalCDF] Sanity check:")
