@@ -24,40 +24,65 @@ import matplotlib.pyplot as plt
 # Automatically detect project ROOT
 # ============================================================
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-############### Original training_files ############################
 DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "training_files")
-############### protocol 1 testing_files ############################
-#DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "testing_files_protocol1")
 
 print(f"[AutoRoot] Project root detected = {ROOT}")
 print(f"[AutoRoot] Using data_dir = {DATA_ROOT}")
 
-# ----------------------------
-# Drawing Utils
-# ----------------------------
-IMG_SIZE = (224, 224)
-IMG_SIZE = (448, 448)
-IMG_SIZE = (np.sqrt(2*224*224),np.sqrt(2*224*224))
-IMG_SIZE = (np.sqrt(4*224*224),np.sqrt(4*224*224))
-IMG_SIZE = (np.sqrt(10*224*224),np.sqrt(10*224*224))
-
-DPI = 100
+# ============================================================
+# Global Drawing Config (ANCHORS)
+# ============================================================
+BASE_EVENT = 15
+BASE_IMG_SIZE = 224
+BASE_LINEWIDTH = 1.0
+BASE_MARKERSIZE = 2.0
 DPI = 200
+
+
+# ============================================================
+# Scaling Utilities
+# ============================================================
+def get_img_size(chunk_size, base_event=BASE_EVENT, base_size=BASE_IMG_SIZE):
+    """
+    event15 -> 224 x 224
+    eventK  -> sqrt((K / 15) * 224 * 224)
+    """
+    scale = chunk_size / base_event
+    side = np.sqrt(scale * base_size * base_size)
+    side = int(round(side))
+    return (side, side)
+
+
+def get_stroke_params(chunk_size, base_event=BASE_EVENT):
+    """
+    Ensure each event contributes the same pixel mass
+    """
+    scale = np.sqrt(chunk_size / base_event)
+    linewidth = BASE_LINEWIDTH * scale
+    markersize = BASE_MARKERSIZE * scale
+    return linewidth, markersize
 
 
 def _scaled(val, min_val, scale, offset):
     return (val - min_val) * scale + offset
 
 
-def draw_mouse_chunk(chunk, save_path):
+# ============================================================
+# Drawing Function
+# ============================================================
+def draw_mouse_chunk(chunk, save_path, chunk_size):
     """
     Draw pure spatial mouse trajectory:
     - only movement
     - white background
     - black line
+    - pixel-mass normalized across chunk sizes
     """
     if len(chunk) == 0:
         return
+
+    IMG_SIZE = get_img_size(chunk_size)
+    linewidth, markersize = get_stroke_params(chunk_size)
 
     x_coords = np.array([float(e["x"]) for e in chunk])
     y_coords = np.array([float(e["y"]) for e in chunk])
@@ -84,10 +109,10 @@ def draw_mouse_chunk(chunk, save_path):
     offset_y = (IMG_SIZE[1] - range_y * scale) / 2.0
 
     fig, ax = plt.subplots(
-        figsize=(IMG_SIZE[0] / DPI, IMG_SIZE[1] / DPI), dpi=DPI
+        figsize=(IMG_SIZE[0] / DPI, IMG_SIZE[1] / DPI),
+        dpi=DPI
     )
 
-    # -------- white background --------
     fig.patch.set_facecolor("white")
     ax.set_facecolor("white")
 
@@ -113,9 +138,9 @@ def draw_mouse_chunk(chunk, save_path):
                 [prev_x, x_s],
                 [prev_y, y_s],
                 color="black",
-                linewidth=2,
+                linewidth=linewidth,
                 marker="o",
-                markersize=5,
+                markersize=markersize,
                 markerfacecolor="black",
                 markeredgewidth=0,
             )
@@ -123,23 +148,14 @@ def draw_mouse_chunk(chunk, save_path):
         prev_x, prev_y = x_s, y_s
 
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
-    plt.savefig(
-        save_path,
-        bbox_inches="tight",
-        pad_inches=0,
-        facecolor="white",
-    )
+    plt.savefig(save_path, bbox_inches="tight", pad_inches=0, facecolor="white")
     plt.close(fig)
 
 
-# ----------------------------
+# ============================================================
 # Data Cleaning
-# ----------------------------
+# ============================================================
 def clean_and_rename_cols(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Keep ONLY mouse movement events.
-    Completely discard click semantics.
-    """
     df = df.rename(
         columns={
             "client timestamp": "time",
@@ -149,7 +165,6 @@ def clean_and_rename_cols(df: pd.DataFrame) -> pd.DataFrame:
         }
     )
 
-    # ---- keep ONLY movement ----
     df = df[df["state"] == "Move"].copy()
     df["state"] = "movement"
 
@@ -161,22 +176,20 @@ def clean_and_rename_cols(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-# ----------------------------
-# Pure chunking (No overlap)
-# ----------------------------
+# ============================================================
+# Chunking
+# ============================================================
 def chunk_and_draw(events, out_dir, user, session_name, chunk_size):
     L = len(events)
     n_chunks = L // chunk_size
     count = 0
 
     for i in range(n_chunks):
-        start = i * chunk_size
-        chunk = events[start : start + chunk_size]
-
+        chunk = events[i * chunk_size : (i + 1) * chunk_size]
         save_dir = os.path.join(out_dir, f"event{chunk_size}", user)
         save_path = os.path.join(save_dir, f"{session_name}-{i}.png")
 
-        draw_mouse_chunk(chunk, save_path)
+        draw_mouse_chunk(chunk, save_path, chunk_size)
         count += 1
 
     return count
@@ -192,7 +205,6 @@ def process_one_session(path, user, session_name, out_dir, sizes):
         produced[chunk_size] = chunk_and_draw(
             events, out_dir, user, session_name, chunk_size
         )
-
     return produced
 
 
@@ -216,6 +228,8 @@ def process_dataset(data_dir, out_dir, sizes, target_users=None, target_sessions
                 continue
 
             path = os.path.join(user_dir, file)
+
+            
             print(f"[Process] {user}/{file} for chunk sizes {sizes}")
 
             produced = process_one_session(
@@ -224,24 +238,18 @@ def process_dataset(data_dir, out_dir, sizes, target_users=None, target_sessions
             for k, v in produced.items():
                 produced_total[k] += v
 
-    print("=" * 50)
-    for k in sizes:
-        print(f"event{k}: {produced_total[k]} images")
-    print(f"TOTAL images: {sum(produced_total.values())}")
-
-    return produced_total
 
 
-# ----------------------------
+# ============================================================
 # CLI
-# ----------------------------
+# ============================================================
 def parse_args():
     p = argparse.ArgumentParser(
-        description="Pure spatial mouse trajectory chunking (movement only)"
+        description="Pixel-mass normalized mouse trajectory chunking"
     )
-    p.add_argument("--out_dir", type=str, default="Images/pixel_vs_chunk/event_300")
+    p.add_argument("--out_dir", type=str, default="Images/pixel_vs_chunk")
     p.add_argument(
-        "--sizes", type=int, nargs="+", default=[10, 15, 30, 60, 120, 300]
+        "--sizes", type=int, nargs="+", default=[15, 30, 60, 120, 300]
     )
     p.add_argument("--users", type=str, nargs="+", default=[])
     p.add_argument("--sessions", type=str, nargs="+", default=[])
@@ -251,7 +259,6 @@ def parse_args():
 def main():
     args = parse_args()
 
-    data_dir = DATA_ROOT
     out_dir = os.path.join(ROOT, args.out_dir)
     os.makedirs(out_dir, exist_ok=True)
 
@@ -259,7 +266,7 @@ def main():
     target_users = set(args.users) if args.users else None
     target_sessions = set(args.sessions) if args.sessions else None
 
-    process_dataset(data_dir, out_dir, sizes, target_users, target_sessions)
+    process_dataset(DATA_ROOT, out_dir, sizes, target_users, target_sessions)
 
 
 if __name__ == "__main__":
