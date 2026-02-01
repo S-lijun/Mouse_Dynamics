@@ -194,16 +194,18 @@ if __name__ == "__main__":
     print("=" * 80)
 
     Images = [
-        "pixel_vs_chunk/event_300/event300"
+        "pixel_vs_chunk_SRP/event_300/event300", "pixel_vs_chunk_SRP/event_120/event120","pixel_vs_chunk_SRP/event_60/event60",
+        "pixel_vs_chunk_SRP/event_30/event30"
         ]
     
+    ImagesSize = [708,448,316,224]
 
     C_pos = 60
     C_neg = 60
     K_FOLD = 1
 
     cv_root = Path(project_root) / "Training" / "Results" / f"CV_{K_FOLD}_fold" / timestamp
-
+    ImagesSizeIndex = 0
     for images in Images:
         print("\n" + "=" * 80)
         print(f"[DATASET] {images}")
@@ -218,7 +220,7 @@ if __name__ == "__main__":
         num_users = len(user_list)
 
         transform = transforms.Compose([
-            transforms.Resize((708, 708)), # -> 448 sizes
+            transforms.Resize((ImagesSize[ImagesSizeIndex], ImagesSize[ImagesSizeIndex])), # -> 448 sizes
             transforms.ToTensor()
         ])
 
@@ -291,6 +293,7 @@ if __name__ == "__main__":
                 json.dump(result, f, indent=2)
 
             print(f"[INFO] Score fusion results saved to: {result_path}")
+            ImagesSizeIndex += 1
 
             gc.collect()
             torch.cuda.empty_cache()
