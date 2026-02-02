@@ -274,11 +274,23 @@ if __name__ == "__main__":
             user_ids = list(range(num_users))
             result = {"n": [], "avg_eer": [], "avg_auc": []}
 
+            user_curve = defaultdict(dict)
+
+
             print("\n===== Score Fusion Curve =====")
             for n in range(1, 101):
                 res = multilabel_score_fusion(
                     scores, labels, session_ids, user_ids, n
                 )
+
+                for uid, metrics in res.items():
+                    user_name = metrics["User"]   # e.g. "user12"
+                    user_curve[user_name][str(n)] = {
+                        "User": user_name,
+                        "n": n,
+                        "EER": float(metrics["EER"]),
+                        "AUC": float(metrics["AUC"])
+                    }
 
                 avg_eer = np.mean([v["EER"] for v in res.values()])
                 avg_auc = np.mean([v["AUC"] for v in res.values()])
@@ -293,6 +305,11 @@ if __name__ == "__main__":
             with open(result_path, "w") as f:
                 json.dump(result, f, indent=2)
 
+            per_user_path = out_dir / f"MultiViT_score_fusion_{timestamp}_fold_{fold_id}_per_user.json"
+            with open(per_user_path, "w") as f:
+                json.dump(user_curve, f, indent=2)
+
+            print(f"[INFO] Per-user score fusion saved to: {per_user_path}")
             print(f"[INFO] Score fusion results saved to: {result_path}")
             ImagesSizeIndex += 1
 
