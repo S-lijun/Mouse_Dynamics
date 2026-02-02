@@ -283,8 +283,7 @@ if __name__ == "__main__":
                     scores, labels, session_ids, user_ids, n
                 )
 
-                for uid, metrics in res.items():
-                    user_name = metrics["User"]   # e.g. "user12"
+                for user_name, metrics in res.items():
                     user_curve[user_name][str(n)] = {
                         "User": user_name,
                         "n": n,
