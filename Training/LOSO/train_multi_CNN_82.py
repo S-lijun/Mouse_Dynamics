@@ -199,7 +199,7 @@ if __name__ == "__main__":
         ]
     
     ImagesSize = [1002,634,448,317]
-    ImagesSize = [1002]
+    #ImagesSize = [1002]
 
     C_pos = 60
     C_neg = 60
