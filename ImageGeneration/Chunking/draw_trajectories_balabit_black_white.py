@@ -83,9 +83,6 @@ def draw_mouse_chunk(chunk, save_path, chunk_size):
 
     IMG_SIZE = get_img_size(chunk_size)
     linewidth, markersize = get_stroke_params(chunk_size)
-    linewidth = linewidth * 0.5
-    
-    markersize = markersize * 0.5
     
 
     x_coords = np.array([float(e["x"]) for e in chunk])
