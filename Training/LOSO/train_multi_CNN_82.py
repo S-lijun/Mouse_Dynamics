@@ -267,6 +267,11 @@ if __name__ == "__main__":
             torch.save(best_model.state_dict(), model_path)
             print(f"[INFO] Best model saved to: {model_path}")
 
+            SEMANTIC_USER_LIST = [
+                "user12", "user15", "user16", "user20", "user21",
+                "user23", "user29", "user35", "user7", "user9"
+            ]
+
             scores, labels, session_ids, _ = collect_val_scores(
                 best_model, test_loader, device
             )
@@ -274,8 +279,7 @@ if __name__ == "__main__":
             user_ids = list(range(num_users))
             result = {"n": [], "avg_eer": [], "avg_auc": []}
 
-            user_curve = defaultdict(dict)
-
+            semantic_user_curve = defaultdict(dict)
 
             print("\n===== Score Fusion Curve =====")
             for n in range(1, 101):
@@ -283,14 +287,18 @@ if __name__ == "__main__":
                     scores, labels, session_ids, user_ids, n
                 )
 
-                for user_name, metrics in res.items():
-                    user_curve[user_name][str(n)] = {
-                        "User": user_name,
+                    # -------- per-user (semantic) --------
+                for col_key, metrics in res.items():
+                    col = int(col_key.replace("user", ""))     # 0 ~ 9
+                    real_user = SEMANTIC_USER_LIST[col]        # "user12" ...
+
+                    semantic_user_curve[real_user][str(n)] = {
+                        "User": real_user,
                         "n": n,
                         "EER": float(metrics["EER"]),
                         "AUC": float(metrics["AUC"])
                     }
-
+                
                 avg_eer = np.mean([v["EER"] for v in res.values()])
                 avg_auc = np.mean([v["AUC"] for v in res.values()])
 
@@ -306,16 +314,17 @@ if __name__ == "__main__":
 
             per_user_path = out_dir / f"MultiViT_score_fusion_{timestamp}_fold_{fold_id}_per_user.json"
             with open(per_user_path, "w") as f:
-                json.dump(user_curve, f, indent=2)
+                json.dump(semantic_user_curve, f, indent=2)
 
             print(f"[INFO] Per-user score fusion saved to: {per_user_path}")
             print(f"[INFO] Score fusion results saved to: {result_path}")
-            ImagesSizeIndex += 1
+        
 
             gc.collect()
             torch.cuda.empty_cache()
 
             print("[INFO] CUDA memory allocated:",
                 torch.cuda.memory_allocated())
+        ImagesSizeIndex += 1
 
     print("\n[INFO] All folds finished.")
