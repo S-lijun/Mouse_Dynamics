@@ -197,6 +197,10 @@ if __name__ == "__main__":
         "pixel_vs_chunk/event300","pixel_vs_chunk/event120","pixel_vs_chunk/event60","pixel_vs_chunk/event30"
         ]
     
+    Images = [
+    "pixel_vs_chunk/event30","pixel_vs_chunk/event60","pixel_vs_chunk_cdf/training/event30","pixel_vs_chunk_cdf/training/event60",
+    ]
+    
     ImagesSize = [1002,634,448,317]
     #ImagesSize = [634]
 
