@@ -44,8 +44,8 @@ sys.stdout = TeeLogger(log_path)
 # Imports (Model / Trainer / Score Fusion)
 # ======================================================
 
-from models.scratch_CNN_multi import ScratchMultiCNN as insiderThreatViT
-#from models.pretrained_googlenet_multi import PretrainedGoogLeNet_Multilabel as insiderThreatViT
+#from models.scratch_CNN_multi import ScratchMultiCNN as insiderThreatViT
+from models.pretrained_googlenet_multi import PretrainedGoogLeNet_Multilabel as insiderThreatViT
 from Training.Trainers.multi_class_trainer_82 import MultiLabelTrainerCNN as MultiLabelTrainer
 from Training.Score_Fusion.Score_Fusion_Multi_82 import (
     multilabel_score_fusion,
@@ -198,7 +198,7 @@ if __name__ == "__main__":
         ]
     
     Images = [
-    "pixel_vs_chunk/event30","pixel_vs_chunk/event60","pixel_vs_chunk_cdf/training/event30","pixel_vs_chunk_cdf/training/event60",
+    "Chunk/Balabit_chunks_XY_black_white/event60","Chunk/Balabit_chunks_XY_black_white_cdf/training/event60"
     ]
     
     ImagesSize = [1002,634,448,317]
