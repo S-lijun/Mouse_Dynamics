@@ -27,6 +27,7 @@ from scipy.stats import rankdata
 # ============================================================
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "training_files")
+DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "testing_files_protocol1")
 
 print(f"[AutoRoot] Project root detected = {ROOT}")
 print(f"[AutoRoot] Using data_dir = {DATA_ROOT}")
@@ -305,7 +306,7 @@ def main():
     parser.add_argument(
         "--out_dir",
         type=str,
-        default="Images/pixel_vs_chunk_cdf/training"
+        default="Images/protocol1_cdf"
     )
     parser.add_argument(
         "--sizes",

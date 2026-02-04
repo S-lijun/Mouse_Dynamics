@@ -230,10 +230,16 @@ if __name__ == "__main__":
         result["avg_auc"].append(avg_auc)
 
     # 6. 保存结果
+    per_user_path = out_dir / f"P1_per_user_results.json"
+    result_path =  out_dir / f"P1_fusion_summary.json"
+    
     with open(out_dir / f"P1_fusion_summary.json", "w") as f:
         json.dump(result, f, indent=2)
     with open(out_dir / f"P1_per_user_results.json", "w") as f:
         json.dump(semantic_user_curve, f, indent=2)
+    
+    print(f"[INFO] Per-user score fusion saved to: {per_user_path}")
+    print(f"[INFO] Score fusion results saved to: {result_path}")
 
     gc.collect()
     torch.cuda.empty_cache()
