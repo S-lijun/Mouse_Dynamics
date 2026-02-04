@@ -201,8 +201,8 @@ if __name__ == "__main__":
     "Chunk/Balabit_chunks_XY_black_white/event60","Chunk/Balabit_chunks_XY_black_white_cdf/training/event60"
     ]
     
-    ImagesSize = [1002,634,448,317]
-    #ImagesSize = [634]
+    #ImagesSize = [1002,634,448,317]
+    ImagesSize = [224,224]
 
     C_pos = 60
     C_neg = 60
