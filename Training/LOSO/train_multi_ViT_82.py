@@ -23,7 +23,7 @@ timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 # ======================================================
 log_dir = Path(project_root) / "output_logs" / "train_multi_label"
 log_dir.mkdir(parents=True, exist_ok=True)
-log_path = log_dir / f"ViT_training_{timestamp}.out"
+log_path = log_dir / f"CNN_training_{timestamp}.out"
 
 class TeeLogger:
     def __init__(self, file_path):
@@ -43,8 +43,9 @@ sys.stdout = TeeLogger(log_path)
 # ======================================================
 # Imports (Model / Trainer / Score Fusion)
 # ======================================================
+
 from models.scratch_ViT_multi import ScratchMiniViT_MultiLabel as insiderThreatViT
-#from models.pretrained_VIT_B16_multi_new import PretrainedViT_B16_Multilabel_NoCLS_NoPos as insiderThreatViT
+from models.pretrained_VIT_B16_multi_new import PretrainedViT_B16_Multilabel_NoCLS_NoPos as insiderThreatViT
 from Training.Trainers.multi_class_trainer_ViT_82 import MultiLabelTrainerViT as MultiLabelTrainer
 from Training.Score_Fusion.Score_Fusion_Multi_82 import (
     multilabel_score_fusion,
@@ -193,18 +194,22 @@ if __name__ == "__main__":
     print("=" * 80)
 
     Images = [
-        "Chunk/Balabit_chunks_XY_black_white/event300","Chunk/Balabit_chunks_XY_global_cdf/training/event300",
-        "Chunk/Balabit_chunks_XY_black_white/event120","Chunk/Balabit_chunks_XY_global_cdf/training/event120",
-        "Chunk/Balabit_chunks_XY_black_white/event60","Chunk/Balabit_chunks_XY_global_cdf/training/event60",
-        "Chunk/Balabit_chunks_XY_black_white/event30","Chunk/Balabit_chunks_XY_global_cdf/training/event30"
+        "pixel_vs_chunk/event300","pixel_vs_chunk/event120","pixel_vs_chunk/event60","pixel_vs_chunk/event30"
+        ]
+    
+    Images = [
+    "Chunk/Balabit_chunks_XY_black_white/event60","Chunk/Balabit_chunks_XY_black_white_cdf/training/event60"
     ]
+    
+    #ImagesSize = [1002,634,448,317]
+    ImagesSize = [224,224]
 
     C_pos = 60
     C_neg = 60
     K_FOLD = 1
 
     cv_root = Path(project_root) / "Training" / "Results" / f"CV_{K_FOLD}_fold" / timestamp
-
+    ImagesSizeIndex = 0
     for images in Images:
         print("\n" + "=" * 80)
         print(f"[DATASET] {images}")
@@ -219,7 +224,7 @@ if __name__ == "__main__":
         num_users = len(user_list)
 
         transform = transforms.Compose([
-            transforms.Resize((224, 224)),
+            transforms.Resize((ImagesSize[ImagesSizeIndex], ImagesSize[ImagesSizeIndex])), # -> 448 sizes
             transforms.ToTensor()
         ])
 
@@ -235,8 +240,8 @@ if __name__ == "__main__":
             train_ds = Subset(dataset, fold["train"])
             test_ds  = Subset(dataset, fold["test"])
 
-            train_loader = DataLoader(train_ds, batch_size=128, shuffle=True, num_workers=2)
-            test_loader  = DataLoader(test_ds, batch_size=128, shuffle=False, num_workers=2)
+            train_loader = DataLoader(train_ds, batch_size=64, shuffle=True, num_workers=2)
+            test_loader  = DataLoader(test_ds, batch_size=64, shuffle=False, num_workers=2)
 
             net = insiderThreatViT(num_users=num_users).to(device)
 
@@ -252,7 +257,7 @@ if __name__ == "__main__":
             _, best_model, *_ = trainer.train(
                 optim_name="adamw",
                 num_epochs=17,
-                learning_rate=1e-4,
+                learning_rate=0.0001,
                 step_size=5,
                 learning_rate_decay=0.1,
                 verbose=True
@@ -265,6 +270,11 @@ if __name__ == "__main__":
             torch.save(best_model.state_dict(), model_path)
             print(f"[INFO] Best model saved to: {model_path}")
 
+            SEMANTIC_USER_LIST = [
+                "user12", "user15", "user16", "user20", "user21",
+                "user23", "user29", "user35", "user7", "user9"
+            ]
+
             scores, labels, session_ids, _ = collect_val_scores(
                 best_model, test_loader, device
             )
@@ -272,12 +282,26 @@ if __name__ == "__main__":
             user_ids = list(range(num_users))
             result = {"n": [], "avg_eer": [], "avg_auc": []}
 
+            semantic_user_curve = defaultdict(dict)
+
             print("\n===== Score Fusion Curve =====")
             for n in range(1, 101):
                 res = multilabel_score_fusion(
                     scores, labels, session_ids, user_ids, n
                 )
 
+                    # -------- per-user (semantic) --------
+                for col_key, metrics in res.items():
+                    col = int(col_key.replace("user", ""))     # 0 ~ 9
+                    real_user = SEMANTIC_USER_LIST[col]        # "user12" ...
+
+                    semantic_user_curve[real_user][str(n)] = {
+                        "User": real_user,
+                        "n": n,
+                        "EER": float(metrics["EER"]),
+                        "AUC": float(metrics["AUC"])
+                    }
+                
                 avg_eer = np.mean([v["EER"] for v in res.values()])
                 avg_auc = np.mean([v["AUC"] for v in res.values()])
 
@@ -291,12 +315,19 @@ if __name__ == "__main__":
             with open(result_path, "w") as f:
                 json.dump(result, f, indent=2)
 
+            per_user_path = out_dir / f"MultiViT_score_fusion_{timestamp}_fold_{fold_id}_per_user.json"
+            with open(per_user_path, "w") as f:
+                json.dump(semantic_user_curve, f, indent=2)
+
+            print(f"[INFO] Per-user score fusion saved to: {per_user_path}")
             print(f"[INFO] Score fusion results saved to: {result_path}")
+        
 
             gc.collect()
             torch.cuda.empty_cache()
 
             print("[INFO] CUDA memory allocated:",
                 torch.cuda.memory_allocated())
+        ImagesSizeIndex += 1
 
     print("\n[INFO] All folds finished.")
