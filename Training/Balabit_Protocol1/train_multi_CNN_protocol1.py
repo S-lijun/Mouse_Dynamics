@@ -135,8 +135,8 @@ if __name__ == "__main__":
     
     # 定义训练和测试的具体子文件夹路径
     # 按照您的要求：一个文件夹作为训练，另一个文件夹作为测试
-    training_folder = "pixel_vs_chunk_cdf/training/event60"
-    testing_folder  = "protocol1_cdf/event60" 
+    training_folder = "pixel_vs_chunk_acc_cdf/training/event60"
+    testing_folder  = "protocol1_acc_cdf/event60" 
     
     img_size = 448
     C_pos, C_neg = 60, 60
