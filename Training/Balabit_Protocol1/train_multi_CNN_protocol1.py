@@ -135,8 +135,8 @@ if __name__ == "__main__":
     
     # 定义训练和测试的具体子文件夹路径
     # 按照您的要求：一个文件夹作为训练，另一个文件夹作为测试
-    training_folder = "fixed_448_padding/event45"
-    testing_folder  = "fixed_448_padding_protocol1/event45" 
+    training_folder = "fixed_448_padding/event30"
+    testing_folder  = "fixed_448_padding_protocol1/event30" 
     
     img_size = 448
     C_pos, C_neg = 60, 60
@@ -158,8 +158,8 @@ if __name__ == "__main__":
     train_dataset = Protocol1MouseDataset(train_root, user_list, transform)
     test_dataset  = Protocol1MouseDataset(test_root, user_list, transform)
 
-    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=2)
-    test_loader  = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=2)
+    train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=2)
+    test_loader  = DataLoader(test_dataset, batch_size=128, shuffle=False, num_workers=2)
 
     print(f"[INFO] Train samples: {len(train_dataset)} | Test samples: {len(test_dataset)}")
 
@@ -179,9 +179,9 @@ if __name__ == "__main__":
     print("\n========== Training Execution ==========")
     _, best_model, *_ = trainer.train(
         optim_name="adamw",
-        num_epochs=17,
-        learning_rate=0.0001,
-        step_size=5,
+        num_epochs=34,
+        learning_rate=0.00001,
+        step_size=10,
         learning_rate_decay=0.1,
         verbose=True
     )
