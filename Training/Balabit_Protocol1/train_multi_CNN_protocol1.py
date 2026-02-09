@@ -135,8 +135,8 @@ if __name__ == "__main__":
     
     # 定义训练和测试的具体子文件夹路径
     # 按照您的要求：一个文件夹作为训练，另一个文件夹作为测试
-    training_folder = "fixed_448_padding/event120"
-    testing_folder  = "fixed_448_padding_protocol1/event120" 
+    training_folder = "fixed_448_padding/event300"
+    testing_folder  = "fixed_448_padding_protocol1/event300" 
     
     img_size = 448
     C_pos, C_neg = 60, 60
