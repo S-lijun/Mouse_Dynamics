@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-SRP (Recurrence Plot) Version — Style Unified with XYPlot
+SRP (Recurrence Plot) Version — Dynamic Image Sizing
 ---------------------------------------------------------
 - Pure chunking (no sliding window)
 - Auto root detection
-- Same folder structure & naming as draw_trajectories_balabit_black_white.py
-- RP logic unchanged
+- Image size scales with chunk size: base 15 -> 224
+- Scale formula: new_size = 224 * sqrt(chunk_size / 15)
 - White background, black information
 """
 
@@ -14,6 +14,7 @@ import argparse
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import math
 
 # ============================================================
 # Automatically detect project ROOT
@@ -24,28 +25,28 @@ DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "training_files")
 print(f"[AutoRoot] Project root detected = {ROOT}")
 print(f"[AutoRoot] Using data_dir = {DATA_ROOT}")
 
+# Base Configuration
+BASE_CHUNK_SIZE = 15
+BASE_IMG_SIZE = 224
+DPI = 200
 
-# ----------------------------
-# Drawing Utils
-# ----------------------------
-IMG_SIZE = (224, 224)
-IMG_SIZE = (np.sqrt(10*224*224),np.sqrt(10*224*224))
-IMG_SIZE = (np.sqrt(4*224*224),np.sqrt(4*224*224))
-IMG_SIZE = (np.sqrt(2*224*224),np.sqrt(2*224*224))
-IMG_SIZE = (np.sqrt(224*224),np.sqrt(224*224))
-
-DPI = 100
-
+def get_dynamic_image_size(chunk_size):
+    """
+    根据比例计算图片尺寸: 
+    size = 224 * sqrt(chunk_size / 15)
+    """
+    scale = math.sqrt(chunk_size / BASE_CHUNK_SIZE)
+    dynamic_size = int(round(BASE_IMG_SIZE * scale))
+    return dynamic_size
 
 # ============================================================
-# RP core (LOGIC UNCHANGED)
+# RP core
 # ============================================================
 def compute_rp_xy(seq, percentile=95):
     """
     Compute RP directly from raw (x, y) coordinates.
     seq: shape (T, 3) = [x, y, t]
     """
-
     # 1. remove padding
     non_zero_mask = ~np.all(seq == 0, axis=1)
     seq = seq[non_zero_mask]
@@ -72,13 +73,16 @@ def compute_rp_xy(seq, percentile=95):
     return rec
 
 
-def draw_rp_image(seq, save_path, percentile):
+def draw_rp_image(seq, save_path, percentile, chunk_size):
     rp = compute_rp_xy(seq, percentile)
     if rp is None:
         return
 
+    # 计算该 chunk_size 对应的动态尺寸
+    img_size_px = get_dynamic_image_size(chunk_size)
+    
     fig, ax = plt.subplots(
-        figsize=(IMG_SIZE[0] / DPI, IMG_SIZE[1] / DPI), dpi=DPI
+        figsize=(img_size_px / DPI, img_size_px / DPI), dpi=DPI
     )
 
     # ---- white background ----
@@ -101,7 +105,7 @@ def draw_rp_image(seq, save_path, percentile):
 
 
 # ============================================================
-# Data cleaning (same philosophy as XYPlot)
+# Data cleaning
 # ============================================================
 def clean_and_rename_cols(df: pd.DataFrame) -> pd.DataFrame:
     df = df.rename(
@@ -123,7 +127,7 @@ def clean_and_rename_cols(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ============================================================
-# Pure chunking (NO overlap, SAME as XYPlot)
+# Pure chunking
 # ============================================================
 def chunk_and_draw_rp(events, out_dir, user, session_name, chunk_size, percentile):
     L = len(events)
@@ -139,7 +143,7 @@ def chunk_and_draw_rp(events, out_dir, user, session_name, chunk_size, percentil
         save_dir = os.path.join(out_dir, f"event{chunk_size}", user)
         save_path = os.path.join(save_dir, f"{session_name}-{i}.png")
 
-        draw_rp_image(seq, save_path, percentile)
+        draw_rp_image(seq, save_path, percentile, chunk_size)
         count += 1
 
     return count
@@ -190,7 +194,8 @@ def process_dataset(data_dir, out_dir, sizes, percentile, target_users=None, tar
 
     print("=" * 50)
     for k in sizes:
-        print(f"event{k}: {produced_total[k]} images")
+        actual_size = get_dynamic_image_size(k)
+        print(f"event{k}: {produced_total[k]} images (Resolution: {actual_size}x{actual_size})")
     print(f"TOTAL images: {sum(produced_total.values())}")
 
     return produced_total
@@ -201,10 +206,11 @@ def process_dataset(data_dir, out_dir, sizes, percentile, target_users=None, tar
 # ============================================================
 def parse_args():
     p = argparse.ArgumentParser(
-        description="SRP generation with unified style (Balabit)"
+        description="SRP generation with dynamic scaling (Balabit)"
     )
-    p.add_argument("--out_dir", type=str, default="Images/pixel_vs_chunk_SRP/event_30")
-    p.add_argument("--sizes", type=int, nargs="+", default=[10, 15, 30, 60, 120, 300])
+    # 默认目录名反映出动态尺寸特征
+    p.add_argument("--out_dir", type=str, default=f"Images/SRP")
+    p.add_argument("--sizes", type=int, nargs="+", default=[15, 30, 60, 120, 300])
     p.add_argument("--users", type=str, nargs="+", default=[])
     p.add_argument("--sessions", type=str, nargs="+", default=[])
     p.add_argument("--percentile", type=float, default=95)

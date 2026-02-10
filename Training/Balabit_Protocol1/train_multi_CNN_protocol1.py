@@ -137,8 +137,8 @@ if __name__ == "__main__":
     print("[INFO] Using device:", device)
     
     # 路径配置
-    training_folder = "fixed_448_padding_cdf/event60"
-    testing_folder  = "fixed_448_padding_cdf_protocol1/event60" 
+    training_folder = "fixed_448_padding/event60"
+    testing_folder  = "fixed_448_padding_protocol1/event60" 
     
     img_size = 448
     C_pos, C_neg = 60, 60
