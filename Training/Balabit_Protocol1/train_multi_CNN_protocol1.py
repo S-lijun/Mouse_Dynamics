@@ -52,18 +52,16 @@ from Training.Score_Fusion.Score_Fusion_Multi_82 import (
 # Utils
 # ======================================================
 def parse_session_and_index(filename: str):
+    # 适配文件名格式：session_0041905381-0.png
     m = re.match(r"(session_\d+)-(\d+)\.png", filename)
     if m is None:
         raise RuntimeError(f"Bad filename: {filename}")
     return m.group(1), int(m.group(2))
 
 # ======================================================
-# Dataset (image, label, session_id)
+# Dataset (已包含时序自然排序)
 # ======================================================
 class Protocol1MouseDataset(Dataset):
-    """
-    Dataset that loads from a specific split_path (training or test)
-    """
     def __init__(self, split_root, all_users, transform=None):
         self.samples = []
         self.labels = []
@@ -85,7 +83,8 @@ class Protocol1MouseDataset(Dataset):
                         files.append((sess, idx, f))
                     except: continue
 
-            # Sorted for consistency
+            # --- 关键：自然排序 (先按 session 字符串排，再按 chunk 序号数字排) ---
+            # 这保证了 Session 内图片的连续性，规避了 glob 乱序问题
             files.sort(key=lambda x: (x[0], x[1]))
 
             for sess, idx, f in files:
@@ -93,6 +92,7 @@ class Protocol1MouseDataset(Dataset):
                 y = torch.zeros(self.num_users)
                 y[self.user2index[user]] = 1.0
                 self.labels.append(y)
+                # 记录 Session ID，Fusion 阶段将基于此进行物理隔离
                 self.session_ids.append(sess)
 
     def __len__(self):
@@ -102,6 +102,7 @@ class Protocol1MouseDataset(Dataset):
         img = Image.open(self.samples[idx]).convert("RGB")
         if self.transform:
             img = self.transform(img)
+        # 返回 session_id (s) 供评估使用
         return img, self.labels[idx], self.session_ids[idx]
 
 # ======================================================
@@ -111,10 +112,12 @@ def collect_val_scores(model, loader, device):
     model.eval()
     outs, labs, sess = [], [], []
 
+    print("[Eval] Collecting scores from test set...")
     with torch.no_grad():
         for X, y, s in loader:
             X = X.to(device)
             logits = model(X)
+            # 使用 Sigmoid 获取 0-1 之间的分数值
             outs.append(torch.sigmoid(logits).cpu())
             labs.append(y)
             sess.extend(s)
@@ -133,31 +136,31 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("[INFO] Using device:", device)
     
-    # 定义训练和测试的具体子文件夹路径
-    # 按照您的要求：一个文件夹作为训练，另一个文件夹作为测试
-    training_folder = "fixed_448_padding/event30"
-    testing_folder  = "fixed_448_padding_protocol1/event30" 
+    # 路径配置
+    training_folder = "fixed_448_padding_cdf/event60"
+    testing_folder  = "fixed_448_padding_cdf_protocol1/event60" 
     
     img_size = 448
     C_pos, C_neg = 60, 60
     
-    # 确定 User List (必须保证 Train/Test 的 Label 索引一致)
     train_root = Path(project_root) / "Images" / training_folder
     test_root  = Path(project_root) / "Images" / testing_folder
     
+    # 获取用户列表
     user_list = sorted([u for u in os.listdir(train_root) if os.path.isdir(train_root / u)])
     num_users = len(user_list)
-    print(f"[INFO] Detected {num_users} users: {user_list}")
+    print(f"[INFO] Detected {num_users} users.")
 
     transform = transforms.Compose([
         transforms.Resize((img_size, img_size)),
         transforms.ToTensor()
     ])
 
-    # 1. 加载数据集
+    # 1. 加载数据集 (内部已完成自然排序)
     train_dataset = Protocol1MouseDataset(train_root, user_list, transform)
     test_dataset  = Protocol1MouseDataset(test_root, user_list, transform)
 
+    # shuffle=True 只用于训练集；测试集必须 shuffle=False 以保持 Dataset 里的时序
     train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=2)
     test_loader  = DataLoader(test_dataset, batch_size=128, shuffle=False, num_workers=2)
 
@@ -186,15 +189,15 @@ if __name__ == "__main__":
         verbose=True
     )
 
-    # 4. 保存模型
+    # 4. 保存最佳模型
     model_dir = Path(project_root) / "saved_models"
     model_dir.mkdir(exist_ok=True)
     model_path = model_dir / f"multilabel_P1_best_{timestamp}.pth"
     torch.save(best_model.state_dict(), model_path)
     print(f"[INFO] Model saved: {model_path}")
 
-    # 5. Score Fusion (Protocol 1 评估)
-    SEMANTIC_USER_LIST = user_list # 动态使用当前检测到的用户列表
+    # 5. Score Fusion (时序相邻融合 + Session 物理隔离)
+    SEMANTIC_USER_LIST = user_list 
     scores, labels, session_ids = collect_val_scores(best_model, test_loader, device)
 
     user_ids = list(range(num_users))
@@ -205,42 +208,43 @@ if __name__ == "__main__":
     out_dir.mkdir(parents=True, exist_ok=True)
 
     print("\n===== Protocol 1 Score Fusion Curve =====")
-    for n in range(1, 80):
+    for n in range(1, 31):
+        # 这里的 session_ids 确保了不同 session 的分数永远不会被平均
         res = multilabel_score_fusion(scores, labels, session_ids, user_ids, n)
         
+        valid_eers = []
+        valid_aucs = []
+
         for col_key, metrics in res.items():
             col = int(col_key.replace("user", "")) 
             real_user = SEMANTIC_USER_LIST[col]
-
+            
+            # 记录分用户结果
             semantic_user_curve[real_user][str(n)] = {
                 "User": real_user,
                 "n": n,
                 "EER": float(metrics["EER"]),
                 "AUC": float(metrics["AUC"])
             }
+            valid_eers.append(metrics["EER"])
+            valid_aucs.append(metrics["AUC"])
         
-        avg_eer = np.mean([v["EER"] for v in res.values()])
-        avg_auc = np.mean([v["AUC"] for v in res.values()])
+        avg_eer = np.mean(valid_eers)
+        avg_auc = np.mean(valid_aucs)
 
-    
         print(f"[n={n:02d}] Avg EER: {avg_eer:.4f} | Avg AUC: {avg_auc:.4f}")
 
         result["n"].append(n)
         result["avg_eer"].append(avg_eer)
         result["avg_auc"].append(avg_auc)
 
-    # 6. 保存结果
-    per_user_path = out_dir / f"P1_per_user_results.json"
-    result_path =  out_dir / f"P1_fusion_summary.json"
-
+    # 6. 保存评估 JSON
     with open(out_dir / f"P1_fusion_summary.json", "w") as f:
         json.dump(result, f, indent=2)
     with open(out_dir / f"P1_per_user_results.json", "w") as f:
         json.dump(semantic_user_curve, f, indent=2)
     
-    print(f"[INFO] Per-user score fusion saved to: {per_user_path}")
-    print(f"[INFO] Score fusion results saved to: {result_path}")
-
+    print(f"\n[INFO] Results saved to: {out_dir}")
     gc.collect()
     torch.cuda.empty_cache()
-    print("\n[INFO] Protocol 1 Training and Evaluation Finished.")
+    print("[INFO] Protocol 1 Finished.")
