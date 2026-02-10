@@ -21,7 +21,7 @@ from scipy.stats import rankdata
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 # Default to training files for CDF building to ensure consistency
 DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "training_files")
-DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "training_files_protocol1")
+DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "testing_files_protocol1")
 
 # Fixed canvas and stroke parameters
 FIXED_IMG_SIZE = 448
