@@ -19,6 +19,7 @@ import math
 # ============================================================
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "training_files")
+DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "testing_files_protocol1")
 
 # Base Configuration
 BASE_CHUNK_SIZE = 15
@@ -143,7 +144,7 @@ def process_dataset(data_dir, out_dir, sizes, p_perc, v_perc, target_users=None)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--out_dir", type=str, default="Images/SRP_MultiChannel")
+    parser.add_argument("--out_dir", type=str, default="Images/SRP_MultiChannel_protocol1")
     parser.add_argument("--sizes", type=int, nargs="+", default=[15, 30, 60, 120])
     parser.add_argument("--p_percentile", type=float, default=100, help="Percentile for Position distance")
     parser.add_argument("--v_percentile", type=float, default=100, help="Percentile for Velocity difference")
