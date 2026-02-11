@@ -219,7 +219,7 @@ class PretrainedGoogLeNet_Multilabel(nn.Module):
 
         self.num_users = num_users
 
-        # 每个用户一套独立的FC head
+        # Independent FC head
         self.user_heads = nn.ModuleList([
             nn.Sequential(
                 nn.Linear(1024, 512),
