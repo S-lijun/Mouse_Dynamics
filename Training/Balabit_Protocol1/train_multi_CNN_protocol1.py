@@ -137,8 +137,8 @@ if __name__ == "__main__":
     print("[INFO] Using device:", device)
     
     # 路径配置
-    training_folder = "SRP_angle/event60"
-    testing_folder  = "SRP_angle_protocol1/event60" 
+    training_folder = "SRP_acceleration/event60"
+    testing_folder  = "SRP_acceleration_protocol1/event60" 
     
     img_size = 448
     C_pos, C_neg = 60, 60
@@ -161,8 +161,8 @@ if __name__ == "__main__":
     test_dataset  = Protocol1MouseDataset(test_root, user_list, transform)
 
     # shuffle=True 只用于训练集；测试集必须 shuffle=False 以保持 Dataset 里的时序
-    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=2)
-    test_loader  = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=2)
+    train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=2)
+    test_loader  = DataLoader(test_dataset, batch_size=128, shuffle=False, num_workers=2)
 
     print(f"[INFO] Train samples: {len(train_dataset)} | Test samples: {len(test_dataset)}")
 
