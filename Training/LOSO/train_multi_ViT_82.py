@@ -44,7 +44,7 @@ sys.stdout = TeeLogger(log_path)
 # Imports (Model / Trainer / Score Fusion)
 # ======================================================
 
-from models.scratch_ViT_multi import ScratchMiniViT_MultiLabel as insiderThreatViT
+#from models.scratch_ViT_multi import ScratchMiniViT_MultiLabel as insiderThreatViT
 from models.pretrained_VIT_B16_multi_new import PretrainedViT_B16_Multilabel_NoCLS_NoPos as insiderThreatViT
 from Training.Trainers.multi_class_trainer_ViT_82 import MultiLabelTrainerViT as MultiLabelTrainer
 from Training.Score_Fusion.Score_Fusion_Multi_82 import (
@@ -197,12 +197,12 @@ if __name__ == "__main__":
         "pixel_vs_chunk/event300","pixel_vs_chunk/event120","pixel_vs_chunk/event60","pixel_vs_chunk/event30"
         ]
     
-    Images = [
-    "Chunk/Balabit_chunks_XY_black_white/event60","Chunk/Balabit_chunks_XY_black_white_cdf/training/event60"
-    ]
+    #Images = [
+    #"Chunk/Balabit_chunks_XY_black_white/event60","Chunk/Balabit_chunks_XY_black_white_cdf/training/event60"
+    #]
     
-    #ImagesSize = [1002,634,448,317]
-    ImagesSize = [224,224]
+    ImagesSize = [1002,634,448,317]
+    #ImagesSize = [224,224]
 
     C_pos = 60
     C_neg = 60
