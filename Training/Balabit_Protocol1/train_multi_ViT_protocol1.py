@@ -165,7 +165,7 @@ if __name__ == "__main__":
     print(f"[INFO] Train samples: {len(train_dataset)} | Test samples: {len(test_dataset)}")
 
     # 2. initialize model
-    net = insiderThreatViT(num_users=num_users).to(device)
+    net = insiderThreatViT(num_users=num_users, image_size= img_size).to(device)
 
     # 3. training
     trainer = MultiLabelTrainer(
