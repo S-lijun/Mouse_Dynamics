@@ -16,7 +16,7 @@ import math
 from scipy.interpolate import interp1d
 
 # ============================================================
-# 路径与基础配置
+# Paths and Base Configuration
 # ============================================================
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "training_files")
@@ -27,7 +27,7 @@ BASE_IMG_SIZE = 224
 DPI = 100 
 
 # ============================================================
-# Global Scaler Logic: 分别处理 V 和 A 的全局分布
+# Global Scaler Logic: Handle global distributions for V and A separately
 # ============================================================
 class GlobalFeatureScaler:
     def __init__(self, data_dir, v_perc=95, a_perc=95):
@@ -63,12 +63,12 @@ class GlobalFeatureScaler:
         if not all_v or not all_acc:
             raise ValueError("No valid movement data found!")
 
-        # 为 V 和 A 分别计算独立的阈值
+        # Calculate independent thresholds for Velocity (V) and Acceleration (A)
         self.v_max = np.percentile(all_v, v_perc)
         self.acc_max = np.percentile(all_acc, a_perc)
         print(f"Global Stats: V_max({v_perc}%): {self.v_max:.2f} | Acc_max({a_perc}%): {self.acc_max:.2f}")
 
-        # 构建各自的 CDF 映射函数
+        # Build CDF mapping functions for each
         self.v_lookup = self._create_interp(all_v, self.v_max)
         self.acc_lookup = self._create_interp(all_acc, self.acc_max)
 
@@ -94,27 +94,27 @@ def compute_triple_channel_rp(seq, scaler, p_perc=100):
     # --- R Channel: Distance (Local Recurrence) ---
     diff_p = coords[:, None, :] - coords[None, :, :]
     dist_p = np.sqrt(np.sum(diff_p ** 2, axis=2))
-    # 使用 chunk 内的分位数作为 epsilon
+    # Use the percentile within the chunk as epsilon
     eps_p = np.percentile(dist_p, p_perc)
     r_channel = 1.0 - np.clip(dist_p / (eps_p + 1e-6), 0, 1)
 
-    # --- 计算动力学序列 ---
+    # --- Calculate Kinematic Sequences ---
     dt = np.diff(ts) + 1e-6
     v = np.sqrt(np.diff(xs)**2 + np.diff(ys)**2) / dt
     acc = np.diff(v) / (dt[1:] + 1e-6)
 
-    # 维度对齐 T
+    # Align dimensions to match T
     v_full = np.concatenate([[v[0]], v])
     acc_full = np.concatenate([[acc[0]], acc, [acc[-1]]])
 
-    # 映射到 [0, 1]
+    # Map to [0, 1]
     v_norm = scaler.transform_v(v_full)
     acc_norm = scaler.transform_acc(acc_full)
 
-    # --- G Channel: Velocity (竖条 Vertical) ---
+    # --- G Channel: Velocity (Vertical Stripes) ---
     g_channel = np.tile(v_norm[None, :], (T, 1))
 
-    # --- B Channel: Acceleration (横条 Horizontal) ---
+    # --- B Channel: Acceleration (Horizontal Stripes) ---
     b_channel = np.tile(acc_norm[:, None], (1, T))
 
     return np.clip(np.stack([r_channel, g_channel, b_channel], axis=-1), 0.0, 1.0)
@@ -172,15 +172,15 @@ if __name__ == "__main__":
     parser.add_argument("--data_root", type=str, default=DATA_ROOT)
     parser.add_argument("--out_dir", type=str, default="Images/SRP_dva_protocol1")
     parser.add_argument("--sizes", type=int, nargs="+", default=[15, 30, 60, 120])
-    # 三个通道独立的阈值设置
+    # Independent threshold settings for the three channels
     parser.add_argument("--p_perc", type=float, default=100, help="Distance percentile (local)")
     parser.add_argument("--v_perc", type=float, default=95, help="Global velocity percentile")
     parser.add_argument("--a_perc", type=float, default=95, help="Global acceleration percentile")
     args = parser.parse_args()
 
-    # 1. 扫描全局并应用独立分位数
+    # 1. Scan global distribution and apply independent percentiles
     scaler = GlobalFeatureScaler(args.data_root, v_perc=args.v_perc, a_perc=args.a_perc)
 
-    # 2. 生成图像
+    # 2. Generate images
     out_path = os.path.join(ROOT, args.out_dir)
     process_dataset(args.data_root, out_path, scaler, args.sizes, args.p_perc)

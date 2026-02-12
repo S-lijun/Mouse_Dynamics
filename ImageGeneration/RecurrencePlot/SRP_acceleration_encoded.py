@@ -19,14 +19,15 @@ from scipy.interpolate import interp1d
 # ============================================================
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "testing_files_protocol1")
-#DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "training_files")
+# DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "training_files")
+
 # Base Configuration
 BASE_CHUNK_SIZE = 15
 BASE_IMG_SIZE = 224
 DPI = 100 
 
 # ============================================================
-# Global Scaler Logic: 扫描全局分布并生成加速度的 CDF 映射
+# Global Scaler Logic: Scan global distribution and generate Acceleration CDF mapping
 # ============================================================
 class GlobalAccelerationScaler:
     def __init__(self, data_dir, acc_percentile=95):
@@ -47,37 +48,39 @@ class GlobalAccelerationScaler:
                         df_move = df[df['state'] == 'Move']
                         if len(df_move) < 3: continue
                         
-                        # 计算速度
+                        # Calculate Velocity
                         dt = df_move['client timestamp'].diff() + 1e-6
                         v = np.sqrt(df_move['x'].diff()**2 + df_move['y'].diff()**2) / dt
                         
-                        # 计算加速度 a = dv / dt
+                        # Calculate Acceleration a = dv / dt
                         acc = v.diff() / dt
                         all_acc.extend(np.abs(acc.dropna().values))
                     except:
                         continue
         
         if not all_acc:
-            raise ValueError(f"No acceleration data found! 路径: {data_dir}")
+            raise ValueError(f"No acceleration data found! Path: {data_dir}")
             
         all_acc = np.array(all_acc)
         self.acc_max = np.percentile(all_acc, acc_percentile)
         print(f"Global Acc_max ({acc_percentile}%): {self.acc_max:.2f}")
 
-        # 构建 CDF 映射: [0, acc_max] -> [0, 1]
+        # Build CDF mapping: [0, acc_max] -> [0, 1]
         sorted_acc = np.sort(np.clip(all_acc, 0, self.acc_max))
         y = np.linspace(0, 1, len(sorted_acc))
         return interp1d(sorted_acc, y, bounds_error=False, fill_value=(0, 1))
 
     def transform(self, acc_array):
+        """Map raw acceleration values to [0, 1] based on global distribution"""
         return self.lookup_func(np.clip(np.abs(acc_array), 0, self.acc_max))
 
 def get_dynamic_image_size(chunk_size):
+    """Calculate image size proportionally to the chunk size"""
     scale = math.sqrt(chunk_size / BASE_CHUNK_SIZE)
     return int(round(BASE_IMG_SIZE * scale))
 
 # ============================================================
-# Core RP Logic: R(距离矩阵) + GB(全局加速度横条)
+# Core RP Logic: R (Distance Matrix) + GB (Global Acceleration Horizontal Strips)
 # ============================================================
 def compute_hybrid_rp(seq, acc_scaler, p_percentile=100):
     T = len(seq)
@@ -93,15 +96,16 @@ def compute_hybrid_rp(seq, acc_scaler, p_percentile=100):
     # --- G & B Channels: Acceleration Strips (Horizontal) ---
     dt = np.diff(ts) + 1e-6
     v = np.sqrt(np.diff(xs)**2 + np.diff(ys)**2) / dt
-    # 计算加速度: dv/dt
+    
+    # Calculate Acceleration: dv/dt
     acc = np.diff(v) / (dt[1:] + 1e-6)
-    # 补齐 T 个点 (首尾各补一个，保持对齐)
+    # Pad to T points (padding both ends to maintain alignment)
     acc_full = np.concatenate([[acc[0]], acc, [acc[-1]]]) 
     
-    # 使用全局分布映射为像素值 [0, 1]
+    # Use global distribution to map to pixel values [0, 1]
     acc_norm = acc_scaler.transform(acc_full)
     
-    # 广播生成横条: 每一行 i 的值等于 acc_norm[i]
+    # Broadcast to generate horizontal strips: value of each row i equals acc_norm[i]
     # shape: (T, 1) -> (T, T)
     stripe_matrix = np.tile(acc_norm[:, None], (1, T))
     
@@ -120,7 +124,7 @@ def draw_rp_image(seq, save_path, acc_scaler, p_perc, chunk_size):
     img_size_px = get_dynamic_image_size(chunk_size)
     fig, ax = plt.subplots(figsize=(img_size_px/DPI, img_size_px/DPI), dpi=DPI)
     
-    # origin="lower" 时间从下往上增长
+    # origin="lower" ensures time increases from bottom to top
     ax.imshow(rgb_rp, origin="lower")
     ax.axis("off")
     ax.set_position([0, 0, 1, 1])
@@ -130,6 +134,7 @@ def draw_rp_image(seq, save_path, acc_scaler, p_perc, chunk_size):
     plt.close(fig)
 
 def clean_and_rename_cols(df: pd.DataFrame) -> pd.DataFrame:
+    """Clean header whitespace and filter for movement data"""
     df.columns = [c.strip() for c in df.columns]
     df = df.rename(columns={"client timestamp": "time", "x": "x", "y": "y", "state": "state"})
     df = df[df["state"] == "Move"].copy()
@@ -170,9 +175,9 @@ if __name__ == "__main__":
     parser.add_argument("--acc_percentile", type=float, default=95)
     args = parser.parse_args()
 
-    # 1. 扫描全局加速度分布
+    # 1. Scan global acceleration distribution
     acc_scaler = GlobalAccelerationScaler(args.data_root, acc_percentile=args.acc_percentile)
 
-    # 2. 生成图像
+    # 2. Generate Recurrence Plot images
     out_path = os.path.join(ROOT, args.out_dir)
     process_dataset(args.data_root, out_path, acc_scaler, args.sizes, args.p_percentile)

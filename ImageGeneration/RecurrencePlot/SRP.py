@@ -33,7 +33,6 @@ DPI = 200
 
 def get_dynamic_image_size(chunk_size):
     """
-    根据比例计算图片尺寸: 
     size = 224 * sqrt(chunk_size / 15)
     """
     scale = math.sqrt(chunk_size / BASE_CHUNK_SIZE)
@@ -79,7 +78,7 @@ def draw_rp_image(seq, save_path, percentile, chunk_size):
     if rp is None:
         return
 
-    # 计算该 chunk_size 对应的动态尺寸
+    # calculate the image size for specific chunk size
     img_size_px = get_dynamic_image_size(chunk_size)
     
     fig, ax = plt.subplots(
@@ -209,7 +208,7 @@ def parse_args():
     p = argparse.ArgumentParser(
         description="SRP generation with dynamic scaling (Balabit)"
     )
-    # 默认目录名反映出动态尺寸特征
+   
     p.add_argument("--out_dir", type=str, default=f"Images/SRP_protocol1")
     p.add_argument("--sizes", type=int, nargs="+", default=[15, 30, 60, 120, 300])
     p.add_argument("--users", type=str, nargs="+", default=[])

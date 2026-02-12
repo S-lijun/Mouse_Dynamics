@@ -18,7 +18,7 @@ from scipy.interpolate import interp1d
 # Automatically detect project ROOT
 # ============================================================
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-# 默认路径配置
+# paths
 DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "training_files")
 DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "testing_files_protocol1")
 
@@ -28,7 +28,7 @@ BASE_IMG_SIZE = 224
 DPI = 100 
 
 # ============================================================
-# Global Scaler Logic: 扫描全局分布并生成 CDF 映射
+# Global Scaler Logic: Scan global distribution and generate CDF mapping
 # ============================================================
 class GlobalVelocityScaler:
     def __init__(self, data_dir, v_percentile=95):
@@ -39,7 +39,7 @@ class GlobalVelocityScaler:
         print(f"--- Step 1: Scanning global velocity distribution in {data_dir} ---")
         all_v = []
         
-        # 递归遍历所有无后缀的 session 文件
+        # Recursively traverse all session files without extensions
         for root, dirs, files in os.walk(data_dir):
             for file in files:
                 if file.startswith("session_"):
@@ -61,13 +61,13 @@ class GlobalVelocityScaler:
                         continue
         
         if not all_v:
-            raise ValueError(f"No velocity data found! 请检查路径: {data_dir}")
+            raise ValueError(f"No velocity data found! Please check path: {data_dir}")
             
         all_v = np.array(all_v)
         self.v_max = np.percentile(all_v, v_percentile)
         print(f"Global V_max ({v_percentile}%): {self.v_max:.2f}")
 
-        # 构建 CDF 映射
+        # Build CDF mapping
         sorted_v = np.sort(np.clip(all_v, 0, self.v_max))
         y = np.linspace(0, 1, len(sorted_v))
         return interp1d(sorted_v, y, bounds_error=False, fill_value=(0, 1))
@@ -76,13 +76,13 @@ class GlobalVelocityScaler:
         return self.lookup_func(np.clip(v_array, 0, self.v_max))
 
 def get_dynamic_image_size(chunk_size):
-    """根据比例计算图片尺寸"""
+    """Calculate image size proportionally based on chunk size"""
     scale = math.sqrt(chunk_size / BASE_CHUNK_SIZE)
     dynamic_size = int(round(BASE_IMG_SIZE * scale))
     return dynamic_size
 
 # ============================================================
-# Core RP Logic: R(距离矩阵) + GB(全局速度竖条)
+# Core RP Logic: R (Distance Matrix) + GB (Global Velocity Stripes)
 # ============================================================
 def compute_hybrid_rp(seq, v_scaler, p_percentile=100):
     """
@@ -102,12 +102,12 @@ def compute_hybrid_rp(seq, v_scaler, p_percentile=100):
     # --- G & B Channels: Velocity Stripes (Vertical) ---
     dt = np.diff(ts) + 1e-6
     v_scalar = np.sqrt(np.diff(xs)**2 + np.diff(ys)**2) / dt
-    v_scalar = np.concatenate([[v_scalar[0]], v_scalar]) # 补齐 T
+    v_scalar = np.concatenate([[v_scalar[0]], v_scalar]) # Pad to match T
     
-    # 使用全局分布映射为像素值 [0, 1]
+    # Map to pixel values [0, 1] using global distribution
     v_norm = v_scaler.transform(v_scalar)
     
-    # 广播生成竖条: 每一列 j 的值等于 v_norm[j]
+    # Broadcast to generate vertical stripes: value of each column j equals v_norm[j]
     stripe_matrix = np.tile(v_norm[None, :], (T, 1))
     
     g_channel = stripe_matrix
@@ -170,9 +170,9 @@ if __name__ == "__main__":
     parser.add_argument("--v_percentile", type=float, default=95)
     args = parser.parse_args()
 
-    # 1. 扫描全局分布 (处理无后缀文件)
+    # 1. Scan global distribution (processing files without extensions)
     v_scaler = GlobalVelocityScaler(args.data_root, v_percentile=args.v_percentile)
 
-    # 2. 生成图像
+    # 2. Generate images
     out_path = os.path.join(ROOT, args.out_dir)
     process_dataset(args.data_root, out_path, v_scaler, args.sizes, args.p_percentile)

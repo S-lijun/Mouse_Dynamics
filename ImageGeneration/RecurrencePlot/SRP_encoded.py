@@ -27,7 +27,7 @@ BASE_IMG_SIZE = 224
 DPI = 100 
 
 def get_dynamic_image_size(chunk_size):
-    """根据比例计算图片尺寸"""
+    """Calculate image dimensions proportionally based on chunk size"""
     scale = math.sqrt(chunk_size / BASE_CHUNK_SIZE)
     dynamic_size = int(round(BASE_IMG_SIZE * scale))
     return dynamic_size
@@ -38,8 +38,8 @@ def get_dynamic_image_size(chunk_size):
 def compute_multichannel_rp(seq, p_percentile=95, v_percentile=95):
     """
     seq: (T, 3) -> [x, y, t]
-    p_percentile: 位置距离的截断百分位数
-    v_percentile: 速度差异的截断百分位数
+    p_percentile: Cutoff percentile for position distance
+    v_percentile: Cutoff percentile for velocity difference
     """
     non_zero_mask = ~np.all(seq == 0, axis=1)
     seq = seq[non_zero_mask]
@@ -52,7 +52,7 @@ def compute_multichannel_rp(seq, p_percentile=95, v_percentile=95):
     diff_p = coords[:, None, :] - coords[None, :, :]
     dist_p = np.sqrt(np.sum(diff_p ** 2, axis=2))
     
-    # 使用 p_percentile 控制位置截断
+    # Control position truncation using p_percentile
     eps_p = np.percentile(dist_p, p_percentile)
     rec_p = np.clip(dist_p, 0, eps_p)
     r_channel = 1.0 - (rec_p / (eps_p + 1e-6))
@@ -62,29 +62,29 @@ def compute_multichannel_rp(seq, p_percentile=95, v_percentile=95):
     dx = np.diff(xs)
     dy = np.diff(ys)
     v_scalar = np.sqrt(dx**2 + dy**2) / dt
-    v_scalar = np.concatenate([[v_scalar[0]], v_scalar]) # 对齐 T (首位填充)
+    v_scalar = np.concatenate([[v_scalar[0]], v_scalar]) # Align to T (padding the first element)
     
-    # 计算点对间的速度差异矩阵
+    # Calculate velocity difference matrix between all pairs
     dist_v = np.abs(v_scalar[:, None] - v_scalar[None, :])
     
-    # 使用 v_percentile 控制速度截断，解决数据 skew 问题
+    # Use v_percentile for velocity truncation to handle skewed data distributions
     eps_v = np.percentile(dist_v, v_percentile)
     rec_v = np.clip(dist_v, 0, eps_v)
     g_channel = 1.0 - (rec_v / (eps_v + 1e-6))
 
     # --- B Channel: Angle ---
-    # 计算方向单位向量
+    # Calculate directional unit vectors
     dir_vecs = np.stack([dx, dy], axis=1)
     norms = np.linalg.norm(dir_vecs, axis=1, keepdims=True) + 1e-6
     unit_vecs = dir_vecs / norms
-    unit_vecs = np.vstack([unit_vecs[0:1], unit_vecs]) # 对齐 T
+    unit_vecs = np.vstack([unit_vecs[0:1], unit_vecs]) # Align to T
     
-    # 余弦相似度：范围 [-1, 1]
+    # Cosine Similarity: Range [-1, 1]
     cos_sim = np.dot(unit_vecs, unit_vecs.T)
-    # 线性映射到 [0, 1]
+    # Linearly map to [0, 1]
     b_channel = (cos_sim + 1.0) / 2.0
 
-    # 最终防御：强制截断所有通道到 [0.0, 1.0]，避免 matplotlib 警告
+    # Final Defense: Force clamp all channels to [0.0, 1.0] to avoid matplotlib warnings
     r_channel = np.clip(r_channel, 0.0, 1.0)
     g_channel = np.clip(g_channel, 0.0, 1.0)
     b_channel = np.clip(b_channel, 0.0, 1.0)
@@ -100,10 +100,10 @@ def draw_rp_image(seq, save_path, p_perc, v_perc, chunk_size):
 
     img_size_px = get_dynamic_image_size(chunk_size)
     
-    # 绘图设置
+    # Plot configuration
     fig, ax = plt.subplots(figsize=(img_size_px/DPI, img_size_px/DPI), dpi=DPI)
     
-    # origin="lower" 确保矩阵 (0,0) 在左下角，符合时间轴增长方向
+    # origin="lower" ensures matrix (0,0) is at bottom-left, matching the time axis growth
     ax.imshow(rgb_rp, origin="lower")
     ax.axis("off")
     ax.set_position([0, 0, 1, 1])

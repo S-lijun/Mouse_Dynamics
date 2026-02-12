@@ -17,7 +17,7 @@ import math
 # Automatically detect project ROOT
 # ============================================================
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-# 默认数据路径
+# Default data paths
 DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "training_files")
 DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "testing_files_protocol1")
 
@@ -28,13 +28,13 @@ BASE_IMG_SIZE = 224
 DPI = 100 
 
 def get_dynamic_image_size(chunk_size):
-    """根据比例计算图片尺寸"""
+    """Calculate image dimensions proportionally based on chunk size"""
     scale = math.sqrt(chunk_size / BASE_CHUNK_SIZE)
     dynamic_size = int(round(BASE_IMG_SIZE * scale))
     return dynamic_size
 
 # ============================================================
-# Core RP Logic: R(距离) + GB(方向余弦相似度)
+# Core RP Logic: R (Distance) + GB (Directional Cosine Similarity)
 # ============================================================
 def compute_directional_rp(seq, p_percentile=100):
     """
@@ -54,24 +54,24 @@ def compute_directional_rp(seq, p_percentile=100):
     r_channel = 1.0 - np.clip(dist_p / (eps_p + 1e-6), 0, 1)
 
     # --- G & B Channels: Directional Cosine Similarity (N x N) ---
-    # 1. 计算位移向量 (dx, dy)
+    # 1. Calculate displacement vectors (dx, dy)
     dx = np.diff(xs)
     dy = np.diff(ys)
     dir_vecs = np.stack([dx, dy], axis=1) # shape: (T-1, 2)
     
-    # 2. 归一化为单位向量
+    # 2. Normalize to unit vectors
     norms = np.linalg.norm(dir_vecs, axis=1, keepdims=True) + 1e-9
     unit_vecs = dir_vecs / norms
     
-    # 3. 为了对齐 T 个点，我们在首位复制一个向量 (或末尾，保持维度一致)
-    # 这样矩阵就是 T x T
+    # 3. Align with T points by duplicating the first vector (keeps dimensions consistent)
+    # This ensures the matrix is T x T
     unit_vecs_full = np.vstack([unit_vecs[0:1], unit_vecs]) 
     
-    # 4. 计算 Cosine Similarity 矩阵: (T, 2) dot (2, T) -> (T, T)
+    # 4. Compute Cosine Similarity matrix: (T, 2) dot (2, T) -> (T, T)
     cos_sim = np.dot(unit_vecs_full, unit_vecs_full.T)
     
-    # 5. 线性映射从 [-1, 1] 到 [0, 1]
-    # 靠近1表示方向一致，靠近0表示方向相反
+    # 5. Linear mapping from [-1, 1] to [0, 1]
+    # Values close to 1 indicate the same direction; values close to 0 indicate opposite directions
     dir_matrix = (cos_sim + 1.0) / 2.0
     
     g_channel = dir_matrix
@@ -89,6 +89,7 @@ def draw_rp_image(seq, save_path, p_perc, chunk_size):
     img_size_px = get_dynamic_image_size(chunk_size)
     fig, ax = plt.subplots(figsize=(img_size_px/DPI, img_size_px/DPI), dpi=DPI)
     
+    # origin="lower" ensures matrix (0,0) is at bottom-left, matching time axis growth
     ax.imshow(rgb_rp, origin="lower")
     ax.axis("off")
     ax.set_position([0, 0, 1, 1])
@@ -98,10 +99,10 @@ def draw_rp_image(seq, save_path, p_perc, chunk_size):
     plt.close(fig)
 
 def clean_and_rename_cols(df: pd.DataFrame) -> pd.DataFrame:
-    # 清理 Balabit 常见的表头空格
+    # Clean common whitespace in Balabit headers
     df.columns = [c.strip() for c in df.columns]
     df = df.rename(columns={"client timestamp": "time", "x": "x", "y": "y", "state": "state"})
-    # 只处理 Move 状态
+    # Process 'Move' state only
     df = df[df["state"] == "Move"].copy()
     for col in ["x", "y", "time"]:
         df[col] = pd.to_numeric(df[col], errors="coerce")
@@ -113,7 +114,7 @@ def process_dataset(data_dir, out_dir, sizes, p_perc, target_users=None):
         user_dir = os.path.join(data_dir, user)
         if not os.path.isdir(user_dir): continue
         
-        # 遍历无后缀文件
+        # Traverse files without extensions
         for file in sorted(os.listdir(user_dir)):
             if not file.startswith("session_"): continue
             
@@ -142,6 +143,6 @@ if __name__ == "__main__":
     parser.add_argument("--p_percentile", type=float, default=100, help="Position distance percentile")
     args = parser.parse_args()
 
-    # 执行处理
+    # Execute processing
     out_path = os.path.join(ROOT, args.out_dir)
     process_dataset(args.data_root, out_path, args.sizes, args.p_percentile)
