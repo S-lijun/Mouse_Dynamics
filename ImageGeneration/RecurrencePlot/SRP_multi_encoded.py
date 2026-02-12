@@ -20,6 +20,7 @@ from scipy.interpolate import interp1d
 # ============================================================
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "training_files")
+DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "testing_files_protocol1")
 
 BASE_CHUNK_SIZE = 15
 BASE_IMG_SIZE = 224
@@ -169,7 +170,7 @@ def process_dataset(data_dir, out_dir, scaler, sizes, p_perc):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--data_root", type=str, default=DATA_ROOT)
-    parser.add_argument("--out_dir", type=str, default="Images/SRP_dva")
+    parser.add_argument("--out_dir", type=str, default="Images/SRP_dva_protocol1")
     parser.add_argument("--sizes", type=int, nargs="+", default=[15, 30, 60, 120])
     # 三个通道独立的阈值设置
     parser.add_argument("--p_perc", type=float, default=100, help="Distance percentile (local)")
