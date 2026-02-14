@@ -41,8 +41,8 @@ sys.stdout = TeeLogger(log_path)
 # ======================================================
 # Imports
 # ======================================================
-from models.pretrained_googlenet_multi import PretrainedGoogLeNet_Multilabel as insiderThreatCNN
-#from models.scratch_CNN_multi import ScratchMultiCNN as insiderThreatCNN
+#from models.pretrained_googlenet_multi import PretrainedGoogLeNet_Multilabel as insiderThreatCNN
+from models.scratch_CNN_multi import ScratchMultiCNN as insiderThreatCNN
 from Training.Trainers.multi_class_trainer_82 import MultiLabelTrainerCNN as MultiLabelTrainer
 from Training.Score_Fusion.Score_Fusion_Multi_82 import (
     multilabel_score_fusion,
@@ -136,8 +136,8 @@ if __name__ == "__main__":
     print("[INFO] Using device:", device)
     
     # path
-    training_folder = "fixed_448padding_wb_cdf/event60"
-    testing_folder  = "fixed_448padding_wb_cdf_protocol1/event60"
+    training_folder = "fixed_448_padding_cdf/event60"
+    testing_folder  = "fixed_448_padding_cdf_protocol1/event60"
     
     img_size = 448
     C_pos, C_neg = 60, 60
@@ -182,7 +182,7 @@ if __name__ == "__main__":
     _, best_model, *_ = trainer.train(
         optim_name="adamw",
         num_epochs=17,
-        learning_rate=0.00005,
+        learning_rate=0.00001,
         step_size=5,
         learning_rate_decay=0.1,
         verbose=True
