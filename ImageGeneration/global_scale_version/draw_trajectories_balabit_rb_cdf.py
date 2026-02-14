@@ -20,6 +20,7 @@ from scipy.stats import rankdata
 # ============================================================
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "training_files")
+DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "testing_files_protocol1")
 
 FIXED_IMG_SIZE = 448
 FIXED_LINEWIDTH = 1.0
@@ -128,7 +129,7 @@ def draw_mouse_chunk(chunk, save_path, global_bounds):
 def main():
     global GLOBAL_V_ALL, GLOBAL_CDF_ALL
     parser = argparse.ArgumentParser()
-    parser.add_argument("--out_dir", type=str, default=f"Images/fixed_{FIXED_IMG_SIZE}padding_rb_cdf")
+    parser.add_argument("--out_dir", type=str, default=f"Images/fixed_{FIXED_IMG_SIZE}padding_rb_cdf_protocol1")
     parser.add_argument("--sizes", type=int, nargs="+", default=[15, 30, 60, 120, 300])
     parser.add_argument("--clip", type=float, default=95.0)
     args = parser.parse_args()
