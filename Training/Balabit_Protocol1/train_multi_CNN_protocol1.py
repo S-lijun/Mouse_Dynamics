@@ -41,8 +41,8 @@ sys.stdout = TeeLogger(log_path)
 # ======================================================
 # Imports
 # ======================================================
-#from models.pretrained_googlenet_multi import PretrainedGoogLeNet_Multilabel as insiderThreatCNN
-from models.scratch_CNN_multi import ScratchMultiCNN as insiderThreatCNN
+from models.pretrained_googlenet_multi import PretrainedGoogLeNet_Multilabel as insiderThreatCNN
+#from models.scratch_CNN_multi import ScratchMultiCNN as insiderThreatCNN
 from Training.Trainers.multi_class_trainer_82 import MultiLabelTrainerCNN as MultiLabelTrainer
 from Training.Score_Fusion.Score_Fusion_Multi_82 import (
     multilabel_score_fusion,
@@ -136,8 +136,8 @@ if __name__ == "__main__":
     print("[INFO] Using device:", device)
     
     # path
-    training_folder = "SRP/event60"
-    testing_folder  = "SRP_protocol1/event60"
+    training_folder = "fixed_448_padding/event60"
+    testing_folder  = "fixed_448_padding_protocol1/event60"
     
     img_size = 448
     C_pos, C_neg = 60, 60
@@ -152,7 +152,11 @@ if __name__ == "__main__":
 
     transform = transforms.Compose([
         transforms.Resize((img_size, img_size)),
-        transforms.ToTensor()
+        transforms.ToTensor(),
+        transforms.Normalize(
+        mean=[0.485, 0.456, 0.406],
+        std =[0.229, 0.224, 0.225]
+        )
     ])
 
     # 1. dataloader
@@ -166,7 +170,7 @@ if __name__ == "__main__":
     print(f"[INFO] Train samples: {len(train_dataset)} | Test samples: {len(test_dataset)}")
 
     # 2. initialize model
-    net = insiderThreatCNN(num_users=num_users, image_size= img_size).to(device)
+    net = insiderThreatCNN(num_users=num_users).to(device)
 
     # 3. training
     trainer = MultiLabelTrainer(
