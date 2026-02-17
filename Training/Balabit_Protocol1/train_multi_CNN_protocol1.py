@@ -41,8 +41,8 @@ sys.stdout = TeeLogger(log_path)
 # ======================================================
 # Imports
 # ======================================================
-from models.pretrained_googlenet_multi import PretrainedGoogLeNet_Multilabel as insiderThreatCNN
-#from models.scratch_CNN_multi import ScratchMultiCNN as insiderThreatCNN
+#from models.pretrained_googlenet_multi import PretrainedGoogLeNet_Multilabel as insiderThreatCNN
+from models.scratch_CNN_multi import ScratchMultiCNN as insiderThreatCNN
 from Training.Trainers.multi_class_trainer_82 import MultiLabelTrainerCNN as MultiLabelTrainer
 from Training.Score_Fusion.Score_Fusion_Multi_82 import (
     multilabel_score_fusion,
@@ -136,10 +136,10 @@ if __name__ == "__main__":
     print("[INFO] Using device:", device)
     
     # path
-    training_folder = "fixed_448_padding/event60"
-    testing_folder  = "fixed_448_padding_protocol1/event60"
+    training_folder = "XYPlot/event60"
+    testing_folder  = "XYPlot_protocol1/event60"
     
-    img_size = 448
+    img_size = 224
     C_pos, C_neg = 60, 60
     
     train_root = Path(project_root) / "Images" / training_folder
@@ -152,11 +152,7 @@ if __name__ == "__main__":
 
     transform = transforms.Compose([
         transforms.Resize((img_size, img_size)),
-        transforms.ToTensor(),
-        transforms.Normalize(
-        mean=[0.485, 0.456, 0.406],
-        std =[0.229, 0.224, 0.225]
-        )
+        transforms.ToTensor()
     ])
 
     # 1. dataloader
