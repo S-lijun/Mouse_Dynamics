@@ -14,9 +14,9 @@ DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "training_files")
 #DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "testing_files_protocol1")
 
 # 固定图像尺寸为 448x448
-FIXED_IMG_SIZE = 448
+FIXED_IMG_SIZE = 224
 # 固定线宽和点径
-FIXED_LINEWIDTH = 1.0
+FIXED_LINEWIDTH = 0.5
 FIXED_MARKERSIZE = 1.0
 DPI = 200
 
@@ -106,7 +106,7 @@ def process_one_session(path, user, session_name, out_dir, sizes):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--out_dir", type=str, default=f"Images/fixed_{FIXED_IMG_SIZE}_padding")
-    parser.add_argument("--sizes", type=int, nargs="+", default=[15 ,30, 45, 60, 120, 300])
+    parser.add_argument("--sizes", type=int, nargs="+", default=[60])
     # 添加可选的过滤参数
     parser.add_argument("--users", type=str, nargs="+", default=[])
     parser.add_argument("--sessions", type=str, nargs="+", default=[])

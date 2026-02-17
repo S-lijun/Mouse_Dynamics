@@ -23,9 +23,9 @@ import matplotlib.pyplot as plt
 # ============================================================
 # Automatically detect project ROOT
 # ============================================================
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "training_files")
-DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "testing_files_protocol1")
+#DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "testing_files_protocol1")
 
 print(f"[AutoRoot] Project root detected = {ROOT}")
 print(f"[AutoRoot] Using data_dir = {DATA_ROOT}")
@@ -33,10 +33,10 @@ print(f"[AutoRoot] Using data_dir = {DATA_ROOT}")
 # ============================================================
 # Global Drawing Config (ANCHORS)
 # ============================================================
-BASE_EVENT = 15
+BASE_EVENT = 60
 BASE_IMG_SIZE = 224
-BASE_LINEWIDTH = 1.0
-BASE_MARKERSIZE = 2.0
+BASE_LINEWIDTH = 0.5
+BASE_MARKERSIZE = 1.0
 DPI = 200
 
 
@@ -249,9 +249,9 @@ def parse_args():
     p = argparse.ArgumentParser(
         description="Pixel-mass normalized mouse trajectory chunking"
     )
-    p.add_argument("--out_dir", type=str, default="Images/protocol1")
+    p.add_argument("--out_dir", type=str, default="Images/XYPlot")
     p.add_argument(
-        "--sizes", type=int, nargs="+", default=[15, 30, 60, 120, 300]
+        "--sizes", type=int, nargs="+", default=[60]
     )
     p.add_argument("--users", type=str, nargs="+", default=[])
     p.add_argument("--sessions", type=str, nargs="+", default=[])
