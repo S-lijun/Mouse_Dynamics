@@ -20,7 +20,7 @@ from scipy.stats import rankdata
 # ============================================================
 # Automatically detect project ROOT
 # ============================================================
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 # Default to training files for CDF building; can be modified via DATA_ROOT logic
 DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "training_files")
 
@@ -29,11 +29,11 @@ print(f"[AutoRoot] Project root detected = {ROOT}")
 # ============================================================
 # Global Anchors (DO NOT CHANGE SEMANTICS)
 # ============================================================
-BASE_EVENT = 15
+BASE_EVENT = 60
 BASE_IMG_SIZE = 224
-BASE_LINEWIDTH = 2.0
-BASE_MARKERSIZE = 5.0
-DPI = 100
+BASE_LINEWIDTH = 0.5
+BASE_MARKERSIZE = 1.0
+DPI = 200
 
 # ============================================================
 # Global CDF holders
@@ -249,9 +249,9 @@ def process_dataset(data_dir, out_dir, sizes, target_users=None, target_sessions
 def main():
     global GLOBAL_V_ALL, GLOBAL_CDF_ALL
     parser = argparse.ArgumentParser()
-    parser.add_argument("--out_dir", type=str, default="Images/test_cdf")
-    parser.add_argument("--sizes", type=int, nargs="+", default=[15, 30, 60, 120])
-    parser.add_argument("--clip", type=float, default=95.0, help="Percentile to clip global velocity")
+    parser.add_argument("--out_dir", type=str, default="Images/XYPLot_cdf")
+    parser.add_argument("--sizes", type=int, nargs="+", default=[60])
+    parser.add_argument("--clip", type=float, default=100.0, help="Percentile to clip global velocity")
     args = parser.parse_args()
 
     out_dir = os.path.join(ROOT, args.out_dir)
