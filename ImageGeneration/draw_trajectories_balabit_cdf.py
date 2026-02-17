@@ -23,6 +23,7 @@ from scipy.stats import rankdata
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 # Default to training files for CDF building; can be modified via DATA_ROOT logic
 DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "training_files")
+DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "testing_files_protocol1")
 
 print(f"[AutoRoot] Project root detected = {ROOT}")
 
@@ -249,7 +250,7 @@ def process_dataset(data_dir, out_dir, sizes, target_users=None, target_sessions
 def main():
     global GLOBAL_V_ALL, GLOBAL_CDF_ALL
     parser = argparse.ArgumentParser()
-    parser.add_argument("--out_dir", type=str, default="Images/XYPLot_cdf")
+    parser.add_argument("--out_dir", type=str, default="Images/XYPLot_cdf_protocol1")
     parser.add_argument("--sizes", type=int, nargs="+", default=[60])
     parser.add_argument("--clip", type=float, default=100.0, help="Percentile to clip global velocity")
     args = parser.parse_args()
