@@ -41,7 +41,8 @@ sys.stdout = TeeLogger(log_path)
 # ======================================================
 # Imports
 # ======================================================
-from models.pretrained_VIT_B16_multi_new import PretrainedViT_B16_Multilabel_NoCLS_NoPos as insiderThreatViT
+from models.scratch_ViT_multi import ScratchMiniViT_MultiLabel as insiderThreatViT
+#from models.pretrained_VIT_B16_multi_new import PretrainedViT_B16_Multilabel_NoCLS_NoPos as insiderThreatViT
 from Training.Trainers.multi_class_trainer_ViT_82 import MultiLabelTrainerViT as MultiLabelTrainer
 from Training.Score_Fusion.Score_Fusion_Multi_82 import (
     multilabel_score_fusion,
@@ -136,9 +137,9 @@ if __name__ == "__main__":
     
     # path
     training_folder = "SRP/event60"
-    testing_folder  = "SRP_protocol1/event60" 
+    testing_folder  = "SRP_protocol1/event60"
     
-    img_size = 448
+    img_size = 224
     C_pos, C_neg = 60, 60
     
     train_root = Path(project_root) / "Images" / training_folder
@@ -165,7 +166,7 @@ if __name__ == "__main__":
     print(f"[INFO] Train samples: {len(train_dataset)} | Test samples: {len(test_dataset)}")
 
     # 2. initialize model
-    net = insiderThreatViT(num_users=num_users, image_size= img_size).to(device)
+    net = insiderThreatViT(num_users=num_users).to(device)
 
     # 3. training
     trainer = MultiLabelTrainer(
