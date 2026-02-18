@@ -20,7 +20,7 @@ from scipy.interpolate import interp1d
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 # paths
 DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "training_files")
-#DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "testing_files_protocol1")
+DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "testing_files_protocol1")
 
 # Base Configuration
 BASE_CHUNK_SIZE = 60
@@ -164,7 +164,7 @@ def process_dataset(data_dir, out_dir, v_scaler, sizes, p_perc, target_users=Non
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--data_root", type=str, default=DATA_ROOT)
-    parser.add_argument("--out_dir", type=str, default="Images/SRP_224_velocity")
+    parser.add_argument("--out_dir", type=str, default="Images/SRP_224_velocity_protocol1")
     parser.add_argument("--sizes", type=int, nargs="+", default=[60])
     parser.add_argument("--p_percentile", type=float, default=95)
     parser.add_argument("--v_percentile", type=float, default=95)
