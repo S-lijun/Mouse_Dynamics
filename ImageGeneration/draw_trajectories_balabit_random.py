@@ -2,11 +2,10 @@
 """
 Ablation Study Version — RANDOM Color Encoding
 ---------------------------------------------------------
-- Goal: Test if velocity semantics matter or if color alone provides the boost.
-- Encoding: Randomly assign colors from the 'plasma' colormap to each point.
-- Geometry: Identical to the Velocity CDF version.
-- Pure chunking (no sliding window)
-- White background, random color information
+- Goal: Test if velocity semantics matter.
+- Encoding: Uniform Random [0, 1] color assignment.
+- Geometry: Same as Velocity version.
+- LOGGING: Full session-level progress printing.
 """
 
 import os
@@ -20,10 +19,10 @@ import math
 # Automatically detect project ROOT
 # ============================================================
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-# Ensure this matches your data path
 DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "training_files")
 
 print(f"[Ablation] Project root detected = {ROOT}")
+print(f"[Ablation] Target Data Root = {DATA_ROOT}")
 
 # ============================================================
 # Global Anchors
@@ -35,7 +34,7 @@ BASE_MARKERSIZE = 1.0
 DPI = 200
 
 # ============================================================
-# Scaling & Cleaning Utils
+# Scaling & Utils
 # ============================================================
 def get_img_size(chunk_size):
     scale = chunk_size / BASE_EVENT
@@ -59,10 +58,9 @@ def clean_and_rename_cols(df: pd.DataFrame) -> pd.DataFrame:
     return df[mask_valid].dropna(subset=["x", "y", "time"]).reset_index(drop=True)
 
 # ============================================================
-# Drawing (RANDOM Color Assignment)
+# Drawing (Random Color via Continuous Uniform Distribution)
 # ============================================================
 def draw_mouse_chunk_random_color(chunk, save_path, chunk_size):
-    """Renders a chunk with RANDOM colors from plasma map."""
     if len(chunk) < 2: return
 
     IMG_SIZE = get_img_size(chunk_size)
@@ -71,16 +69,14 @@ def draw_mouse_chunk_random_color(chunk, save_path, chunk_size):
     xs = np.array([float(e["x"]) for e in chunk])
     ys = np.array([float(e["y"]) for e in chunk])
 
-    # --- ABLATION CORE: Randomly assign colors ---
-    # Instead of looking up Velocity CDF, we pick random values in [0, 1]
-    # for each segment. This preserves color richness but removes semantic meaning.
+    # ABLATION: Sample colors from Uniform(0, 1)
     num_segments = len(xs) - 1
-    random_color_indices = np.random.rand(num_segments)
+    random_color_indices = np.random.rand(num_segments) # Continuous Uniform Distribution
     
     cmap = plt.get_cmap("plasma")
     seg_colors = cmap(random_color_indices)
 
-    # Geometry & Padding
+    # Geometry & Scaling
     min_x, max_x = np.min(xs), np.max(xs)
     min_y, max_y = np.min(ys), np.max(ys)
     range_x, range_y = max(max_x - min_x, 1.0), max(max_y - min_y, 1.0)
@@ -120,41 +116,61 @@ def draw_mouse_chunk_random_color(chunk, save_path, chunk_size):
     plt.close(fig)
 
 # ============================================================
-# Processing Loop
+# Dataset Processing with Full Logging
 # ============================================================
 def process_dataset(data_dir, out_dir, sizes, target_users=None):
-    users = sorted(os.listdir(data_dir))
-    for user in users:
-        if target_users and user not in target_users: continue
-        user_dir = os.path.join(data_dir, user)
-        if not os.path.isdir(user_dir): continue
-        
-        print(f"[Ablation-Random] Processing User: {user}")
-        for file in sorted(os.listdir(user_dir)):
-            if not file.startswith("session_"): continue
-            
-            df = clean_and_rename_cols(pd.read_csv(os.path.join(user_dir, file)))
-            events = df.to_dict(orient="records")
-            session_name = os.path.splitext(file)[0]
+    if not os.path.exists(data_dir):
+        print(f"[Error] Data directory not found: {data_dir}")
+        return
 
-            for sz in sizes:
-                n_chunks = len(events) // sz
-                for i in range(n_chunks):
-                    chunk = events[i*sz : (i+1)*sz]
-                    save_path = os.path.join(out_dir, f"event{sz}", user, f"{session_name}-{i}.png")
-                    draw_mouse_chunk_random_color(chunk, save_path, sz)
+    users = sorted(os.listdir(data_dir))
+    total_users = len(users)
+
+    for u_idx, user in enumerate(users, 1):
+        if target_users and user not in target_users:
+            continue
+            
+        user_dir = os.path.join(data_dir, user)
+        if not os.path.isdir(user_dir):
+            continue
+            
+        print(f"\n[{u_idx}/{total_users}] Processing User: {user}")
+        
+        session_files = [f for f in sorted(os.listdir(user_dir)) if f.startswith("session_")]
+        
+        for file in session_files:
+            session_name = os.path.splitext(file)[0]
+            # 这一行就是你要的打印
+            print(f"  -> Session: {session_name}")
+            
+            try:
+                df = clean_and_rename_cols(pd.read_csv(os.path.join(user_dir, file)))
+                events = df.to_dict(orient="records")
+                
+                for sz in sizes:
+                    n_chunks = len(events) // sz
+                    # 可以选择在这里再加一个 chunk 数量的打印，如果需要更细的话
+                    for i in range(n_chunks):
+                        chunk = events[i*sz : (i+1)*sz]
+                        save_path = os.path.join(out_dir, f"event{sz}", user, f"{session_name}-{i}.png")
+                        draw_mouse_chunk_random_color(chunk, save_path, sz)
+            except Exception as e:
+                print(f"    [Error] Failed to process {file}: {e}")
 
 # ============================================================
-# CLI Entry
+# Main Execution
 # ============================================================
 def main():
-    parser = argparse.ArgumentParser(description="Ablation Study: Random Color vs Velocity")
+    parser = argparse.ArgumentParser(description="Ablation: Random Color (Uniform Distribution)")
     parser.add_argument("--out_dir", type=str, default="Images/XYPlot_random_color")
     parser.add_argument("--sizes", type=int, nargs="+", default=[60])
     args = parser.parse_args()
 
-    out_dir = os.path.join(ROOT, args.out_dir)
-    process_dataset(DATA_ROOT, out_dir, sorted(set(args.sizes)))
+    full_out_path = os.path.join(ROOT, args.out_dir)
+    print(f"[Ablation] Output directory: {full_out_path}")
+    
+    process_dataset(DATA_ROOT, full_out_path, sorted(set(args.sizes)))
+    print("\n[Done] Random Color Ablation complete.")
 
 if __name__ == "__main__":
     main()
