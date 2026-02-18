@@ -21,13 +21,13 @@ import math
 # ============================================================
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "training_files")
-DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "testing_files_protocol1")
+#DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "testing_files_protocol1")
 
 print(f"[AutoRoot] Project root detected = {ROOT}")
 print(f"[AutoRoot] Using data_dir = {DATA_ROOT}")
 
 # Base Configuration
-BASE_CHUNK_SIZE = 15
+BASE_CHUNK_SIZE = 60
 BASE_IMG_SIZE = 224
 DPI = 200
 
@@ -209,8 +209,8 @@ def parse_args():
         description="SRP generation with dynamic scaling (Balabit)"
     )
    
-    p.add_argument("--out_dir", type=str, default=f"Images/SRP_protocol1")
-    p.add_argument("--sizes", type=int, nargs="+", default=[15, 30, 60, 120, 300])
+    p.add_argument("--out_dir", type=str, default=f"Images/SRP_224")
+    p.add_argument("--sizes", type=int, nargs="+", default=[60])
     p.add_argument("--users", type=str, nargs="+", default=[])
     p.add_argument("--sessions", type=str, nargs="+", default=[])
     p.add_argument("--percentile", type=float, default=95)
