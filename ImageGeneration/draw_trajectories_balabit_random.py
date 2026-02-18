@@ -20,6 +20,7 @@ import math
 # ============================================================
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "training_files")
+DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "testing_files_protocol1")
 
 print(f"[Ablation] Project root detected = {ROOT}")
 print(f"[Ablation] Target Data Root = {DATA_ROOT}")
@@ -162,7 +163,7 @@ def process_dataset(data_dir, out_dir, sizes, target_users=None):
 # ============================================================
 def main():
     parser = argparse.ArgumentParser(description="Ablation: Random Color (Uniform Distribution)")
-    parser.add_argument("--out_dir", type=str, default="Images/XYPlot_random_color")
+    parser.add_argument("--out_dir", type=str, default="Images/XYPlot_random_color_protocol1")
     parser.add_argument("--sizes", type=int, nargs="+", default=[60])
     args = parser.parse_args()
 
