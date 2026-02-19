@@ -1,6 +1,7 @@
 # train_multi_CNN_protocol2.py
 
-import sys, os, datetime, re, gc
+import sys, os, datetime, re, gc, json
+from collections import defaultdict
 from pathlib import Path
 from PIL import Image
 import torch
@@ -95,7 +96,7 @@ class Protocol2MouseDataset(Dataset):
             return img, self.labels[idx], self.session_ids[idx]
 
 # ======================================================
-# Collect Scores (eval only)
+# Collect Scores
 # ======================================================
 def collect_val_scores(model, loader, device):
     model.eval()
@@ -143,7 +144,7 @@ if __name__ == "__main__":
     ])
 
     # =========================
-    # Datasets
+    # Dataset
     # =========================
 
     train_ds = Protocol2MouseDataset(
@@ -153,7 +154,6 @@ if __name__ == "__main__":
         return_user=False
     )
 
-    # 给 Trainer 用（3 个值）
     test_ds_trainer = Protocol2MouseDataset(
         test_root, user_list,
         is_test=True,
@@ -161,7 +161,6 @@ if __name__ == "__main__":
         return_user=False
     )
 
-    # 给最终评估用（4 个值）
     test_ds_eval = Protocol2MouseDataset(
         test_root, user_list,
         is_test=True,
@@ -185,7 +184,7 @@ if __name__ == "__main__":
     trainer = MultiLabelTrainer(
         net=net,
         train_loader=train_loader,
-        val_loader=test_loader_trainer,   # 🔥 3-value loader
+        val_loader=test_loader_trainer,
         C_pos=60,
         C_neg=60
     )
@@ -197,7 +196,7 @@ if __name__ == "__main__":
     )
 
     # =========================
-    # Protocol2 Per-User Fusion Evaluation
+    # Evaluation
     # =========================
 
     scores, labels, session_ids, users = collect_val_scores(
@@ -206,9 +205,14 @@ if __name__ == "__main__":
 
     print("\n===== Protocol2 Per-User Score Fusion =====")
 
+    result_summary = {"n": [], "avg_eer": [], "avg_auc": []}
+    semantic_user_curve = defaultdict(dict)
+
+    out_dir = Path(project_root) / "Training" / "Results" / "Protocol2" / timestamp
+    out_dir.mkdir(parents=True, exist_ok=True)
+
     for n in range(1, 31):
 
-        print(f"\n------ n = {n} ------")
         valid_eers = []
         valid_aucs = []
 
@@ -228,16 +232,36 @@ if __name__ == "__main__":
                 n=n
             )
 
+            semantic_user_curve[user_name][str(n)] = {
+                "User": user_name,
+                "n": n,
+                "EER": float(metrics["EER"]),
+                "AUC": float(metrics["AUC"])
+            }
+
             valid_eers.append(metrics["EER"])
             valid_aucs.append(metrics["AUC"])
 
-            print(f"{user_name} | "
-                  f"EER: {metrics['EER']:.4f} | "
-                  f"AUC: {metrics['AUC']:.4f}")
+        avg_eer = np.mean(valid_eers)
+        avg_auc = np.mean(valid_aucs)
 
-        print(f"[n={n:02d}] "
-              f"Avg EER: {np.mean(valid_eers):.4f} | "
-              f"Avg AUC: {np.mean(valid_aucs):.4f}")
+        print(f"[n={n:02d}] Avg EER: {avg_eer:.4f} | Avg AUC: {avg_auc:.4f}")
+
+        result_summary["n"].append(n)
+        result_summary["avg_eer"].append(float(avg_eer))
+        result_summary["avg_auc"].append(float(avg_auc))
+
+    # =========================
+    # Save JSON
+    # =========================
+
+    with open(out_dir / "P2_fusion_summary.json", "w") as f:
+        json.dump(result_summary, f, indent=2)
+
+    with open(out_dir / "P2_per_user_results.json", "w") as f:
+        json.dump(semantic_user_curve, f, indent=2)
+
+    print(f"\n[INFO] Results saved to: {out_dir}")
 
     gc.collect()
     torch.cuda.empty_cache()
