@@ -3,7 +3,6 @@
 import sys, os, datetime, re, gc
 from pathlib import Path
 from PIL import Image
-
 import torch
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
@@ -91,21 +90,12 @@ class Protocol2MouseDataset(Dataset):
             img = self.transform(img)
 
         if self.return_user:
-            return (
-                img,
-                self.labels[idx],
-                self.session_ids[idx],
-                self.sample_users[idx],
-            )
+            return img, self.labels[idx], self.session_ids[idx], self.sample_users[idx]
         else:
-            return (
-                img,
-                self.labels[idx],
-                self.session_ids[idx],
-            )
+            return img, self.labels[idx], self.session_ids[idx]
 
 # ======================================================
-# Collect Scores (test only)
+# Collect Scores (eval only)
 # ======================================================
 def collect_val_scores(model, loader, device):
     model.eval()
@@ -152,7 +142,10 @@ if __name__ == "__main__":
         transforms.ToTensor()
     ])
 
-    # 🔥 训练不返回 user
+    # =========================
+    # Datasets
+    # =========================
+
     train_ds = Protocol2MouseDataset(
         train_root, user_list,
         is_test=False,
@@ -160,33 +153,39 @@ if __name__ == "__main__":
         return_user=False
     )
 
-    # 🔥 测试返回 user
-    test_ds = Protocol2MouseDataset(
+    # 给 Trainer 用（3 个值）
+    test_ds_trainer = Protocol2MouseDataset(
+        test_root, user_list,
+        is_test=True,
+        transform=transform,
+        return_user=False
+    )
+
+    # 给最终评估用（4 个值）
+    test_ds_eval = Protocol2MouseDataset(
         test_root, user_list,
         is_test=True,
         transform=transform,
         return_user=True
     )
 
-    train_loader = DataLoader(train_ds, batch_size=64,
-                              shuffle=True, num_workers=2)
-
-    test_loader = DataLoader(test_ds, batch_size=64,
-                             shuffle=False, num_workers=2)
+    train_loader = DataLoader(train_ds, batch_size=64, shuffle=True, num_workers=2)
+    test_loader_trainer = DataLoader(test_ds_trainer, batch_size=64, shuffle=False, num_workers=2)
+    test_loader_eval = DataLoader(test_ds_eval, batch_size=64, shuffle=False, num_workers=2)
 
     print(f"[INFO] Train samples: {len(train_ds)}")
-    print(f"[INFO] Test samples:  {len(test_ds)}")
+    print(f"[INFO] Test samples:  {len(test_ds_trainer)}")
 
-    # ======================================================
+    # =========================
     # Training
-    # ======================================================
-    net = insiderThreatCNN(num_users=num_users,
-                           image_size=img_size).to(device)
+    # =========================
+
+    net = insiderThreatCNN(num_users=num_users, image_size=img_size).to(device)
 
     trainer = MultiLabelTrainer(
         net=net,
         train_loader=train_loader,
-        val_loader=test_loader,
+        val_loader=test_loader_trainer,   # 🔥 3-value loader
         C_pos=60,
         C_neg=60
     )
@@ -197,11 +196,12 @@ if __name__ == "__main__":
         learning_rate=0.0001
     )
 
-    # ======================================================
-    # Protocol2 Per-User + Fusion
-    # ======================================================
+    # =========================
+    # Protocol2 Per-User Fusion Evaluation
+    # =========================
+
     scores, labels, session_ids, users = collect_val_scores(
-        best_model, test_loader, device
+        best_model, test_loader_eval, device
     )
 
     print("\n===== Protocol2 Per-User Score Fusion =====")
