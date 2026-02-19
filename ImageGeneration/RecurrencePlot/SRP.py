@@ -21,7 +21,7 @@ import math
 # ============================================================
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "training_files")
-DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "testing_files_protocol2/genuine")
+DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "testing_files_protocol2/imposter")
 
 print(f"[AutoRoot] Project root detected = {ROOT}")
 print(f"[AutoRoot] Using data_dir = {DATA_ROOT}")
@@ -209,7 +209,7 @@ def parse_args():
         description="SRP generation with dynamic scaling (Balabit)"
     )
    
-    p.add_argument("--out_dir", type=str, default=f"Images/SRP_224_protocol2/genuine")
+    p.add_argument("--out_dir", type=str, default=f"Images/SRP_224_protocol2/imposter")
     p.add_argument("--sizes", type=int, nargs="+", default=[60])
     p.add_argument("--users", type=str, nargs="+", default=[])
     p.add_argument("--sessions", type=str, nargs="+", default=[])
