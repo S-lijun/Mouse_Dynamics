@@ -58,7 +58,7 @@ class Protocol2MouseDataset(Dataset):
         self.num_users = len(all_users)
 
         # 测试集多了一层 event60
-        sub_folders = [f"genuine/{event}", f"imposter/{event}"] if is_test else [""]
+        sub_folders = [f"genuine/event{event}", f"imposter/event{event}"] if is_test else [""]
 
         for sub in sub_folders:
             base_path = os.path.join(split_root, sub)
