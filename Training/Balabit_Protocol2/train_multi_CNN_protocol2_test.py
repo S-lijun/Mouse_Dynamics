@@ -183,9 +183,13 @@ if __name__ == "__main__":
     )
 
     print("\n========== Training ==========")
-    _, best_model = trainer.train(
+    _, best_model, *_ = trainer.train(
+        optim_name="adamw",
         num_epochs=17,
-        learning_rate=0.0001
+        learning_rate=0.0001,
+        step_size=5,
+        learning_rate_decay=0.1,
+        verbose=True
     )
 
     # =========================
