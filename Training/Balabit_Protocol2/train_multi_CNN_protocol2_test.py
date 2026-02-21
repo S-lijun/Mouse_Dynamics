@@ -22,7 +22,7 @@ timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 # Imports
 # ======================================================
 from models.scratch_CNN_multi import ScratchMultiCNN as insiderThreatCNN
-from Training.Trainers.multi_class_trainer_82 import MultiLabelTrainerCNN as MultiLabelTrainer
+from Training.Trainers.multi_class_trainer_protocol2 import MultiLabelTrainerProtocol2 as MultiLabelTrainer
 from Training.Score_Fusion.Score_Fusion_Multi_82 import multilabel_score_fusion_one
 
 # ======================================================
@@ -154,26 +154,19 @@ if __name__ == "__main__":
         return_user=False
     )
 
-    test_ds_trainer = Protocol2MouseDataset(
+    # 🔥 只用一个 test_loader
+    test_ds = Protocol2MouseDataset(
         test_root, user_list,
         is_test=True,
         transform=transform,
-        return_user=False
-    )
-
-    test_ds_eval = Protocol2MouseDataset(
-        test_root, user_list,
-        is_test=True,
-        transform=transform,
-        return_user=True
+        return_user=True   # trainer + evaluation 都需要
     )
 
     train_loader = DataLoader(train_ds, batch_size=64, shuffle=True, num_workers=2)
-    test_loader_trainer = DataLoader(test_ds_trainer, batch_size=64, shuffle=False, num_workers=2)
-    test_loader_eval = DataLoader(test_ds_eval, batch_size=64, shuffle=False, num_workers=2)
+    test_loader  = DataLoader(test_ds,  batch_size=64, shuffle=False, num_workers=2)
 
     print(f"[INFO] Train samples: {len(train_ds)}")
-    print(f"[INFO] Test samples:  {len(test_ds_trainer)}")
+    print(f"[INFO] Test samples:  {len(test_ds)}")
 
     # =========================
     # Training
@@ -184,13 +177,13 @@ if __name__ == "__main__":
     trainer = MultiLabelTrainer(
         net=net,
         train_loader=train_loader,
-        val_loader=test_loader_trainer,
+        val_loader=test_loader,
         C_pos=60,
         C_neg=60
     )
 
     print("\n========== Training ==========")
-    _, best_model, *_ = trainer.train(
+    _, best_model = trainer.train(
         num_epochs=17,
         learning_rate=0.0001
     )
@@ -200,7 +193,7 @@ if __name__ == "__main__":
     # =========================
 
     scores, labels, session_ids, users = collect_val_scores(
-        best_model, test_loader_eval, device
+        best_model, test_loader, device
     )
 
     print("\n===== Protocol2 Per-User Score Fusion =====")
@@ -250,10 +243,6 @@ if __name__ == "__main__":
         result_summary["n"].append(n)
         result_summary["avg_eer"].append(float(avg_eer))
         result_summary["avg_auc"].append(float(avg_auc))
-
-    # =========================
-    # Save JSON
-    # =========================
 
     with open(out_dir / "P2_fusion_summary.json", "w") as f:
         json.dump(result_summary, f, indent=2)

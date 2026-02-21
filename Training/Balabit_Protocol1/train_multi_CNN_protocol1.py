@@ -43,7 +43,7 @@ sys.stdout = TeeLogger(log_path)
 # ======================================================
 #from models.pretrained_googlenet_multi import PretrainedGoogLeNet_Multilabel as insiderThreatCNN
 from models.scratch_CNN_multi import ScratchMultiCNN as insiderThreatCNN
-from Training.Trainers.multi_class_trainer_82 import MultiLabelTrainerCNN as MultiLabelTrainer
+from Training.Trainers.multi_class_trainer_protocol1 import MultiLabelTrainerCNN as MultiLabelTrainer
 from Training.Score_Fusion.Score_Fusion_Multi_82 import (
     multilabel_score_fusion,
     calculate_eer
@@ -134,7 +134,7 @@ if __name__ == "__main__":
     print(f"[INFO] Training Protocol 1 - Started at {timestamp}")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("[INFO] Using device:", device)
-    
+
     # path
     training_folder = "SRP_velocity/event60"
     testing_folder  = "SRP_velocity_protocol1/event60"
