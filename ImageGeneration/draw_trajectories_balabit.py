@@ -26,7 +26,7 @@ import matplotlib.pyplot as plt
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "training_files")
 DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "testing_files_protocol1")
-DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "testing_files_protocol2/genuine")
+DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "testing_files_protocol2/imposter")
 
 print(f"[AutoRoot] Project root detected = {ROOT}")
 print(f"[AutoRoot] Using data_dir = {DATA_ROOT}")
@@ -250,7 +250,7 @@ def parse_args():
     p = argparse.ArgumentParser(
         description="Pixel-mass normalized mouse trajectory chunking"
     )
-    p.add_argument("--out_dir", type=str, default="Images/XYPlot_protocol2/genuine")
+    p.add_argument("--out_dir", type=str, default="Images/XYPlot_protocol2/imposter")
     p.add_argument(
         "--sizes", type=int, nargs="+", default=[60]
     )
