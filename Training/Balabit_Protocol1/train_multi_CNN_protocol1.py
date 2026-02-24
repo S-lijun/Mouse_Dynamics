@@ -41,8 +41,8 @@ sys.stdout = TeeLogger(log_path)
 # ======================================================
 # Imports
 # ======================================================
-#from models.pretrained_googlenet_multi import PretrainedGoogLeNet_Multilabel as insiderThreatCNN
-from models.scratch_CNN_multi import ScratchMultiCNN as insiderThreatCNN
+from models.pretrained_googlenet_multi import PretrainedGoogLeNet_Multilabel as insiderThreatCNN
+#from models.scratch_CNN_multi import ScratchMultiCNN as insiderThreatCNN
 from Training.Trainers.multi_class_trainer_protocol1 import MultiLabelTrainerCNN as MultiLabelTrainer
 from Training.Score_Fusion.Score_Fusion_Multi_82 import (
     multilabel_score_fusion,
@@ -136,8 +136,8 @@ if __name__ == "__main__":
     print("[INFO] Using device:", device)
 
     # path
-    training_folder = "SRP_dva/event60"
-    testing_folder  = "SRP_dva_protocol1/event60"
+    training_folder = "XYPlot/event60"
+    testing_folder  = "XYPlot_protocol1/event60"
     
     img_size = 224
     C_pos, C_neg = 60, 60
