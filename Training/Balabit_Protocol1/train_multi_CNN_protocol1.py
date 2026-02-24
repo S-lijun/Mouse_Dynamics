@@ -136,8 +136,8 @@ if __name__ == "__main__":
     print("[INFO] Using device:", device)
 
     # path
-    training_folder = "SRP_224/event150"
-    testing_folder  = "SRP_224_protocol1/event150"
+    training_folder = "SRP_dvt/event150"
+    testing_folder  = "SRP_dvt_protocol1/event150"
     
     img_size = 224
     C_pos, C_neg = 60, 60
