@@ -136,10 +136,10 @@ if __name__ == "__main__":
     print("[INFO] Using device:", device)
 
     # path
-    training_folder = "SRP_dvt/event150"
-    testing_folder  = "SRP_dvt_protocol1/event150"
+    training_folder = "SRP/event60"
+    testing_folder  = "SRP_protocol1/event60"
     
-    img_size = 224
+    img_size = 60
     C_pos, C_neg = 60, 60
     
     train_root = Path(project_root) / "Images" / training_folder
@@ -166,7 +166,7 @@ if __name__ == "__main__":
     print(f"[INFO] Train samples: {len(train_dataset)} | Test samples: {len(test_dataset)}")
 
     # 2. initialize model
-    net = insiderThreatCNN(num_users=num_users).to(device)
+    net = insiderThreatCNN(num_users=num_users, image_size = img_size).to(device)
 
     # 3. training
     trainer = MultiLabelTrainer(
