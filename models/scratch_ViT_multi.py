@@ -104,7 +104,7 @@ class ScratchMiniViT_MultiLabel(nn.Module):
         # 多分支 FC heads（每个用户一个）
         self.user_heads = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(embed_dim, 128),
+                nn.Linear(embed_dim, 1024),
                 nn.GELU(),
                 nn.Dropout(0.3),
                 nn.Linear(1024, 512),
