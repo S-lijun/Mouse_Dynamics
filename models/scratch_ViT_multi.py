@@ -107,6 +107,15 @@ class ScratchMiniViT_MultiLabel(nn.Module):
                 nn.Linear(embed_dim, 128),
                 nn.GELU(),
                 nn.Dropout(0.3),
+                nn.Linear(1024, 512),
+                nn.GELU(),
+                nn.Dropout(0.1),
+                nn.Linear(512, 256),
+                nn.GELU(),
+                nn.Dropout(0.1),
+                nn.Linear(256, 128),
+                nn.GELU(),
+                nn.Dropout(0.1),
                 nn.Linear(128 , 1)
             )
             for _ in range(num_users)
