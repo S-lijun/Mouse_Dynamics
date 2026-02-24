@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import math
 
 # =============== Swish 激活 ===============
 class Swish(nn.Module):
@@ -55,6 +56,7 @@ class EfficientAttention(nn.Module):
         k = F.softmax(k, dim=-2)  # [B,H,N,D]
 
         kv = torch.einsum('bhnd,bhne->bhde', k, v)  # [B,H,D,D]
+        kv = kv / math.sqrt(self.head_dim)
         out = torch.einsum('bhnd,bhde->bhne', q, kv)  # [B,H,N,D]
 
         out = out.permute(0, 2, 1, 3).reshape(B, N, C)  # [B,N,C]
@@ -102,18 +104,9 @@ class ScratchMiniViT_MultiLabel(nn.Module):
         # 多分支 FC heads（每个用户一个）
         self.user_heads = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(embed_dim, 1024),
-                Swish(),
-                nn.Dropout(0.2),
-                nn.Linear(1024, 512),
-                Swish(),
-                nn.Dropout(0.1),
-                nn.Linear(512, 256),
-                Swish(),
-                nn.Dropout(0.05),
-                nn.Linear(256, 128),
-                Swish(),
-                nn.Dropout(0.05),
+                nn.Linear(embed_dim, 128),
+                nn.GELU(),
+                nn.Dropout(0.3),
                 nn.Linear(128 , 1)
             )
             for _ in range(num_users)
