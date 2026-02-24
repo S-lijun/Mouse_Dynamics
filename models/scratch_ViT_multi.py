@@ -105,17 +105,17 @@ class ScratchMiniViT_MultiLabel(nn.Module):
         self.user_heads = nn.ModuleList([
             nn.Sequential(
                 nn.Linear(embed_dim, 1024),
-                nn.GELU(),
+                Swish(),
                 nn.Dropout(0.3),
                 nn.Linear(1024, 512),
-                nn.GELU(),
-                nn.Dropout(0.1),
+                Swish(),
+                nn.Dropout(0.2),
                 nn.Linear(512, 256),
-                nn.GELU(),
+                Swish(),
                 nn.Dropout(0.1),
                 nn.Linear(256, 128),
-                nn.GELU(),
-                nn.Dropout(0.1),
+                Swish(),
+                nn.Dropout(0.05),
                 nn.Linear(128 , 1)
             )
             for _ in range(num_users)
@@ -132,7 +132,9 @@ class ScratchMiniViT_MultiLabel(nn.Module):
         x = self.norm(x)
 
         # MAX-AGGR-2 pooling: 取每个 feature 维度的最大值
-        x = x.max(dim=1)[0]  # [B, D]
+        #x = x.max(dim=1)[0]  # [B, D]
+        # Average pooling
+        x = x.mean(dim=1)  # [B, D]
 
         # Multi-head outputs
         logits = [head(x) for head in self.user_heads]
