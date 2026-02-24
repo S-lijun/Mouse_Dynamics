@@ -41,8 +41,8 @@ sys.stdout = TeeLogger(log_path)
 # ======================================================
 # Imports
 # ======================================================
-from models.scratch_ViT_multi import ScratchMiniViT_MultiLabel as insiderThreatViT
-#from models.pretrained_VIT_B16_multi_new import PretrainedViT_B16_Multilabel_NoCLS_NoPos as insiderThreatViT
+#from models.scratch_ViT_multi import ScratchMiniViT_MultiLabel as insiderThreatViT
+from models.pretrained_VIT_B16_multi_new import PretrainedViT_B16_Multilabel_NoCLS_NoPos as insiderThreatViT
 from Training.Trainers.multi_class_trainer_ViT_protocol1 import MultiLabelTrainerViT as MultiLabelTrainer
 from Training.Score_Fusion.Score_Fusion_Multi_82 import (
     multilabel_score_fusion,
@@ -136,8 +136,8 @@ if __name__ == "__main__":
     print("[INFO] Using device:", device)
     
     # path
-    training_folder = "XYPLot_cdf/event60"
-    testing_folder  = "XYPLot_cdf_protocol1/event60"
+    training_folder = "XYPlot/event60"
+    testing_folder  = "XYPlot_protocol1/event60"
     
     img_size = 224
     C_pos, C_neg = 60, 60
