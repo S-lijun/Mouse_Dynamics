@@ -74,10 +74,6 @@ def wilcoxon_curve_test(
         vec_a = np.array([eer_a[u] for u in common_users])
         vec_b = np.array([eer_b[u] for u in common_users])
 
-        # skip degenerate cases
-        if np.allclose(vec_a, vec_b):
-            print(f"[Skip] n={n}: identical EER vectors")
-            continue
 
         mean_a = np.mean(vec_a)
         mean_b = np.mean(vec_b)
