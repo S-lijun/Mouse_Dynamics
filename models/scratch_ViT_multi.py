@@ -132,9 +132,9 @@ class ScratchMiniViT_MultiLabel(nn.Module):
         x = self.norm(x)
 
         # MAX-AGGR-2 pooling: 取每个 feature 维度的最大值
-        #x = x.max(dim=1)[0]  # [B, D]
+        x = x.max(dim=1)[0]  # [B, D]
         # Average pooling
-        x = x.mean(dim=1)  # [B, D]
+        #x = x.mean(dim=1)  # [B, D]
 
         # Multi-head outputs
         logits = [head(x) for head in self.user_heads]
