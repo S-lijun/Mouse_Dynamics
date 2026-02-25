@@ -139,8 +139,11 @@ if __name__ == "__main__":
     # path
     training_folder = "XYPlot/event60"
     testing_folder  = "XYPlot_protocol1/event60"
+
+    training_folder = "SRP_dvt_fixed/event300"
+    testing_folder  = "SRP_dvt_fixed_protocol1/event300"
     
-    img_size = 224
+    img_size = 300
     C_pos, C_neg = 60, 60
     
     train_root = Path(project_root) / "Images" / training_folder
@@ -167,7 +170,7 @@ if __name__ == "__main__":
     print(f"[INFO] Train samples: {len(train_dataset)} | Test samples: {len(test_dataset)}")
 
     # 2. initialize model
-    net = insiderThreatViT(num_users=num_users).to(device)
+    net = insiderThreatViT(num_users=num_users, img_size=img_size).to(device)
 
     # 3. training
     trainer = MultiLabelTrainer(
