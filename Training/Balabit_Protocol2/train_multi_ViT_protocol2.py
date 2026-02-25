@@ -125,8 +125,8 @@ if __name__ == "__main__":
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    training_folder = "XYPLot_cdf/event60"
-    testing_folder  = "XYPLot_cdf_protocol2"
+    training_folder = "SRP_224/event60"
+    testing_folder  = "SRP_224_protocol2"
     img_size = 224
 
     train_root = Path(project_root) / "Images" / training_folder
