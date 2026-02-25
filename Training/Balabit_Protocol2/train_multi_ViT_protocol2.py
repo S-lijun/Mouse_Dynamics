@@ -173,7 +173,7 @@ if __name__ == "__main__":
     # Training
     # =========================
 
-    net = insiderThreatCNN(num_users=num_users, image_size=img_size).to(device)
+    net = insiderThreatCNN(num_users=num_users, img_size=img_size).to(device)
 
     trainer = MultiLabelTrainer(
         net=net,
