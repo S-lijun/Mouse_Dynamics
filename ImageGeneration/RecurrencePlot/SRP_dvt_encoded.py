@@ -21,10 +21,10 @@ from scipy.interpolate import interp1d
 # ============================================================
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "training_files")
-DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "testing_files_protocol1")
+#DATA_ROOT = os.path.join(ROOT, "Data", "Balabit-dataset", "testing_files_protocol1")
 
-BASE_CHUNK_SIZE = 60
-BASE_IMG_SIZE = 60
+BASE_CHUNK_SIZE = 300
+BASE_IMG_SIZE = 300
 DPI = 200
 
 
@@ -242,8 +242,8 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--data_root", type=str, default=DATA_ROOT)
-    parser.add_argument("--out_dir", type=str, default="Images/SRP_dvt_fixed_protocol1")
-    parser.add_argument("--sizes", type=int, nargs="+", default=[60])
+    parser.add_argument("--out_dir", type=str, default="Images/SRP_dvt_fixed")
+    parser.add_argument("--sizes", type=int, nargs="+", default=[300])
     parser.add_argument("--p_percentile", type=float, default=95)
     parser.add_argument("--v_percentile", type=float, default=95)
     parser.add_argument("--dt_percentile", type=float, default=95)
