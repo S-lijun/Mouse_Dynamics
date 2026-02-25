@@ -4,7 +4,6 @@ import sys, os, datetime, re, gc, json
 from collections import defaultdict
 from pathlib import Path
 from PIL import Image
-
 import torch
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
@@ -20,49 +19,32 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
 # ======================================================
-# Logging
-# ======================================================
-log_dir = Path(project_root) / "output_logs" / "train_multi_label_p2"
-log_dir.mkdir(parents=True, exist_ok=True)
-log_path = log_dir / f"Protocol2_training_{timestamp}.out"
-
-class TeeLogger:
-    def __init__(self, file_path):
-        self.terminal = sys.__stdout__
-        self.log = open(file_path, "w")
-    def write(self, message):
-        self.terminal.write(message)
-        self.log.write(message)
-    def flush(self):
-        self.terminal.flush()
-        self.log.flush()
-
-sys.stdout = TeeLogger(log_path)
-
-# ======================================================
 # Imports
 # ======================================================
 from models.scratch_CNN_multi import ScratchMultiCNN as insiderThreatCNN
-from Training.Trainers.multi_class_trainer_protocol1 import MultiLabelTrainerCNN as MultiLabelTrainer
-from Training.Score_Fusion.Score_Fusion_Multi_82 import multilabel_score_fusion
+from Training.Trainers.multi_class_trainer_protocol2 import MultiLabelTrainerProtocol2 as MultiLabelTrainer
+from Training.Score_Fusion.Score_Fusion_Multi_82 import multilabel_score_fusion_one
 
 # ======================================================
 # Dataset
 # ======================================================
 class Protocol2MouseDataset(Dataset):
-    def __init__(self, split_root, all_users, is_test=False, transform=None, event=60):
+    def __init__(self, split_root, all_users, is_test=False,
+                 transform=None, event=60, return_user=False):
 
         self.samples = []
         self.labels = []
         self.session_ids = []
+        self.sample_users = []
         self.transform = transform
         self.user2index = {u: i for i, u in enumerate(all_users)}
         self.num_users = len(all_users)
+        self.return_user = return_user
 
         if is_test:
             sub_folders = [f"genuine/event{event}", f"imposter/event{event}"]
         else:
-            sub_folders = [""]  # training 只有 user 文件夹
+            sub_folders = [""]
 
         for sub in sub_folders:
             base_path = os.path.join(split_root, sub)
@@ -87,16 +69,14 @@ class Protocol2MouseDataset(Dataset):
 
                 for sess, idx, f in files:
                     self.samples.append(os.path.join(user_path, f))
+                    self.sample_users.append(user)
 
                     y = torch.zeros(self.num_users)
 
                     if is_test:
-                        # genuine 才是 one-hot
                         if "genuine" in sub:
                             y[u_idx] = 1.0
-                        # imposter 保持全 0
                     else:
-                        # 训练阶段永远 one-hot
                         y[u_idx] = 1.0
 
                     self.labels.append(y)
@@ -109,20 +89,33 @@ class Protocol2MouseDataset(Dataset):
         img = Image.open(self.samples[idx]).convert("RGB")
         if self.transform:
             img = self.transform(img)
-        return img, self.labels[idx], self.session_ids[idx]
 
+        if self.return_user:
+            return img, self.labels[idx], self.session_ids[idx], self.sample_users[idx]
+        else:
+            return img, self.labels[idx], self.session_ids[idx]
 
+# ======================================================
+# Collect Scores
+# ======================================================
 def collect_val_scores(model, loader, device):
     model.eval()
-    outs, labs, sess = [], [], []
+    outs, labs, sess, users = [], [], [], []
+
     with torch.no_grad():
-        for X, y, s in loader:
+        for X, y, s, u in loader:
             logits = model(X.to(device))
             outs.append(torch.sigmoid(logits).cpu())
             labs.append(y)
             sess.extend(s)
-    return torch.cat(outs).numpy(), torch.cat(labs).numpy(), np.asarray(sess)
+            users.extend(u)
 
+    return (
+        torch.cat(outs).numpy(),
+        torch.cat(labs).numpy(),
+        np.asarray(sess),
+        np.asarray(users),
+    )
 
 # ======================================================
 # Main
@@ -131,32 +124,54 @@ if __name__ == "__main__":
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    training_folder = "SRP_224/event60"
-    testing_folder = "SRP_224_protocol2"
-
+    training_folder = "XYPlot/event60"
+    testing_folder  = "XYPlot_protocol2"
     img_size = 224
 
     train_root = Path(project_root) / "Images" / training_folder
-    test_root = Path(project_root) / "Images" / testing_folder
+    test_root  = Path(project_root) / "Images" / testing_folder
 
-    user_list = sorted([u for u in os.listdir(train_root) if os.path.isdir(train_root / u)])
+    user_list = sorted([u for u in os.listdir(train_root)
+                        if os.path.isdir(train_root / u)])
     num_users = len(user_list)
+
     print(f"[INFO] Detected {num_users} users.")
+    print("[INFO] Device:", device)
 
     transform = transforms.Compose([
         transforms.Resize((img_size, img_size)),
         transforms.ToTensor()
     ])
 
-    train_ds = Protocol2MouseDataset(train_root, user_list, is_test=False, transform=transform)
-    test_ds = Protocol2MouseDataset(test_root, user_list, is_test=True, transform=transform)
+    # =========================
+    # Dataset
+    # =========================
+
+    train_ds = Protocol2MouseDataset(
+        train_root, user_list,
+        is_test=False,
+        transform=transform,
+        return_user=False
+    )
+
+    # 只用一个 test_loader
+    test_ds = Protocol2MouseDataset(
+        test_root, user_list,
+        is_test=True,
+        transform=transform,
+        return_user=True   # trainer + evaluation 都需要
+    )
 
     train_loader = DataLoader(train_ds, batch_size=64, shuffle=True, num_workers=2)
-    test_loader = DataLoader(test_ds, batch_size=64, shuffle=False, num_workers=2)
+    test_loader  = DataLoader(test_ds,  batch_size=64, shuffle=False, num_workers=2)
+
+    print(f"[INFO] Train samples: {len(train_ds)}")
+    print(f"[INFO] Test samples:  {len(test_ds)}")
 
     # =========================
     # Training
     # =========================
+
     net = insiderThreatCNN(num_users=num_users, image_size=img_size).to(device)
 
     trainer = MultiLabelTrainer(
@@ -167,13 +182,25 @@ if __name__ == "__main__":
         C_neg=60
     )
 
-    print("\n========== Training Execution ==========")
-    _, best_model, *_ = trainer.train(num_epochs=17, learning_rate=0.0001)
+    print("\n========== Training ==========")
+    _, best_model, *_ = trainer.train(
+        optim_name="adamw",
+        num_epochs=17,
+        learning_rate=0.0001,
+        step_size=5,
+        learning_rate_decay=0.1,
+        verbose=True
+    )
 
     # =========================
     # Evaluation
     # =========================
-    scores, labels, session_ids = collect_val_scores(best_model, test_loader, device)
+
+    scores, labels, session_ids, users = collect_val_scores(
+        best_model, test_loader, device
+    )
+
+    print("\n===== Protocol2 Per-User Score Fusion =====")
 
     result_summary = {"n": [], "avg_eer": [], "avg_auc": []}
     semantic_user_curve = defaultdict(dict)
@@ -181,21 +208,29 @@ if __name__ == "__main__":
     out_dir = Path(project_root) / "Training" / "Results" / "Protocol2" / timestamp
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    print("\n===== Protocol 2 Score Fusion Evaluation =====")
-
-    user_ids = list(range(num_users))
-
     for n in range(1, 31):
-        res = multilabel_score_fusion(scores, labels, session_ids, user_ids, n)
 
-        valid_eers, valid_aucs = [], []
+        valid_eers = []
+        valid_aucs = []
 
-        for col_key, metrics in res.items():
-            u_idx = int(col_key.replace("user", ""))
-            real_user_name = user_list[u_idx]
+        for u_idx in range(num_users):
 
-            semantic_user_curve[real_user_name][str(n)] = {
-                "User": real_user_name,
+            user_name = user_list[u_idx]
+            mask = users == user_name
+
+            user_scores   = scores[mask, u_idx]
+            user_labels   = labels[mask, u_idx]
+            user_sessions = session_ids[mask]
+
+            metrics = multilabel_score_fusion_one(
+                user_scores,
+                user_labels,
+                user_sessions,
+                n=n
+            )
+
+            semantic_user_curve[user_name][str(n)] = {
+                "User": user_name,
                 "n": n,
                 "EER": float(metrics["EER"]),
                 "AUC": float(metrics["AUC"])
@@ -210,8 +245,8 @@ if __name__ == "__main__":
         print(f"[n={n:02d}] Avg EER: {avg_eer:.4f} | Avg AUC: {avg_auc:.4f}")
 
         result_summary["n"].append(n)
-        result_summary["avg_eer"].append(avg_eer)
-        result_summary["avg_auc"].append(avg_auc)
+        result_summary["avg_eer"].append(float(avg_eer))
+        result_summary["avg_auc"].append(float(avg_auc))
 
     with open(out_dir / "P2_fusion_summary.json", "w") as f:
         json.dump(result_summary, f, indent=2)
