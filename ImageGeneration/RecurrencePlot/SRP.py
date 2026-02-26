@@ -27,8 +27,8 @@ print(f"[AutoRoot] Project root detected = {ROOT}")
 print(f"[AutoRoot] Using data_dir = {DATA_ROOT}")
 
 # Base Configuration
-BASE_CHUNK_SIZE = 300
-BASE_IMG_SIZE = 300
+BASE_CHUNK_SIZE = 60
+BASE_IMG_SIZE = 224
 DPI = 200
 
 def get_dynamic_image_size(chunk_size):
