@@ -15,8 +15,8 @@ Images/*
 # Ignore all content in error_logs 
 # Don't ignore output_logs! It's not large
 #error_logs/*
-saved_models/*
-!saved_models/.gitkeep
+#saved_models/*
+#!saved_models/.gitkeep
 
 
 # Ignore all content in any folder titled error_logs
