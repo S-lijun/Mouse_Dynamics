@@ -45,11 +45,11 @@ class ScratchCNNBackbone(nn.Module):
     Input : [B, 3, H, W]  (H, W can be any size, e.g., 448)
     Output: [B, 1024]
     """
-    def __init__(self, image_size=224): # 增加 image_size 参数
+    def __init__(self, image_size=224):
         super().__init__()
         self.image_size = image_size
 
-        # Stage 1-4 保持下采样结构
+        # Stage 1-4 
         self.stage1 = nn.Sequential(
             ConvBlock(3, 64),
             ConvBlock(64, 64),
@@ -74,14 +74,14 @@ class ScratchCNNBackbone(nn.Module):
             nn.MaxPool2d(kernel_size=2)
         )
 
-        # Stage 5 使用全局自适应平均池化，确保输出始终是 [B, 1024, 1, 1]
+        # Stage 5 
         self.stage5 = nn.Sequential(
             ConvBlock(512, 1024),
             nn.AdaptiveAvgPool2d((1, 1))
         )
 
     def forward(self, x):
-        # 如果你想增加一个硬性检查(可选):
+        
         # if x.shape[-1] != self.image_size:
         #     x = F.interpolate(x, size=(self.image_size, self.image_size), mode='bilinear')
 
@@ -103,11 +103,11 @@ class ScratchMultiCNN(nn.Module):
     - Multi-label (one logit per user)
     - Output shape: [B, num_users]
     """
-    def __init__(self, num_users, image_size=224): # 增加 image_size 参数
+    def __init__(self, num_users, image_size=224):
         super().__init__()
 
         self.num_users = num_users
-        # 将参数传递给 backbone
+        #  backbone
         self.backbone = ScratchCNNBackbone(image_size=image_size)
 
         # Independent head per user
