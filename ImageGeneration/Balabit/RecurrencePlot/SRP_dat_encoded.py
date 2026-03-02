@@ -3,14 +3,13 @@
 SRP — DAT Hybrid Encoding (Distance + Acceleration + Time Difference)
 ----------------------------------------------------------------------
 R Channel: Position Recurrence Matrix
-G Channel: Acceleration Horizontal Stripes (Global Runtime CDF)
-B Channel: Pairwise |Δt| Matrix (Global Runtime CDF)
+G Channel: Acceleration Horizontal Stripes (Signed Symmetric CDF)
+B Channel: Pairwise |Δt| Matrix (Magnitude CDF)
 
-- Uses RAW acceleration distribution
-- Uses RAW time-difference distribution
+- Acceleration = signed symmetric runtime CDF
+- Time Difference = magnitude runtime CDF
 - Runtime percentile clipping
-- No data leakage
-- Fully aligned with previous encoding scripts
+- No leakage
 """
 
 import os
@@ -20,6 +19,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import math
 from scipy.stats import rankdata
+
 
 # ============================================================
 # ROOT
@@ -33,6 +33,7 @@ DPI = 200
 
 GLOBAL_A_CDF = None
 GLOBAL_TD_CDF = None
+
 
 # ============================================================
 # -------- Distribution Loading --------
@@ -50,26 +51,42 @@ def load_raw_distribution(path, key):
     return arr
 
 
-def build_runtime_cdf(raw_values, clip_pct, tag):
+# ============================================================
+# -------- Signed Symmetric CDF (Acceleration) --------
+# ============================================================
+def build_signed_cdf(raw_values, clip_pct):
 
-    print(f"\n[{tag}] Building runtime CDF (clip={clip_pct}%)")
+    print(f"\n[Acceleration] Building signed symmetric CDF (|clip|={clip_pct}%)")
 
-    upper = np.percentile(raw_values, clip_pct)
-    clipped = raw_values[raw_values <= upper]
+    max_abs = np.percentile(np.abs(raw_values), clip_pct)
+    print(f"[Acceleration] Symmetric bound = ±{max_abs:.6f}")
+
+    clipped = np.clip(raw_values, -max_abs, max_abs)
 
     ranks = rankdata(clipped, method="average")
     cdf = (ranks - 1) / (len(clipped) - 1 + 1e-8)
 
     order = np.argsort(clipped)
+    return clipped[order], cdf[order]
 
-    sorted_val = clipped[order]
-    sorted_cdf = cdf[order]
 
-    print(f"[{tag}] Runtime Min: {sorted_val.min():.6f}")
-    print(f"[{tag}] Runtime Max: {sorted_val.max():.6f}")
-    print(f"[{tag}] Runtime Samples: {len(sorted_val)}")
+# ============================================================
+# -------- Magnitude CDF (Time Difference) --------
+# ============================================================
+def build_magnitude_cdf(raw_values, clip_pct):
 
-    return sorted_val, sorted_cdf
+    print(f"\n[TimeDiff] Building magnitude CDF (clip={clip_pct}%)")
+
+    upper = np.percentile(raw_values, clip_pct)
+    print(f"[TimeDiff] Upper bound = {upper:.6f}")
+
+    clipped = np.clip(raw_values, 0, upper)
+
+    ranks = rankdata(clipped, method="average")
+    cdf = (ranks - 1) / (len(clipped) - 1 + 1e-8)
+
+    order = np.argsort(clipped)
+    return clipped[order], cdf[order]
 
 
 # ============================================================
@@ -88,7 +105,7 @@ def compute_dat_rp(seq, p_percentile=95):
     T = len(seq)
     xs, ys, ts = seq[:, 0], seq[:, 1], seq[:, 2]
 
-    # -------- R: Distance RP --------
+    # -------- R Channel --------
     coords = seq[:, :2]
     diff = coords[:, None, :] - coords[None, :, :]
     dist = np.sqrt(np.sum(diff ** 2, axis=2))
@@ -96,8 +113,9 @@ def compute_dat_rp(seq, p_percentile=95):
     eps = np.percentile(dist, p_percentile)
     r_channel = 1.0 - np.clip(dist / (eps + 1e-6), 0, 1)
 
-    # -------- G: Acceleration --------
+    # -------- Acceleration (SIGNED) --------
     dt = np.maximum(np.diff(ts), 1e-5)
+
     v = np.sqrt(np.diff(xs)**2 + np.diff(ys)**2) / dt
     v_full = np.concatenate([[v[0]], v])
 
@@ -106,7 +124,7 @@ def compute_dat_rp(seq, p_percentile=95):
     acc_full = np.concatenate([[acc[0]], acc])
 
     acc_norm = np.interp(
-        np.abs(acc_full),
+        acc_full,   # SIGNED
         GLOBAL_A_CDF[0],
         GLOBAL_A_CDF[1],
         left=0.0,
@@ -115,7 +133,7 @@ def compute_dat_rp(seq, p_percentile=95):
 
     g_channel = np.tile(acc_norm[:, None], (1, T))
 
-    # -------- B: Time Difference --------
+    # -------- Time Difference (Magnitude) --------
     dt_matrix = np.abs(ts[:, None] - ts[None, :])
 
     td_norm = np.interp(
@@ -158,15 +176,9 @@ def draw_rp_image(seq, save_path, p_perc, chunk_size):
 # ============================================================
 # -------- Cleaning --------
 # ============================================================
-def clean_and_rename_cols(df):
+def clean_df(df):
 
-    df = df.rename(columns={
-        "client timestamp": "time",
-        "x": "x",
-        "y": "y",
-        "state": "state"
-    })
-
+    df = df.rename(columns={"client timestamp": "time"})
     df = df[df["state"] == "Move"].copy()
 
     for col in ["x", "y", "time"]:
@@ -196,9 +208,6 @@ def chunk_and_draw(events, out_dir, user, session_name, chunk_size, p_perc):
 
         draw_rp_image(chunk, save_path, p_perc, chunk_size)
 
-        if (i + 1) % 50 == 0 or (i + 1) == n_chunks:
-            print(f"         -> Chunk {i+1}/{n_chunks} done")
-
 
 # ============================================================
 # -------- Dataset Processing --------
@@ -206,38 +215,30 @@ def chunk_and_draw(events, out_dir, user, session_name, chunk_size, p_perc):
 def process_dataset(data_root, out_dir, sizes, p_perc):
 
     users = sorted(os.listdir(data_root))
-    total_users = len(users)
 
-    print(f"\n[Dataset] Total Users = {total_users}")
-
-    for u_idx, user in enumerate(users, 1):
+    for user in users:
 
         user_dir = os.path.join(data_root, user)
         if not os.path.isdir(user_dir):
             continue
 
-        print("\n====================================================")
-        print(f"[User {u_idx}/{total_users}] Processing: {user}")
-        print("====================================================")
+        print(f"\n[User] {user}")
 
         session_files = sorted([
             f for f in os.listdir(user_dir)
             if f.startswith("session_")
         ])
 
-        total_sessions = len(session_files)
-
-        for s_idx, file in enumerate(session_files, 1):
+        for file in session_files:
 
             session = os.path.splitext(file)[0]
-            print(f"\n   [Session {s_idx}/{total_sessions}] {session}")
 
-            df = clean_and_rename_cols(
+            df = clean_df(
                 pd.read_csv(os.path.join(user_dir, file))
             )
 
             events = df[["x", "y", "time"]].values
-            print(f"      Total Events = {len(events)}")
+            print(f"   [Session] {session} | Events={len(events)}")
 
             for sz in sizes:
                 chunk_and_draw(events, out_dir, user, session, sz, p_perc)
@@ -266,19 +267,19 @@ def main():
     data_root = os.path.join(ROOT, args.data_root)
     out_dir = os.path.join(ROOT, args.out_dir)
 
-    # ---- Acceleration ----
+    # Acceleration (SIGNED)
     raw_a = load_raw_distribution(
         os.path.join(ROOT, args.acc_dist),
         "accelerations"
     )
-    GLOBAL_A_CDF = build_runtime_cdf(raw_a, args.a_percentile, "Acceleration")
+    GLOBAL_A_CDF = build_signed_cdf(raw_a, args.a_percentile)
 
-    # ---- Time Difference ----
+    # Time Difference (Magnitude)
     raw_td = load_raw_distribution(
         os.path.join(ROOT, args.td_dist),
         "time_differences"
     )
-    GLOBAL_TD_CDF = build_runtime_cdf(raw_td, args.t_percentile, "TimeDiff")
+    GLOBAL_TD_CDF = build_magnitude_cdf(raw_td, args.t_percentile)
 
     print("\n[Step] Generating DAT Hybrid Images")
     process_dataset(data_root, out_dir, sorted(set(args.sizes)), args.p_percentile)
