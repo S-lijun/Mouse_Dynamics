@@ -145,7 +145,7 @@ def main():
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--training_root", type=str, required=True)
+    parser.add_argument("--training_root", type=str, default="Data/DFL-dataset_raw/training_files")
     parser.add_argument("--out_file", type=str,
                         default="DFL_acceleration_distribution_raw.npz")
 

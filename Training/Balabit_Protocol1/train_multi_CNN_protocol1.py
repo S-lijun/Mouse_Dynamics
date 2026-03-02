@@ -137,7 +137,7 @@ if __name__ == "__main__":
 
     # path
     training_folder = "Balabit/SRP_vx_vy/event60"
-    testing_folder  = "Balabit/SRP_vx_vy_protocol1_test/event60"
+    testing_folder  = "Balabit/SRP_vx_vy_protocol1/event60"
     
     img_size = 224
     C_pos, C_neg = 60, 60
