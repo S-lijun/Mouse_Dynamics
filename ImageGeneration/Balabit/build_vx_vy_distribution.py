@@ -149,7 +149,7 @@ def main():
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--training_root", type=str, required=True)
+    parser.add_argument("--training_root", type=str, default="Data/Balabit-dataset/training_files")
     parser.add_argument("--out_file", type=str,
                         default="vx_vy_distribution_raw.npz")
 
