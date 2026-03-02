@@ -518,8 +518,8 @@ def main():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--data_root", type=str, required=True)
-    parser.add_argument("--velocity_dist", type=str, required=True)
-    parser.add_argument("--td_dist", type=str, required=True)
+    parser.add_argument("--velocity_dist", type=str, default="velocity_distribution_raw.npz")
+    parser.add_argument("--td_dist", type=str, default="time_difference_distribution_raw.npz")
     parser.add_argument("--out_dir", type=str, required=True)
     parser.add_argument("--sizes", type=int, nargs="+", default=[60])
     parser.add_argument("--p_percentile", type=float, default=95)
