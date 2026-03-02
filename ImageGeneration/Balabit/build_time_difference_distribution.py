@@ -4,7 +4,7 @@ Build Raw Time-Difference Distribution (Training-Only, Chunk-Based)
 --------------------------------------------------------------------
 - Uses fixed chunk size (default 60)
 - Computes pairwise |t_i - t_j| inside each chunk
-- Stores ALL raw time-difference values
+- Stores ONLY upper triangle (unique pairs)
 - No clipping
 - No percentile
 - No CDF
@@ -44,12 +44,13 @@ def clean_and_rename_cols(df):
     return df.dropna(subset=["x", "y", "time"]).reset_index(drop=True)
 
 # ============================================================
-# Build Distribution
+# Build Distribution (Upper Triangle Only)
 # ============================================================
 def build_raw_time_difference_distribution(training_root, chunk_size):
 
     print("\n[Step 1] Scanning training set for time-difference values...")
     print(f"[ChunkSize] = {chunk_size}")
+    print(f"[Pairs per chunk] = {chunk_size*(chunk_size-1)//2}")
 
     all_td = []
 
@@ -98,7 +99,10 @@ def build_raw_time_difference_distribution(training_root, chunk_size):
                 # pairwise |t_i - t_j|
                 diff = np.abs(chunk_t[:, None] - chunk_t[None, :])
 
-                all_td.append(diff.flatten())
+                # Only upper triangle (exclude diagonal)
+                upper = diff[np.triu_indices(chunk_size, k=1)]
+
+                all_td.append(upper)
 
     if not all_td:
         raise RuntimeError("No time-difference values found.")
