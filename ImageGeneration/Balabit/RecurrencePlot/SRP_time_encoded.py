@@ -464,3 +464,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+#SRP_time_encoded.py --data_root Data/Balabit-dataset/testing_files_protocol1 --out_dir Images/Balabit/SRP_time_protocol1_test
