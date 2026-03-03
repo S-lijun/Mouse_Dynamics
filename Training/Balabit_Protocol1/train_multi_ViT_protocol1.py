@@ -137,13 +137,18 @@ if __name__ == "__main__":
     print("[INFO] Using device:", device)
     
     # path
-    training_folder = "XYPlot/event60"
-    testing_folder  = "XYPlot_protocol1/event60"
 
-    training_folder = "SRP_dvt_fixed/event300"
-    testing_folder  = "SRP_dvt_fixed_protocol1/event300"
+    # =============================
+    # Input training / testing path
+    # =============================
+
+    training_folder = input("Enter training folder (relative to Images/): ").strip()
+    testing_folder  = input("Enter testing folder (relative to Images/): ").strip()
+
+    print(f"[INFO] Training folder: {training_folder}")
+    print(f"[INFO] Testing folder : {testing_folder}")
     
-    img_size = 300
+    img_size = 224
     C_pos, C_neg = 60, 60
     
     train_root = Path(project_root) / "Images" / training_folder
