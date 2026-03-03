@@ -86,7 +86,7 @@ class TransformerBlock(nn.Module):
 
 # =============== Scratch MiniViT (Multi-User) ===============
 class ScratchMiniViT_MultiLabel(nn.Module):
-    def __init__(self, num_users, img_size=224, patch_size=15,
+    def __init__(self, num_users, img_size=224, patch_size=64,
                  in_chans=3, embed_dim=225, depth=3, num_heads=3, mlp_ratio=512/225):
         super().__init__()
 
