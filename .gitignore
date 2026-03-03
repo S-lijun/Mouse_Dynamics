@@ -8,6 +8,7 @@ Data/*
 !Data/Balabit_PeakClick
 !Data/Balabit_chunk
 !Data/DFL-dataset
+!Data/ChaoShen
 
 # Ignore all content inside Images but keep the folder
 Images/*
