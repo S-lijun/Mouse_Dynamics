@@ -156,13 +156,13 @@ def main():
     parser.add_argument(
         "--training_root",
         type=str,
-        default="Data/ChaoShen"
+        default="Data/ChaoShen/training_files"
     )
 
     parser.add_argument(
         "--out_file",
         type=str,
-        default="vx_vy_distribution_raw_chaoshen.npz"
+        default="ChaoShen_vx_vy_distribution_raw.npz"
     )
 
     args = parser.parse_args()

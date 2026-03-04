@@ -134,8 +134,8 @@ def main():
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--training_root", type=str, default="")
-    parser.add_argument("--out_file", type=str, default="velocity_distribution_raw_chaoshen.npz")
+    parser.add_argument("--training_root", type=str, default="Data/ChaoShen/training_files")
+    parser.add_argument("--out_file", type=str, default="ChaoShen_velocity_distribution_raw.npz")
 
     args = parser.parse_args()
 
