@@ -26,8 +26,8 @@ BASE_IMG_SIZE = 224
 BASE_LINEWIDTH = 0.5
 BASE_MARKERSIZE = 1.0
 
-GLOBAL_T_RAW = None
-GLOBAL_T_CDF = None
+GLOBAL_VX_CDF = None
+GLOBAL_VY_CDF = None
 
 
 # ============================================================
@@ -61,27 +61,32 @@ def _scaled(val, min_val, scale, offset):
 # Load RAW Distribution
 # ============================================================
 
-def load_raw_td_distribution(path):
+def load_raw_velocity_distribution(path):
 
     data = np.load(path)
 
-    td = data["time_differences"]
+    vx = data["vx"]
+    vy = data["vy"]
 
-    print("\n[TimeDiff] Loaded RAW distribution")
-    print("samples:", len(td))
-    print("min:", td.min())
-    print("max:", td.max())
+    print("\n[Velocity] Loaded RAW vx/vy distribution")
+    print("vx samples:", len(vx))
+    print("vx min:", vx.min())
+    print("vx max:", vx.max())
 
-    return td
+    print("vy samples:", len(vy))
+    print("vy min:", vy.min())
+    print("vy max:", vy.max())
+
+    return vx, vy
 
 
 # ============================================================
 # Build Runtime CDF
 # ============================================================
 
-def build_runtime_cdf(raw_values, clip_pct):
+def build_runtime_cdf(raw_values, clip_pct, tag):
 
-    print(f"\n[TimeDiff] Building runtime CDF (clip={clip_pct}%)")
+    print(f"\n[{tag}] Building runtime CDF (clip={clip_pct}%)")
 
     upper = np.percentile(raw_values, clip_pct)
 
@@ -96,8 +101,8 @@ def build_runtime_cdf(raw_values, clip_pct):
     sorted_val = clipped[order]
     sorted_cdf = cdf[order]
 
-    print("[TimeDiff] runtime samples:", len(sorted_val))
-    print("[TimeDiff] runtime max:", sorted_val.max())
+    print(f"[{tag}] runtime samples:", len(sorted_val))
+    print(f"[{tag}] runtime max:", sorted_val.max())
 
     return sorted_val, sorted_cdf
 
@@ -121,31 +126,35 @@ def draw_mouse_chunk(chunk, save_path, chunk_size):
     ys = np.array([float(e["y"]) for e in chunk])
     ts = np.array([float(e["time"]) for e in chunk])
 
-    # --------------------------------------------------------
-    # Time Difference
-    # --------------------------------------------------------
+    dx = np.diff(xs)
+    dy = np.diff(ys)
 
     dt = np.maximum(np.diff(ts), 1e-5)
 
-    # --------------------------------------------------------
-    # Map dt -> [0,1]
-    # --------------------------------------------------------
+    vx = dx / dt
+    vy = dy / dt
 
-    t_norm = np.interp(
-        dt,
-        GLOBAL_T_CDF[0],
-        GLOBAL_T_CDF[1],
-        left=0.0,
-        right=1.0
+    vx_norm = np.interp(
+        vx,
+        GLOBAL_VX_CDF[0],
+        GLOBAL_VX_CDF[1],
+        left=0,
+        right=1
+    )
+    vx_norm = vx_norm * 0.8
+
+    vy_norm = np.interp(
+        vy,
+        GLOBAL_VY_CDF[0],
+        GLOBAL_VY_CDF[1],
+        left=0,
+        right=1
     )
 
-    # ======================================================
-    # NEW: Compress mapping to [0, 0.8]
-    # ======================================================
+    vy_norm = vy_norm * 0.8
 
-    t_norm = t_norm * 0.8
-
-    brightness = (t_norm * 255).astype(np.uint8)
+    r_val = (vx_norm * 255).astype(np.uint8)
+    g_val = (vy_norm * 255).astype(np.uint8)
 
     # --------------------------------------------------------
     # Spatial scaling
@@ -185,9 +194,11 @@ def draw_mouse_chunk(chunk, save_path, chunk_size):
         x2 = int(_scaled(xs[i+1], min_x, scale, offset_x))
         y2 = int(_scaled(ys[i+1], min_y, scale, offset_y))
 
-        val = int(brightness[i])
-
-        color = (val, val, val)
+        color = (
+            255,             # B = constant
+            int(g_val[i]),   # G = vy
+            int(r_val[i])    # R = vx
+        )
 
         cv2.line(
             img,
@@ -344,8 +355,8 @@ def process_dataset(dataset, data_root, out_dir, sizes):
 
 def main():
 
-    global GLOBAL_T_RAW
-    global GLOBAL_T_CDF
+    global GLOBAL_VX_CDF
+    global GLOBAL_VY_CDF
 
     parser = argparse.ArgumentParser()
 
@@ -356,7 +367,7 @@ def main():
     parser.add_argument("--data_root",
                         required=True)
 
-    parser.add_argument("--td_dist",
+    parser.add_argument("--velocity_dist",
                         required=True)
 
     parser.add_argument("--out_dir",
@@ -376,13 +387,14 @@ def main():
     data_root = os.path.join(ROOT, args.data_root)
     out_dir = os.path.join(ROOT, args.out_dir)
 
-    dist_path = os.path.join(ROOT, args.td_dist)
+    vx_raw, vy_raw = load_raw_velocity_distribution(
+        os.path.join(ROOT, args.velocity_dist)
+    )
 
-    GLOBAL_T_RAW = load_raw_td_distribution(dist_path)
+    GLOBAL_VX_CDF = build_runtime_cdf(vx_raw, args.clip, "VX")
+    GLOBAL_VY_CDF = build_runtime_cdf(vy_raw, args.clip, "VY")
 
-    GLOBAL_T_CDF = build_runtime_cdf(GLOBAL_T_RAW, args.clip)
-
-    print("\n[Step] Generating XYPlot TimeDiff Images")
+    print("\n[Step] Generating XYPlot VX/VY Images")
 
     process_dataset(
         args.dataset,
@@ -391,7 +403,7 @@ def main():
         args.sizes
     )
 
-    print("\nXYPlot time-difference generation finished.")
+    print("\nXYPlot vx/vy generation finished.")
 
 
 if __name__ == "__main__":

@@ -138,6 +138,8 @@ def draw_mouse_chunk(chunk, save_path, chunk_size):
         left=0.0,
         right=1.0
     )
+    
+    v_norm = v_norm * 0.8
 
     brightness = (v_norm * 255).astype(np.uint8)
 
