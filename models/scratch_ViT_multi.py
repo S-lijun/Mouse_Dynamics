@@ -23,7 +23,7 @@ class PatchEmbed(nn.Module):
 
     def forward(self, x):
         # [B, 3, 224, 224] -> [B, embed_dim, H/P, W/P] -> [B, N, D]
-        x = self.proj(x)  # [B, 225, 14, 14]  (if 224/15=14余数舍掉)
+        x = self.proj(x)  # [B, 225, 14, 14]  (if 224/15=14)
         x = x.flatten(2).transpose(1, 2)  # [B, N, D]
         return x
 
@@ -101,7 +101,7 @@ class ScratchMiniViT_MultiLabel(nn.Module):
 
         self.num_users = num_users
 
-        # 多分支 FC heads（每个用户一个）
+        # multi head
         self.user_heads = nn.ModuleList([
             nn.Sequential(
                 nn.Linear(embed_dim, 1024),
