@@ -28,6 +28,7 @@ BASE_MARKERSIZE = 1.0
 
 GLOBAL_VX_CDF = None
 GLOBAL_VY_CDF = None
+GLOBAL_T_CDF = None
 
 
 # ============================================================
@@ -58,7 +59,7 @@ def _scaled(val, min_val, scale, offset):
 
 
 # ============================================================
-# Load RAW Distribution
+# Load RAW Distributions
 # ============================================================
 
 def load_raw_velocity_distribution(path):
@@ -81,13 +82,25 @@ def load_raw_velocity_distribution(path):
     return vx, vy
 
 
+def load_raw_td_distribution(path):
+
+    data = np.load(path)
+
+    td = data["time_differences"]
+
+    print("\n[TimeDiff] Loaded RAW distribution")
+    print("samples:", len(td))
+    print("min:", td.min())
+    print("max:", td.max())
+
+    return td
+
+
 # ============================================================
-# Build Runtime CDF (SYMMETRIC — aligned with SRP)
+# Runtime CDF
 # ============================================================
 
-def build_runtime_cdf(raw_values, clip_pct, tag):
-
-    print(f"\n[{tag}] Building runtime CDF (clip={clip_pct}%)")
+def build_runtime_cdf_signed(raw_values, clip_pct):
 
     lower = np.percentile(raw_values, 100 - clip_pct)
     upper = np.percentile(raw_values, clip_pct)
@@ -103,14 +116,22 @@ def build_runtime_cdf(raw_values, clip_pct, tag):
 
     order = np.argsort(clipped)
 
-    sorted_val = clipped[order]
-    sorted_cdf = cdf[order]
+    return clipped[order], cdf[order]
 
-    print(f"[{tag}] runtime samples:", len(sorted_val))
-    print(f"[{tag}] runtime min:", sorted_val.min())
-    print(f"[{tag}] runtime max:", sorted_val.max())
 
-    return sorted_val, sorted_cdf
+def build_runtime_cdf_one_sided(raw_values, clip_pct):
+
+    upper = np.percentile(raw_values, clip_pct)
+
+    clipped = raw_values[raw_values <= upper]
+
+    ranks = rankdata(clipped, method="average")
+
+    cdf = (ranks - 1) / (len(clipped) - 1 + 1e-8)
+
+    order = np.argsort(clipped)
+
+    return clipped[order], cdf[order]
 
 
 # ============================================================
@@ -134,33 +155,27 @@ def draw_mouse_chunk(chunk, save_path, chunk_size):
 
     dx = np.diff(xs)
     dy = np.diff(ys)
-
     dt = np.maximum(np.diff(ts), 1e-5)
 
     vx = dx / dt
     vy = dy / dt
 
-    vx_norm = np.interp(
-        vx,
-        GLOBAL_VX_CDF[0],
-        GLOBAL_VX_CDF[1],
-        left=0,
-        right=1
-    )
+    # --------------------------------------------------------
+    # Normalize
+    # --------------------------------------------------------
+
+    vx_norm = np.interp(vx, GLOBAL_VX_CDF[0], GLOBAL_VX_CDF[1], left=0, right=1)
+    vy_norm = np.interp(vy, GLOBAL_VY_CDF[0], GLOBAL_VY_CDF[1], left=0, right=1)
+    td_norm = np.interp(dt, GLOBAL_T_CDF[0], GLOBAL_T_CDF[1], left=0, right=1)
 
     vx_norm = vx_norm * 0.8
-    vy_norm = np.interp(
-        vy,
-        GLOBAL_VY_CDF[0],
-        GLOBAL_VY_CDF[1],
-        left=0,
-        right=1
-    )
     vy_norm = vy_norm * 0.8
+    td_norm = td_norm * 0.8
 
 
     r_val = (vx_norm * 255).astype(np.uint8)
     g_val = (vy_norm * 255).astype(np.uint8)
+    b_val = (td_norm * 255).astype(np.uint8)
 
     # --------------------------------------------------------
     # Spatial scaling
@@ -201,9 +216,9 @@ def draw_mouse_chunk(chunk, save_path, chunk_size):
         y2 = int(_scaled(ys[i+1], min_y, scale, offset_y))
 
         color = (
-            255,           # B = constant
-            int(g_val[i]), # G = vy
-            int(r_val[i])  # R = vx
+            int(b_val[i]),   # B = TD
+            int(g_val[i]),   # G = vy
+            int(r_val[i])    # R = vx
         )
 
         cv2.line(
@@ -363,6 +378,7 @@ def main():
 
     global GLOBAL_VX_CDF
     global GLOBAL_VY_CDF
+    global GLOBAL_T_CDF
 
     parser = argparse.ArgumentParser()
 
@@ -374,6 +390,9 @@ def main():
                         required=True)
 
     parser.add_argument("--velocity_dist",
+                        required=True)
+
+    parser.add_argument("--td_dist",
                         required=True)
 
     parser.add_argument("--out_dir",
@@ -397,10 +416,15 @@ def main():
         os.path.join(ROOT, args.velocity_dist)
     )
 
-    GLOBAL_VX_CDF = build_runtime_cdf(vx_raw, args.clip, "VX")
-    GLOBAL_VY_CDF = build_runtime_cdf(vy_raw, args.clip, "VY")
+    td_raw = load_raw_td_distribution(
+        os.path.join(ROOT, args.td_dist)
+    )
 
-    print("\n[Step] Generating XYPlot VX/VY Images")
+    GLOBAL_VX_CDF = build_runtime_cdf_signed(vx_raw, args.clip)
+    GLOBAL_VY_CDF = build_runtime_cdf_signed(vy_raw, args.clip)
+    GLOBAL_T_CDF = build_runtime_cdf_one_sided(td_raw, args.clip)
+
+    print("\n[Step] Generating XYPlot VxVyT Images")
 
     process_dataset(
         args.dataset,
@@ -409,7 +433,7 @@ def main():
         args.sizes
     )
 
-    print("\nXYPlot vx/vy generation finished.")
+    print("\nXYPlot vx/vy/td generation finished.")
 
 
 if __name__ == "__main__":
