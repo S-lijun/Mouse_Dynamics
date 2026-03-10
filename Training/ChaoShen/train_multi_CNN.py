@@ -167,8 +167,23 @@ if __name__ == "__main__":
     test_dataset  = Protocol1MouseDataset(test_root, user_list, transform)
 
    
-    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=2)
-    test_loader  = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=2)
+    train_loader = DataLoader(
+    train_dataset,
+    batch_size=256,
+    shuffle=True,
+    num_workers=12,
+    pin_memory=True,
+    persistent_workers=True
+    )
+
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=256,
+        shuffle=False,
+        num_workers=12,
+        pin_memory=True,
+        persistent_workers=True
+    )
 
     print(f"[INFO] Train samples: {len(train_dataset)} | Test samples: {len(test_dataset)}")
 
