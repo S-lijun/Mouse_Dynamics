@@ -6,6 +6,11 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
 
+import torch
+import torch.multiprocessing as mp
+
+mp.set_sharing_strategy('file_system')
+
 # ======================================================
 # Env / Path
 # ======================================================
@@ -194,7 +199,7 @@ if __name__ == "__main__":
         num_workers=14,
         pin_memory=False,
         persistent_workers=True,
-        prefetch_factor=4
+        prefetch_factor=2
     )
 
     test_loader = DataLoader(
@@ -204,7 +209,7 @@ if __name__ == "__main__":
         num_workers=14,
         pin_memory=False,
         persistent_workers=True,
-        prefetch_factor=4
+        prefetch_factor=2
     )
 
     # ==========================================
