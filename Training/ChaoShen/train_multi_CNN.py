@@ -189,7 +189,7 @@ if __name__ == "__main__":
 
     train_loader = DataLoader(
         train_dataset,
-        batch_size=256,
+        batch_size=1024,
         shuffle=True,
         num_workers=14,
         pin_memory=True,
@@ -199,7 +199,7 @@ if __name__ == "__main__":
 
     test_loader = DataLoader(
         test_dataset,
-        batch_size=256,
+        batch_size=1024,
         shuffle=False,
         num_workers=14,
         pin_memory=True,
