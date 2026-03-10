@@ -10,7 +10,7 @@ Data/*
 !Data/DFL-dataset
 !Data/ChaoShen
 
-ImagesTensor/*
+ImagesTensors/*
 
 # Ignore all content inside Images but keep the folder
 Images/*
