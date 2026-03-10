@@ -4,7 +4,6 @@ from pathlib import Path
 
 import torch
 from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms
 import numpy as np
 
 # ======================================================
@@ -25,6 +24,7 @@ log_dir = Path(project_root) / "output_logs" / "train_multi_label_p1"
 log_dir.mkdir(parents=True, exist_ok=True)
 log_path = log_dir / f"Protocol1_training_{timestamp}.out"
 
+
 class TeeLogger:
     def __init__(self, file_path):
         self.terminal = sys.__stdout__
@@ -37,6 +37,7 @@ class TeeLogger:
     def flush(self):
         self.terminal.flush()
         self.log.flush()
+
 
 sys.stdout = TeeLogger(log_path)
 
@@ -52,8 +53,9 @@ from Training.Score_Fusion.Score_Fusion_Multi_82 import (
 )
 
 # ======================================================
-# Tensor Dataset
+# Tensor Dataset (OPTIMIZED)
 # ======================================================
+
 
 class TensorMouseDataset(Dataset):
 
@@ -61,23 +63,30 @@ class TensorMouseDataset(Dataset):
 
         print("[Dataset] Loading tensor dataset from:", tensor_root)
 
-        img_path = os.path.join(tensor_root,"images.npy")
-        lab_path = os.path.join(tensor_root,"labels.npy")
-
-        raw_images = np.fromfile(img_path, dtype=np.uint8)
-        raw_labels = np.fromfile(lab_path, dtype=np.uint8)
+        img_path = os.path.join(tensor_root, "images.npy")
+        lab_path = os.path.join(tensor_root, "labels.npy")
 
         num_users = 28
         H = 224
         W = 224
 
+        # ---------- memory map instead of loading ----------
+        raw_labels = np.memmap(lab_path, dtype=np.uint8, mode="r")
+
         N = raw_labels.size // num_users
 
-        self.images = raw_images.reshape(N, H, W)
+        raw_images = np.memmap(
+            img_path,
+            dtype=np.uint8,
+            mode="r",
+            shape=(N, H, W)
+        )
+
+        self.images = raw_images
         self.labels = raw_labels.reshape(N, num_users)
 
         self.sessions = np.load(
-            os.path.join(tensor_root,"sessions.npy"),
+            os.path.join(tensor_root, "sessions.npy"),
             allow_pickle=True
         )
 
@@ -91,18 +100,17 @@ class TensorMouseDataset(Dataset):
 
     def __getitem__(self, idx):
 
-        img = self.images[idx].astype(np.float32) / 255.0
+        # ---------- faster conversion ----------
+        img = torch.from_numpy(self.images[idx])
 
-        # auto channel handling
         if img.ndim == 2:
-            img = np.stack([img, img, img], axis=0)
+            img = img.unsqueeze(0).repeat(3, 1, 1)
+        else:
+            img = img.permute(2, 0, 1)
 
-        elif img.ndim == 3:
-            img = img.transpose(2,0,1)
+        img = img.float().div_(255)
 
-        img = torch.from_numpy(img)
-
-        label = torch.from_numpy(self.labels[idx].astype(np.float32))
+        label = torch.from_numpy(self.labels[idx]).float()
 
         session_id = self.sessions[idx]
 
@@ -112,6 +120,7 @@ class TensorMouseDataset(Dataset):
 # ======================================================
 # Score Collection
 # ======================================================
+
 
 def collect_val_scores(model, loader, device):
 
@@ -125,7 +134,7 @@ def collect_val_scores(model, loader, device):
 
         for X, y, s in loader:
 
-            X = X.to(device)
+            X = X.to(device, non_blocking=True)
 
             logits = model(X)
 
@@ -158,40 +167,44 @@ if __name__ == "__main__":
     # ==========================================
 
     train_tensor_folder = input("Enter training tensor folder (relative to ImagesTensor/): ").strip()
-    test_tensor_folder  = input("Enter testing tensor folder (relative to ImagesTensor/): ").strip()
+    test_tensor_folder = input("Enter testing tensor folder (relative to ImagesTensor/): ").strip()
 
     train_root = Path(project_root) / "ImagesTensors" / train_tensor_folder
-    test_root  = Path(project_root) / "ImagesTensors" / test_tensor_folder
+    test_root = Path(project_root) / "ImagesTensors" / test_tensor_folder
 
     # ==========================================
     # Dataset
     # ==========================================
 
     train_dataset = TensorMouseDataset(train_root)
-    test_dataset  = TensorMouseDataset(test_root)
+    test_dataset = TensorMouseDataset(test_root)
 
     num_users = train_dataset.num_users
 
     print(f"[INFO] Train samples: {len(train_dataset)} | Test samples: {len(test_dataset)}")
 
     # ==========================================
-    # DataLoader
+    # DataLoader (OPTIMIZED)
     # ==========================================
 
     train_loader = DataLoader(
-    train_dataset,
-    batch_size=256,
-    shuffle=True,
-    num_workers=12,
-    pin_memory=True
+        train_dataset,
+        batch_size=256,
+        shuffle=True,
+        num_workers=14,
+        pin_memory=True,
+        persistent_workers=True,
+        prefetch_factor=4
     )
 
     test_loader = DataLoader(
         test_dataset,
         batch_size=256,
         shuffle=False,
-        num_workers=12,
-        pin_memory=True
+        num_workers=14,
+        pin_memory=True,
+        persistent_workers=True,
+        prefetch_factor=4
     )
 
     # ==========================================
@@ -213,9 +226,9 @@ if __name__ == "__main__":
 
     _, best_model, *_ = trainer.train(
         optim_name="adamw",
-        num_epochs=13,
+        num_epochs=17,
         learning_rate=0.0001,
-        step_size=4,
+        step_size=5,
         learning_rate_decay=0.1,
         verbose=True
     )
@@ -250,7 +263,7 @@ if __name__ == "__main__":
 
     print("\n===== Protocol 1 Score Fusion Curve =====")
 
-    for n in range(1,31):
+    for n in range(1, 31):
 
         res = multilabel_score_fusion(scores, labels, session_ids, user_ids, n)
 
@@ -259,7 +272,7 @@ if __name__ == "__main__":
 
         for col_key, metrics in res.items():
 
-            col = int(col_key.replace("user",""))
+            col = int(col_key.replace("user", ""))
 
             semantic_user_curve[col][str(n)] = {
                 "User": col,
@@ -280,11 +293,11 @@ if __name__ == "__main__":
         result["avg_eer"].append(avg_eer)
         result["avg_auc"].append(avg_auc)
 
-    with open(out_dir / "P1_fusion_summary.json","w") as f:
-        json.dump(result,f,indent=2)
+    with open(out_dir / "P1_fusion_summary.json", "w") as f:
+        json.dump(result, f, indent=2)
 
-    with open(out_dir / "P1_per_user_results.json","w") as f:
-        json.dump(semantic_user_curve,f,indent=2)
+    with open(out_dir / "P1_per_user_results.json", "w") as f:
+        json.dump(semantic_user_curve, f, indent=2)
 
     print("\n[INFO] Results saved to:", out_dir)
 
