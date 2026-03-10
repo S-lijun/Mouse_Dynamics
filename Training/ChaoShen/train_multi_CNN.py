@@ -189,20 +189,20 @@ if __name__ == "__main__":
 
     train_loader = DataLoader(
         train_dataset,
-        batch_size=512,
+        batch_size=384,
         shuffle=True,
         num_workers=14,
-        pin_memory=True,
+        pin_memory=False,
         persistent_workers=True,
         prefetch_factor=4
     )
 
     test_loader = DataLoader(
         test_dataset,
-        batch_size=512,
+        batch_size=384,
         shuffle=False,
         num_workers=14,
-        pin_memory=True,
+        pin_memory=False,
         persistent_workers=True,
         prefetch_factor=4
     )
