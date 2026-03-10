@@ -171,7 +171,7 @@ if __name__ == "__main__":
     train_dataset,
     batch_size=128,
     shuffle=True,
-    num_workers=16,
+    num_workers=2,
     pin_memory=True,
     persistent_workers=True
     )
@@ -180,7 +180,7 @@ if __name__ == "__main__":
         test_dataset,
         batch_size=128,
         shuffle=False,
-        num_workers=16,
+        num_workers=2,
         pin_memory=True,
         persistent_workers=True
     )
@@ -203,7 +203,7 @@ if __name__ == "__main__":
     print("\n========== Training Execution ==========")
     _, best_model, *_ = trainer.train(
         optim_name="adamw",
-        num_epochs=17,
+        num_epochs=1,
         learning_rate=0.0001,
         step_size=5,
         learning_rate_decay=0.1,
