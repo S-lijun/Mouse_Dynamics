@@ -180,7 +180,7 @@ if __name__ == "__main__":
 
     train_loader = DataLoader(
     train_dataset,
-    batch_size=128,
+    batch_size=256,
     shuffle=True,
     num_workers=0,
     pin_memory=False
@@ -188,7 +188,7 @@ if __name__ == "__main__":
 
     test_loader = DataLoader(
         test_dataset,
-        batch_size=128,
+        batch_size=256,
         shuffle=False,
         num_workers=0,
         pin_memory=False
@@ -213,9 +213,9 @@ if __name__ == "__main__":
 
     _, best_model, *_ = trainer.train(
         optim_name="adamw",
-        num_epochs=1,
+        num_epochs=13,
         learning_rate=0.0001,
-        step_size=5,
+        step_size=4,
         learning_rate_decay=0.1,
         verbose=True
     )
