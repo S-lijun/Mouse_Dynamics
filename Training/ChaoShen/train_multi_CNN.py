@@ -61,19 +61,30 @@ class TensorMouseDataset(Dataset):
 
         print("[Dataset] Loading tensor dataset from:", tensor_root)
 
-        self.images = np.load(os.path.join(tensor_root,"images.npy"), mmap_mode="r")
-        self.labels = np.load(os.path.join(tensor_root,"labels.npy"), mmap_mode="r")
-        #self.sessions = np.load(os.path.join(tensor_root,"sessions.npy"), allow_pickle=True)
+        img_path = os.path.join(tensor_root,"images.npy")
+        lab_path = os.path.join(tensor_root,"labels.npy")
+
+        raw_images = np.fromfile(img_path, dtype=np.uint8)
+        raw_labels = np.fromfile(lab_path, dtype=np.uint8)
+
+        num_users = 28
+        H = 224
+        W = 224
+
+        N = raw_labels.size // num_users
+
+        self.images = raw_images.reshape(N, H, W)
+        self.labels = raw_labels.reshape(N, num_users)
+
         self.sessions = np.load(
             os.path.join(tensor_root,"sessions.npy"),
-            mmap_mode="r",
             allow_pickle=True
         )
 
-        self.num_users = self.labels.shape[1]
+        self.num_users = num_users
 
-        print("[Dataset] Samples:", len(self.images))
-        print("[Dataset] Users:", self.num_users)
+        print("[Dataset] Samples:", N)
+        print("[Dataset] Users:", num_users)
 
     def __len__(self):
         return len(self.images)
