@@ -171,7 +171,7 @@ if __name__ == "__main__":
         train_dataset,
         batch_size=128,
         shuffle=True,
-        num_workers=12,
+        num_workers=2,
         pin_memory=True,
         persistent_workers=True
     )
@@ -180,7 +180,7 @@ if __name__ == "__main__":
         test_dataset,
         batch_size=128,
         shuffle=False,
-        num_workers=12,
+        num_workers=2,
         pin_memory=True,
         persistent_workers=True
     )
