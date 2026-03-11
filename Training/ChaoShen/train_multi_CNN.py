@@ -106,7 +106,8 @@ class TensorMouseDataset(Dataset):
     def __getitem__(self, idx):
 
         # ---------- faster conversion ----------
-        img = torch.from_numpy(self.images[idx])
+        #img = torch.from_numpy(self.images[idx])
+        img = torch.from_numpy(self.images[idx].copy())
 
         if img.ndim == 2:
             img = img.unsqueeze(0).repeat(3, 1, 1)
@@ -114,6 +115,7 @@ class TensorMouseDataset(Dataset):
             img = img.permute(2, 0, 1)
 
         img = img.float().div_(255)
+        
 
         label = torch.from_numpy(self.labels[idx]).float()
 
@@ -196,7 +198,7 @@ if __name__ == "__main__":
         train_dataset,
         batch_size=256,
         shuffle=True,
-        num_workers=14,
+        num_workers=8,
         pin_memory=False,
         persistent_workers=True,
         prefetch_factor=2
@@ -206,7 +208,7 @@ if __name__ == "__main__":
         test_dataset,
         batch_size=256,
         shuffle=False,
-        num_workers=14,
+        num_workers=8,
         pin_memory=False,
         persistent_workers=True,
         prefetch_factor=2
