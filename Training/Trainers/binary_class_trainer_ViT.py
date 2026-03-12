@@ -328,7 +328,7 @@ class BinaryClassTrainer:
     def train(
         self,
         optim_name="adamw",
-        num_epochs=20,
+        num_epochs=17,
         learning_rate=1e-4,
         step_size=5,
         learning_rate_decay=0.1,
@@ -337,7 +337,10 @@ class BinaryClassTrainer:
 
         loss_function = GHMBCE()
 
-        # optimizer
+        # ====================================================
+        # Optimizer
+        # ====================================================
+
         if optim_name == "adam":
             optimizer = optim.Adam(self.net.parameters(), lr=learning_rate)
 
@@ -357,6 +360,9 @@ class BinaryClassTrainer:
             gamma=learning_rate_decay
         )
 
+        # ====================================================
+        # Early stopping
+        # ====================================================
 
         patience = 5
         patience_counter = 0
@@ -368,15 +374,23 @@ class BinaryClassTrainer:
         val_auc_history = []
 
 
+        # ====================================================
+        # Epoch Loop
+        # ====================================================
+
         for epoch in range(num_epochs):
+
+            # ---------------- Train ---------------- #
 
             self.net.train()
 
-            epoch_loss = 0
+            epoch_train_loss = 0
             correct = 0
             total = 0
 
-            for X, y, _ in tqdm.tqdm(self.train_loader, desc=f"Epoch {epoch+1}/{num_epochs}"):
+            for X, y, _ in tqdm.tqdm(self.train_loader,
+                                     desc=f"Epoch {epoch+1}/{num_epochs}",
+                                     leave=False):
 
                 X = X.to(self.device)
                 y = y.to(self.device)
@@ -391,7 +405,7 @@ class BinaryClassTrainer:
 
                 optimizer.step()
 
-                epoch_loss += loss.item()
+                epoch_train_loss += loss.item()
 
                 preds = (torch.sigmoid(logits) >= 0.5).float()
 
@@ -399,17 +413,18 @@ class BinaryClassTrainer:
                 total += y.size(0)
 
 
-            train_losses.append(epoch_loss/len(self.train_loader))
+            avg_train_loss = epoch_train_loss / len(self.train_loader)
+            train_losses.append(avg_train_loss)
 
 
-            # ================= Validation =================
+            # ---------------- Validation ---------------- #
 
             self.net.eval()
 
             scores = []
             labels = []
 
-            val_loss = 0
+            epoch_val_loss = 0
 
             with torch.no_grad():
 
@@ -422,49 +437,88 @@ class BinaryClassTrainer:
 
                     loss = loss_function(logits, y)
 
-                    val_loss += loss.item()
+                    epoch_val_loss += loss.item()
 
                     scores.extend(torch.sigmoid(logits).cpu().numpy())
                     labels.extend(y.cpu().numpy())
 
 
-            val_losses.append(val_loss/len(self.val_loader))
+            avg_val_loss = epoch_val_loss / len(self.val_loader)
+            val_losses.append(avg_val_loss)
 
             scores = np.array(scores)
             labels = np.array(labels)
 
-            eer, auc, _ = calculate_eer(labels, scores)
+            eer, auc, eer_threshold = calculate_eer(labels, scores)
 
             val_eer_history.append(eer)
             val_auc_history.append(auc)
 
 
-            # ================= Save best =================
+            # ---------------- Precision Recall F1 ---------------- #
+
+            preds = (scores >= eer_threshold).astype(int)
+
+            tp = ((labels == 1) & (preds == 1)).sum()
+            fp = ((labels == 0) & (preds == 1)).sum()
+            tn = ((labels == 0) & (preds == 0)).sum()
+            fn = ((labels == 1) & (preds == 0)).sum()
+
+            precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+            recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+
+            if precision + recall == 0:
+                f1 = 0
+            else:
+                f1 = 2 * precision * recall / (precision + recall)
+
+
+            # ====================================================
+            # PRINT (你的截图格式)
+            # ====================================================
+
+            print(f"\nEpoch {epoch+1}/{num_epochs}")
+            print(f"Train Loss: {avg_train_loss:.4f}")
+            print(f"Val   Loss: {avg_val_loss:.4f}")
+            print(f"EER: {eer:.4f} | AUC: {auc:.4f}")
+            print(f"Precision: {precision:.4f}, Recall: {recall:.4f}, F1: {f1:.4f}")
+
+
+            # ---------------- Early stopping ---------------- #
 
             if eer < self.best_val_eer:
 
                 self.best_val_eer = eer
-
                 self.best_model_state = copy.deepcopy(self.net.state_dict())
-
                 patience_counter = 0
-
-                print(f"New best model saved (EER={eer:.4f})")
 
             else:
 
                 patience_counter += 1
 
+                print(f"[EarlyStop] No EER improvement ({patience_counter}/{patience})")
+
                 if patience_counter >= patience:
 
-                    print("Early stopping")
+                    print("Early stopping.")
                     break
 
 
             scheduler.step()
 
 
+        # ====================================================
+        # Load Best Model
+        # ====================================================
+
         best_model = copy.deepcopy(self.net)
         best_model.load_state_dict(self.best_model_state)
 
-        return self.net, best_model, train_losses, val_losses, val_eer_history, val_auc_history
+        return (
+            self.net,
+            best_model,
+            train_losses,
+            val_losses,
+            val_eer_history,
+            val_auc_history
+        )

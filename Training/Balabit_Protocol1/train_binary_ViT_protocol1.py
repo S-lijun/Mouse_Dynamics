@@ -208,6 +208,14 @@ if __name__ == "__main__":
 
         scores, labels, sessions = collect_scores(best_model, test_loader, device)
 
+        print(f"\n===== Score Fusion Curve for {user} =====")
+
+        for n in range(1, 31):
+
+            metrics = binary_score_fusion(scores, labels, sessions, n)
+
+            print(f"[n={n:02d}] EER: {metrics['EER']:.4f} | AUC: {metrics['AUC']:.4f}")
+
         user_scores[user] = scores
         user_labels[user] = labels
         user_sessions[user] = sessions
