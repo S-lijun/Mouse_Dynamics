@@ -237,37 +237,17 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import tqdm
-import sys
 import copy
-import os
 import numpy as np
 
 from sklearn.metrics import roc_curve, roc_auc_score
 from scipy.optimize import brentq
 from scipy.interpolate import interp1d
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-
-# ------------------------------------------------
-# Model comparison
-# ------------------------------------------------
-
-def compare_models(model1, model2):
-
-    device = next(model1.parameters()).device
-    model2 = model2.to(device)
-
-    return all(
-        torch.equal(p1, p2)
-        for p1, p2 in zip(model1.state_dict().values(),
-                          model2.state_dict().values())
-    )
-
-
-# ------------------------------------------------
-# EER calculation
-# ------------------------------------------------
+# ============================================================
+# EER
+# ============================================================
 
 def calculate_eer(y_true, y_scores):
 
@@ -275,54 +255,44 @@ def calculate_eer(y_true, y_scores):
     auc = roc_auc_score(y_true, y_scores)
 
     try:
-        eer = brentq(lambda x: 1. - x - interp1d(fpr, tpr)(x), 0., 1.)
-        eer_threshold = thresholds[np.nanargmin(np.absolute((1 - tpr) - fpr))]
+        eer = brentq(lambda x: 1 - x - interp1d(fpr, tpr)(x), 0., 1.)
+        eer_threshold = thresholds[np.nanargmin(np.abs((1 - tpr) - fpr))]
     except:
         eer = 0.5
         eer_threshold = 0.5
 
-    eer = min(eer, 1.0 - eer)
-    auc = max(auc, 1.0 - auc)
+    eer = min(eer, 1 - eer)
+    auc = max(auc, 1 - auc)
 
     return eer, auc, eer_threshold
 
 
 # ============================================================
-# Fast GHM BCE Loss (O(N))
+# GHM BCE
 # ============================================================
 
 class GHMBCE(nn.Module):
 
-    def __init__(self, bins=10, epsilon=1e-6):
-
+    def __init__(self, bins=10):
         super().__init__()
-
         self.bins = bins
-        self.epsilon = epsilon
 
     def forward(self, logits, targets):
 
         pred = torch.sigmoid(logits)
-
         g = torch.abs(pred.detach() - targets)
 
-        edges = torch.linspace(
-            0, 1, self.bins + 1,
-            device=logits.device
-        )
+        edges = torch.linspace(0,1,self.bins+1,device=logits.device)
 
         weights = torch.zeros_like(g)
-
         total = g.numel()
 
         for i in range(self.bins):
 
             inds = (g >= edges[i]) & (g < edges[i+1])
-
             num = inds.sum().item()
 
             if num > 0:
-
                 weights[inds] = total / num
 
         weights = weights / weights.mean()
@@ -330,7 +300,7 @@ class GHMBCE(nn.Module):
         loss = nn.functional.binary_cross_entropy_with_logits(
             logits,
             targets,
-            reduction='none'
+            reduction="none"
         )
 
         return (weights * loss).mean()
@@ -342,74 +312,44 @@ class GHMBCE(nn.Module):
 
 class BinaryClassTrainer:
 
-    def __init__(self, net=None, train_loader=None, val_loader=None):
+    def __init__(self, net, train_loader, val_loader):
 
         self.net = net
         self.train_loader = train_loader
         self.val_loader = val_loader
 
         self.best_model_state = None
-        self.best_val_eer = float('inf')
+        self.best_val_eer = float("inf")
 
-        if torch.cuda.is_available():
-            self.device = torch.device("cuda")
-        elif torch.backends.mps.is_available():
-            self.device = torch.device("mps")
-        else:
-            self.device = torch.device("cpu")
-
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.net.to(self.device)
 
 
-    def train(self,
-              optim_name='adam',
-              num_epochs=100,
-              learning_rate=1e-3,
-              step_size=5,
-              learning_rate_decay=0.5,
-              acc_frequency=1,
-              verbose=True):
+    def train(
+        self,
+        optim_name="adamw",
+        num_epochs=20,
+        learning_rate=1e-4,
+        step_size=5,
+        learning_rate_decay=0.1,
+        verbose=True
+    ):
 
         loss_function = GHMBCE()
 
-        # ------------------------------------------------
-        # Optimizer selection
-        # ------------------------------------------------
-
-        optim_name = optim_name.lower()
-
+        # optimizer
         if optim_name == "adam":
-
-            optimizer = optim.Adam(
-                self.net.parameters(),
-                lr=learning_rate
-            )
+            optimizer = optim.Adam(self.net.parameters(), lr=learning_rate)
 
         elif optim_name == "adamw":
-
-            optimizer = optim.AdamW(
-                self.net.parameters(),
-                lr=learning_rate,
-                weight_decay=0.01
-            )
+            optimizer = optim.AdamW(self.net.parameters(), lr=learning_rate, weight_decay=0.01)
 
         elif optim_name == "sgd":
-
-            optimizer = optim.SGD(
-                self.net.parameters(),
-                lr=learning_rate,
-                momentum=0.9,
-                weight_decay=1e-4
-            )
+            optimizer = optim.SGD(self.net.parameters(), lr=learning_rate, momentum=0.9)
 
         else:
+            raise ValueError("Unsupported optimizer")
 
-            raise ValueError(f"Unsupported optimizer: {optim_name}")
-
-
-        # ------------------------------------------------
-        # Step LR decay (your original style)
-        # ------------------------------------------------
 
         scheduler = torch.optim.lr_scheduler.StepLR(
             optimizer,
@@ -418,150 +358,98 @@ class BinaryClassTrainer:
         )
 
 
+        patience = 5
+        patience_counter = 0
+
         train_losses = []
         val_losses = []
-
-        train_acc_history = []
-        val_acc_history = []
 
         val_eer_history = []
         val_auc_history = []
 
-        patience = 5
-        patience_counter = 0
-
-
-        # ============================================================
-        # Epoch Loop
-        # ============================================================
 
         for epoch in range(num_epochs):
 
             self.net.train()
 
-            epoch_train_loss = 0
-            correct_train = 0
-            total_train = 0
+            epoch_loss = 0
+            correct = 0
+            total = 0
 
-            for X, y in tqdm.tqdm(
-                self.train_loader,
-                desc=f"Epoch {epoch+1}/{num_epochs}",
-                leave=False
-            ):
+            for X, y, _ in tqdm.tqdm(self.train_loader, desc=f"Epoch {epoch+1}/{num_epochs}"):
 
                 X = X.to(self.device)
                 y = y.to(self.device)
 
                 optimizer.zero_grad()
 
-                outputs = self.net(X).squeeze()
+                logits = self.net(X).squeeze(dim=1)
 
-                loss = loss_function(outputs, y)
+                loss = loss_function(logits, y)
 
                 loss.backward()
 
                 optimizer.step()
 
-                epoch_train_loss += loss.item()
+                epoch_loss += loss.item()
 
-                preds = (torch.sigmoid(outputs) >= 0.5).float()
+                preds = (torch.sigmoid(logits) >= 0.5).float()
 
-                correct_train += (preds == y).sum().item()
-                total_train += y.size(0)
-
-
-            avg_train_loss = epoch_train_loss / len(self.train_loader)
-
-            train_acc = correct_train / total_train
-
-            train_losses.append(avg_train_loss)
-            train_acc_history.append(train_acc)
+                correct += (preds == y).sum().item()
+                total += y.size(0)
 
 
-            # ============================================================
-            # Validation
-            # ============================================================
+            train_losses.append(epoch_loss/len(self.train_loader))
+
+
+            # ================= Validation =================
 
             self.net.eval()
 
-            epoch_val_loss = 0
-            total_val = 0
+            scores = []
+            labels = []
 
-            val_scores = []
-            val_labels = []
+            val_loss = 0
 
             with torch.no_grad():
 
-                for X, y in self.val_loader:
+                for X, y, _ in self.val_loader:
 
                     X = X.to(self.device)
                     y = y.to(self.device)
 
-                    outputs = self.net(X).squeeze()
+                    logits = self.net(X).squeeze(dim=1)
 
-                    loss = loss_function(outputs, y)
+                    loss = loss_function(logits, y)
 
-                    epoch_val_loss += loss.item()
+                    val_loss += loss.item()
 
-                    val_scores.extend(
-                        torch.sigmoid(outputs).cpu().numpy()
-                    )
-
-                    val_labels.extend(y.cpu().numpy())
-
-                    total_val += y.size(0)
+                    scores.extend(torch.sigmoid(logits).cpu().numpy())
+                    labels.extend(y.cpu().numpy())
 
 
-            avg_val_loss = epoch_val_loss / len(self.val_loader)
+            val_losses.append(val_loss/len(self.val_loader))
 
-            val_losses.append(avg_val_loss)
+            scores = np.array(scores)
+            labels = np.array(labels)
 
-
-            # ============================================================
-            # Metrics
-            # ============================================================
-
-            val_scores = np.array(val_scores)
-            val_labels = np.array(val_labels)
-
-            eer, auc, eer_threshold = calculate_eer(
-                val_labels,
-                val_scores
-            )
-
-            preds = (torch.tensor(val_scores) >= eer_threshold).float()
-
-            val_labels_tensor = torch.tensor(val_labels)
-
-            tp = ((val_labels_tensor == 1) & (preds == 1)).sum().item()
-            tn = ((val_labels_tensor == 0) & (preds == 0)).sum().item()
-
-            val_acc = (tp + tn) / total_val
-
-            val_acc_history.append(val_acc)
+            eer, auc, _ = calculate_eer(labels, scores)
 
             val_eer_history.append(eer)
             val_auc_history.append(auc)
 
 
-            # ============================================================
-            # Save best model
-            # ============================================================
+            # ================= Save best =================
 
             if eer < self.best_val_eer:
 
                 self.best_val_eer = eer
 
-                self.best_model_state = copy.deepcopy(
-                    self.net.state_dict()
-                )
-
-                print(
-                    f"New best model saved at epoch {epoch+1} "
-                    f"with EER: {eer:.4f}"
-                )
+                self.best_model_state = copy.deepcopy(self.net.state_dict())
 
                 patience_counter = 0
+
+                print(f"New best model saved (EER={eer:.4f})")
 
             else:
 
@@ -569,42 +457,14 @@ class BinaryClassTrainer:
 
                 if patience_counter >= patience:
 
-                    print(f"Early stopping at epoch {epoch+1}")
-
+                    print("Early stopping")
                     break
 
 
             scheduler.step()
 
 
-            if verbose or (epoch + 1) % acc_frequency == 0:
-
-                print(
-                    f"Epoch {epoch+1}/{num_epochs} | "
-                    f"Train Loss: {avg_train_loss:.4f}, Acc: {train_acc:.4f} | "
-                    f"Val Loss: {avg_val_loss:.4f}, Acc: {val_acc:.4f} | "
-                    f"EER: {eer:.4f}, AUC: {auc:.4f}"
-                )
-
-
-        # ============================================================
-        # Load best model
-        # ============================================================
-
-        best_model = self.net.__class__()
-
+        best_model = copy.deepcopy(self.net)
         best_model.load_state_dict(self.best_model_state)
 
-        best_model.to(self.device)
-
-
-        return (
-            self.net,
-            best_model,
-            train_losses,
-            val_losses,
-            train_acc_history,
-            val_acc_history,
-            val_eer_history,
-            val_auc_history
-        )
+        return self.net, best_model, train_losses, val_losses, val_eer_history, val_auc_history
