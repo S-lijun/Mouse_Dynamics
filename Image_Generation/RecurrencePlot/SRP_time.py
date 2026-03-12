@@ -19,7 +19,7 @@ print("[ROOT]", ROOT)
 # Config
 # ============================================================
 
-BASE_CHUNK_SIZE = 60
+BASE_CHUNK_SIZE = 150
 BASE_IMG_SIZE = 224
 
 GLOBAL_TD_CDF = None
@@ -315,7 +315,7 @@ def main():
     parser.add_argument("--sizes",
                         type=int,
                         nargs="+",
-                        default=[60])
+                        default=[150])
 
     parser.add_argument("--percentile",
                         type=float,
