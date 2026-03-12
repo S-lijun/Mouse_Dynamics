@@ -9,7 +9,27 @@ from scipy.interpolate import interp1d
 
 def calculate_eer(y_true, y_score):
 
+    # --------------------------------------------------
+    # 防止只有一个 class 导致 roc_auc_score 崩溃
+    # --------------------------------------------------
+
+    unique = np.unique(y_true)
+
+    if len(unique) < 2:
+
+        # 直接给最优指标
+        eer = 0.0
+        auc = 1.0
+        thr = 0.5
+
+        return eer, auc, thr
+
+    # --------------------------------------------------
+    # 正常计算
+    # --------------------------------------------------
+
     fpr, tpr, thresholds = roc_curve(y_true, y_score)
+
     auc = roc_auc_score(y_true, y_score)
 
     eer = brentq(lambda x: 1. - x - interp1d(fpr, tpr)(x), 0., 1.)
@@ -56,7 +76,7 @@ def grouping_by_session(scores, labels, sessions, n):
 
 def binary_score_fusion(scores, labels, sessions, n=1):
 
-    if n>1:
+    if n > 1:
         scores, labels = grouping_by_session(scores, labels, sessions, n)
 
     eer, auc, thr = calculate_eer(labels, scores)
