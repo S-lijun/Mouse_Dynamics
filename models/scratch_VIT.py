@@ -150,4 +150,4 @@ class BinaryViT(nn.Module):
 
         logits = self.head(x)
 
-        return logits.squeeze(-1)
+        return logits
