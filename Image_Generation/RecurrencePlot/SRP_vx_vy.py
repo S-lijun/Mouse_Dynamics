@@ -365,7 +365,7 @@ def main():
 
     parser.add_argument("--v_percentile",
                         type=float,
-                        default=95)
+                        default=97.5)
 
     args = parser.parse_args()
 

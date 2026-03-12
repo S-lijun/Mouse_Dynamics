@@ -161,7 +161,7 @@ def compute_timediff_node(ts):
 # timediff pair
 # ------------------------------------------------
 
-def compute_timediff_pair(ts,chunk_size=60):
+def compute_timediff_pair(ts,chunk_size=150):
 
     if len(ts)<chunk_size:
         return np.array([])
@@ -271,7 +271,7 @@ def build_distribution(dataset,feature,training_root):
 
             elif feature=="timediff_pair":
 
-                dt=compute_timediff_pair(ts,60)
+                dt=compute_timediff_pair(ts,150)
 
                 if len(dt)>0:
                     all_values.append(dt)
