@@ -65,7 +65,7 @@ def load_raw_velocity_distribution(path):
 
     data = np.load(path)
 
-    velocities = data["velocities"]
+    velocities = data["velocities"] # This can be "values"
 
     print("\n[Velocity] Loaded RAW distribution")
     print("samples:", len(velocities))

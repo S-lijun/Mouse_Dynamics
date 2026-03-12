@@ -386,7 +386,7 @@ def main():
 
     parser.add_argument("--clip",
                         type=float,
-                        default=95.0)
+                        default=97.5)
 
     args = parser.parse_args()
 

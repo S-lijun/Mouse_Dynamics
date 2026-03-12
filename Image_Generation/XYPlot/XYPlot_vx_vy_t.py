@@ -86,7 +86,7 @@ def load_raw_td_distribution(path):
 
     data = np.load(path)
 
-    td = data["time_differences"]
+    td = data["values"]
 
     print("\n[TimeDiff] Loaded RAW distribution")
     print("samples:", len(td))
@@ -405,7 +405,7 @@ def main():
 
     parser.add_argument("--clip",
                         type=float,
-                        default=95.0)
+                        default=97.5)
 
     args = parser.parse_args()
 
