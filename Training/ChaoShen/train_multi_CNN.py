@@ -6,9 +6,7 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
 
-import torch
 import torch.multiprocessing as mp
-
 mp.set_sharing_strategy('file_system')
 
 # ======================================================
@@ -58,7 +56,7 @@ from Training.Score_Fusion.Score_Fusion_Multi_82 import (
 )
 
 # ======================================================
-# Tensor Dataset (OPTIMIZED)
+# Tensor Dataset
 # ======================================================
 
 
@@ -75,16 +73,14 @@ class TensorMouseDataset(Dataset):
         H = 224
         W = 224
 
-        # ---------- memory map instead of loading ----------
         raw_labels = np.memmap(lab_path, dtype=np.uint8, mode="r")
-
         N = raw_labels.size // num_users
 
         raw_images = np.memmap(
             img_path,
             dtype=np.uint8,
             mode="r",
-            shape=(N, H, W)
+            shape=(N, 3, H, W)
         )
 
         self.images = raw_images
@@ -105,20 +101,10 @@ class TensorMouseDataset(Dataset):
 
     def __getitem__(self, idx):
 
-        # ---------- faster conversion ----------
-        #img = torch.from_numpy(self.images[idx])
-        img = torch.from_numpy(self.images[idx].copy())
-
-        if img.ndim == 2:
-            img = img.unsqueeze(0).repeat(3, 1, 1)
-        else:
-            img = img.permute(2, 0, 1)
-
-        img = img.float().div_(255)
-        
+        #img = torch.from_numpy(self.images[idx].copy())
+        img = torch.from_numpy(np.asarray(self.images[idx])).float().div_(255)
 
         label = torch.from_numpy(self.labels[idx]).float()
-
         session_id = self.sessions[idx]
 
         return img, label, session_id
@@ -166,7 +152,6 @@ if __name__ == "__main__":
     print(f"[INFO] Training Protocol 1 - Started at {timestamp}")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
     print("[INFO] Using device:", device)
 
     # ==========================================
@@ -191,27 +176,27 @@ if __name__ == "__main__":
     print(f"[INFO] Train samples: {len(train_dataset)} | Test samples: {len(test_dataset)}")
 
     # ==========================================
-    # DataLoader (OPTIMIZED)
+    # DataLoader (FAST CV CONFIG)
     # ==========================================
 
     train_loader = DataLoader(
         train_dataset,
         batch_size=256,
         shuffle=True,
-        num_workers=8,
-        pin_memory=False,
+        num_workers=16,
+        pin_memory=True,
         persistent_workers=True,
-        prefetch_factor=2
+        prefetch_factor=4
     )
 
     test_loader = DataLoader(
         test_dataset,
         batch_size=256,
         shuffle=False,
-        num_workers=8,
-        pin_memory=False,
+        num_workers=16,
+        pin_memory=True,
         persistent_workers=True,
-        prefetch_factor=2
+        prefetch_factor=4
     )
 
     # ==========================================
@@ -262,7 +247,6 @@ if __name__ == "__main__":
     user_ids = list(range(num_users))
 
     result = {"n": [], "avg_eer": [], "avg_auc": []}
-
     semantic_user_curve = defaultdict(dict)
 
     out_dir = Path(project_root) / "Training" / "Results" / "Protocol1" / timestamp

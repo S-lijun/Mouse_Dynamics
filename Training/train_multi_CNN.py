@@ -41,7 +41,7 @@ print(f"[INFO] Logging training output to:   {log_path}")
 #from models.pretrained_googlenet_multi import PretrainedGoogLeNet_Multilabel as insiderThreatCNN
 from models.scratch_CNN_multi import ScratchMultiCNN as insiderThreatCNN
 
-from Training.Trainers.multi_class_trainer import MultiLabelTrainerCNN as MultiLabelTrainer
+from Training.Trainers.OldTrainers.multi_class_trainer import MultiLabelTrainerCNN as MultiLabelTrainer
 #from Training.Trainers.multi_class_trainer_CNN import MultiLabelTrainerCNN as MultiLabelTrainer
 #from models.binary_CNN import flexCNN #---Use flexCNN
 from torch.utils.data import WeightedRandomSampler

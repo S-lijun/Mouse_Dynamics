@@ -41,7 +41,7 @@ print(f"[INFO] Logging training output to:   {log_path}")
 from models.pretrained_googlenet import PretrainedGoogLeNet as insiderThreatCNN
 #from models.pretrained_ResNet18 import PretrainedResNet18 as insiderThreatCNN
 #from models.binary_CNN2 import insiderThreatCNN
-from Training.Trainers.binary_class_trainer_CNN import BinaryClassTrainer
+from Training.Trainers.OldTrainers.binary_class_trainer_CNN import BinaryClassTrainer
 
 # ----- Dataset classes -----
 class RawMouseDataset(Dataset):
