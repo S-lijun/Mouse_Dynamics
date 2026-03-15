@@ -131,7 +131,7 @@ class MultiLabelTrainerCNN:
         )
 
         
-        scaler = torch.amp.GradScaler("cuda", enabled=(self.device.type == "cuda"))
+        scaler = torch.cuda.amp.GradScaler(enabled=(self.device.type == "cuda"))
 
         for epoch in range(num_epochs):
 
@@ -148,7 +148,7 @@ class MultiLabelTrainerCNN:
 
                 optimizer.zero_grad()
 
-                with torch.amp.autocast("cuda", enabled=(self.device.type == "cuda")):
+                with torch.cuda.amp.autocast(enabled=(self.device.type == "cuda")):
 
                     logits = self.net(X)
 
@@ -180,7 +180,7 @@ class MultiLabelTrainerCNN:
                     X = X.to(self.device, memory_format=torch.channels_last, non_blocking=True)
                     y = y.to(self.device, non_blocking=True)
 
-                    with torch.amp.autocast("cuda", enabled=(self.device.type == "cuda")):
+                    with torch.cuda.amp.autocast(enabled=(self.device.type == "cuda")):
 
                         logits = self.net(X)
 
