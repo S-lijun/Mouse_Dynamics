@@ -102,7 +102,8 @@ class TensorMouseDataset(Dataset):
     def __getitem__(self, idx):
 
         #img = torch.from_numpy(self.images[idx].copy())
-        img = torch.from_numpy(np.asarray(self.images[idx])).float().div_(255)
+        #img = torch.from_numpy(np.asarray(self.images[idx])).float().div_(255)
+        img = torch.from_numpy(self.images[idx]).to(torch.float32).div_(255)
 
         label = torch.from_numpy(self.labels[idx]).float()
         session_id = self.sessions[idx]
@@ -182,7 +183,7 @@ if __name__ == "__main__":
     train_loader = DataLoader(
         train_dataset,
         batch_size=256,
-        shuffle=True,
+        shuffle=False,
         num_workers=2,
         pin_memory=True,
         persistent_workers=True,
