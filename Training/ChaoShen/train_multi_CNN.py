@@ -151,8 +151,8 @@ class TensorMouseDataset(Dataset):
     def __getitem__(self, idx):
 
         img_np = np.asarray(self.images[idx])
-        #img = torch.from_numpy(img_np).float().div_(255)
-        img = torch.from_numpy(img_np).float().div_(255).to(memory_format=torch.channels_last)
+        img = torch.from_numpy(img_np).float().div_(255)
+        #mg = torch.from_numpy(img_np).float().div_(255).to(memory_format=torch.channels_last)
 
         label = torch.from_numpy(self.labels[idx]).float()
         session_id = self.sessions[idx]
