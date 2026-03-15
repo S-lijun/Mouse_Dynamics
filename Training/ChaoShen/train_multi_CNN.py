@@ -121,32 +121,39 @@ class TensorMouseDataset(Dataset):
         lab_path = os.path.join(tensor_root, "labels.npy")
         ses_path = os.path.join(tensor_root, "sessions.npy")
 
-        # ---------- load to RAM ----------
+        num_users = 28
+        H = 224
+        W = 224
 
-        raw_images = np.load(img_path, allow_pickle=True)
-        raw_labels = np.load(lab_path, allow_pickle=True)
-        sessions = np.load(ses_path, allow_pickle=True)
+        raw_labels = np.memmap(lab_path, dtype=np.uint8, mode="r")
+        N = raw_labels.size // num_users
 
-        N = raw_images.shape[0]
-        num_users = raw_labels.shape[1]
+        raw_images = np.memmap(
+            img_path,
+            dtype=np.uint8,
+            mode="r",
+            shape=(N, 3, H, W)
+        )
+
+        self.images = raw_images
+        self.labels = raw_labels.reshape(N, num_users)
+        self.sessions = np.load(ses_path, allow_pickle=True)
+
+        self.num_users = num_users
+        self.N = N
 
         print("[Dataset] Samples:", N)
         print("[Dataset] Users:", num_users)
 
-        # ---------- convert to torch once ----------
-        self.images = torch.from_numpy(raw_images).float().div_(255)
-        self.labels = torch.from_numpy(raw_labels).float()
-
-        self.sessions = sessions
-        self.num_users = num_users
-
     def __len__(self):
-        return self.images.shape[0]
+        return self.N
 
     def __getitem__(self, idx):
 
-        img = self.images[idx]
-        label = self.labels[idx]
+        img_np = np.asarray(self.images[idx])
+        img = torch.from_numpy(img_np).float().div_(255)
+
+        label = torch.from_numpy(self.labels[idx]).float()
         session_id = self.sessions[idx]
 
         return img, label, session_id
