@@ -122,8 +122,9 @@ class TensorMouseDataset(Dataset):
         ses_path = os.path.join(tensor_root, "sessions.npy")
 
         # ---------- load to RAM ----------
-        raw_images = np.load(img_path)      # (N,3,224,224)
-        raw_labels = np.load(lab_path)      # (N, num_users)
+
+        raw_images = np.load(img_path, allow_pickle=True)
+        raw_labels = np.load(lab_path, allow_pickle=True)
         sessions = np.load(ses_path, allow_pickle=True)
 
         N = raw_images.shape[0]
