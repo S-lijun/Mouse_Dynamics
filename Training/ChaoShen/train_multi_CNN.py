@@ -234,7 +234,7 @@ if __name__ == "__main__":
     train_loader = DataLoader(
         train_dataset,
         batch_size=256,
-        shuffle=False,
+        shuffle=True,
         num_workers=2,
         pin_memory=True,
         persistent_workers=True,
