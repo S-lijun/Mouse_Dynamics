@@ -59,7 +59,7 @@ from Training.Score_Fusion.Score_Fusion_Multi_82 import (
 # Tensor Dataset
 # ======================================================
 
-
+'''
 class TensorMouseDataset(Dataset):
 
     def __init__(self, tensor_root):
@@ -109,7 +109,46 @@ class TensorMouseDataset(Dataset):
         session_id = self.sessions[idx]
 
         return img, label, session_id
+'''
 
+class TensorMouseDataset(Dataset):
+
+    def __init__(self, tensor_root):
+
+        print("[Dataset] Loading tensor dataset from:", tensor_root)
+
+        img_path = os.path.join(tensor_root, "images.npy")
+        lab_path = os.path.join(tensor_root, "labels.npy")
+        ses_path = os.path.join(tensor_root, "sessions.npy")
+
+        # ---------- load to RAM ----------
+        raw_images = np.load(img_path)      # (N,3,224,224)
+        raw_labels = np.load(lab_path)      # (N, num_users)
+        sessions = np.load(ses_path, allow_pickle=True)
+
+        N = raw_images.shape[0]
+        num_users = raw_labels.shape[1]
+
+        print("[Dataset] Samples:", N)
+        print("[Dataset] Users:", num_users)
+
+        # ---------- convert to torch once ----------
+        self.images = torch.from_numpy(raw_images).float().div_(255)
+        self.labels = torch.from_numpy(raw_labels).float()
+
+        self.sessions = sessions
+        self.num_users = num_users
+
+    def __len__(self):
+        return self.images.shape[0]
+
+    def __getitem__(self, idx):
+
+        img = self.images[idx]
+        label = self.labels[idx]
+        session_id = self.sessions[idx]
+
+        return img, label, session_id
 
 # ======================================================
 # Score Collection
@@ -153,6 +192,7 @@ if __name__ == "__main__":
     print(f"[INFO] Training Protocol 1 - Started at {timestamp}")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    torch.backends.cudnn.benchmark = True
     print("[INFO] Using device:", device)
 
     # ==========================================
@@ -182,8 +222,8 @@ if __name__ == "__main__":
 
     train_loader = DataLoader(
         train_dataset,
-        batch_size=512,
-        shuffle=False,
+        batch_size=256,
+        shuffle=True,
         num_workers=2,
         pin_memory=True,
         persistent_workers=True,
@@ -192,7 +232,7 @@ if __name__ == "__main__":
 
     test_loader = DataLoader(
         test_dataset,
-        batch_size=512,
+        batch_size=256,
         shuffle=False,
         num_workers=2,
         pin_memory=True,

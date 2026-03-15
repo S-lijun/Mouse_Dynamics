@@ -1,0 +1,11 @@
+================================================================================
+[INFO] Training Protocol 1 - Started at 20260315_002255
+[INFO] Using device: cuda
+Enter training tensor folder (relative to ImagesTensor/): Enter testing tensor folder (relative to ImagesTensor/): [Dataset] Loading tensor dataset from: C:\Users\lijun\Mouse_Dynamics\ImagesTensors\ChaoShen\SRP\event150
+[Dataset] Samples: 335616
+[Dataset] Users: 28
+[Dataset] Loading tensor dataset from: C:\Users\lijun\Mouse_Dynamics\ImagesTensors\ChaoShen\SRP_protocol1\event150
+[Dataset] Samples: 167437
+[Dataset] Users: 28
+[INFO] Train samples: 335616 | Test samples: 167437
+[INFO] Using neg_weight = 1.00 (applied to all users)
