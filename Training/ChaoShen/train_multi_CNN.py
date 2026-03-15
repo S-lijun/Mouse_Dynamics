@@ -151,7 +151,8 @@ class TensorMouseDataset(Dataset):
     def __getitem__(self, idx):
 
         img_np = np.asarray(self.images[idx])
-        img = torch.from_numpy(img_np).float().div_(255)
+        #img = torch.from_numpy(img_np).float().div_(255)
+        img = torch.from_numpy(img_np).float().div_(255).to(memory_format=torch.channels_last)
 
         label = torch.from_numpy(self.labels[idx]).float()
         session_id = self.sessions[idx]
@@ -231,8 +232,8 @@ if __name__ == "__main__":
     train_loader = DataLoader(
         train_dataset,
         batch_size=256,
-        shuffle=True,
-        num_workers=2,
+        shuffle=False,
+        num_workers=16,
         pin_memory=True,
         persistent_workers=True,
         prefetch_factor=4
@@ -242,7 +243,7 @@ if __name__ == "__main__":
         test_dataset,
         batch_size=256,
         shuffle=False,
-        num_workers=2,
+        num_workers=16,
         pin_memory=True,
         persistent_workers=True,
         prefetch_factor=4
