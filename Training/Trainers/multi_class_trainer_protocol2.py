@@ -18,6 +18,7 @@ def compare_models(model1, model2):
 
 
 # ------------------ EER calculation ------------------ #
+'''
 def calculate_eer(y_true, y_scores):
     fpr, tpr, thresholds = roc_curve(y_true, y_scores)
     auc = roc_auc_score(y_true, y_scores)
@@ -31,7 +32,21 @@ def calculate_eer(y_true, y_scores):
     eer = min(eer, 1.0 - eer)
     auc = max(auc, 1.0 - auc)
     return eer, auc, eer_threshold
+'''
 
+def calculate_eer(y_true, y_scores):
+
+    fpr, tpr, thresholds = roc_curve(y_true, y_scores)
+    auc = roc_auc_score(y_true, y_scores)
+
+    try:
+        eer = brentq(lambda x: 1 - x - interp1d(fpr, tpr)(x), 0., 1.)
+        eer_threshold = thresholds[np.nanargmin(np.abs((1 - tpr) - fpr))]
+    except:
+        eer = np.nan
+        eer_threshold = np.nan
+
+    return eer, auc, eer_threshold
 
 # ======================================================
 # Protocol2 Trainer (Aligned with Protocol1)
