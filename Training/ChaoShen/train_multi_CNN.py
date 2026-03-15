@@ -49,7 +49,8 @@ sys.stdout = TeeLogger(log_path)
 # ======================================================
 
 from models.scratch_CNN_multi import ScratchMultiCNN as insiderThreatCNN
-from Training.Trainers.multi_class_trainer_protocol1 import MultiLabelTrainerCNN as MultiLabelTrainer
+#from Training.Trainers.multi_class_trainer_protocol1 import MultiLabelTrainerCNN as MultiLabelTrainer
+from Training.Trainers.fast_multi_class_trainer_protocol1 import MultiLabelTrainerCNN as MultiLabelTrainer
 from Training.Score_Fusion.Score_Fusion_Multi_82 import (
     multilabel_score_fusion,
     calculate_eer
@@ -59,7 +60,7 @@ from Training.Score_Fusion.Score_Fusion_Multi_82 import (
 # Tensor Dataset
 # ======================================================
 
-'''
+
 class TensorMouseDataset(Dataset):
 
     def __init__(self, tensor_root):
@@ -109,8 +110,8 @@ class TensorMouseDataset(Dataset):
         session_id = self.sessions[idx]
 
         return img, label, session_id
-'''
 
+'''
 class TensorMouseDataset(Dataset):
 
     def __init__(self, tensor_root):
@@ -158,6 +159,7 @@ class TensorMouseDataset(Dataset):
         session_id = self.sessions[idx]
 
         return img, label, session_id
+'''
 
 # ======================================================
 # Score Collection
