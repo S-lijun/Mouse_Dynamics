@@ -220,9 +220,9 @@ if __name__ == "__main__":
 
     _, best_model, *_ = trainer.train(
         optim_name="adamw",
-        num_epochs=17,
-        learning_rate=0.00001,
-        step_size=3,
+        num_epochs=25,
+        learning_rate=0.0001,
+        step_size=5,
         learning_rate_decay=0.2,
         verbose=True
     )
