@@ -111,56 +111,6 @@ class TensorMouseDataset(Dataset):
 
         return img, label, session_id
 
-'''
-class TensorMouseDataset(Dataset):
-
-    def __init__(self, tensor_root):
-
-        print("[Dataset] Loading tensor dataset from:", tensor_root)
-
-        img_path = os.path.join(tensor_root, "images.npy")
-        lab_path = os.path.join(tensor_root, "labels.npy")
-        ses_path = os.path.join(tensor_root, "sessions.npy")
-
-        num_users = 28
-        H = 224
-        W = 224
-
-        raw_labels = np.memmap(lab_path, dtype=np.uint8, mode="r")
-        N = raw_labels.size // num_users
-
-        raw_images = np.memmap(
-            img_path,
-            dtype=np.uint8,
-            mode="r",
-            shape=(N, 3, H, W)
-        )
-
-        self.images = raw_images
-        self.labels = raw_labels.reshape(N, num_users)
-        self.sessions = np.load(ses_path, allow_pickle=True)
-
-        self.num_users = num_users
-        self.N = N
-
-        print("[Dataset] Samples:", N)
-        print("[Dataset] Users:", num_users)
-
-    def __len__(self):
-        return self.N
-
-    def __getitem__(self, idx):
-
-        img_np = np.asarray(self.images[idx])
-        img = torch.from_numpy(img_np).float().div_(255)
-        #mg = torch.from_numpy(img_np).float().div_(255).to(memory_format=torch.channels_last)
-
-        label = torch.from_numpy(self.labels[idx]).float()
-        session_id = self.sessions[idx]
-
-        return img, label, session_id
-'''
-
 # ======================================================
 # Score Collection
 # ======================================================
@@ -270,10 +220,10 @@ if __name__ == "__main__":
 
     _, best_model, *_ = trainer.train(
         optim_name="adamw",
-        num_epochs=17,
-        learning_rate=0.0001,
-        step_size=5,
-        learning_rate_decay=0.1,
+        num_epochs=25,
+        learning_rate=3e-4,
+        step_size=8,
+        learning_rate_decay=0.3,
         verbose=True
     )
 
