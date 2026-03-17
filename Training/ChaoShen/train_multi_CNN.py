@@ -71,8 +71,8 @@ class TensorMouseDataset(Dataset):
         lab_path = os.path.join(tensor_root, "labels.npy")
 
         num_users = 28
-        H = 224
-        W = 224
+        H = 150
+        W = 150
 
         raw_labels = np.memmap(lab_path, dtype=np.uint8, mode="r")
         N = raw_labels.size // num_users
