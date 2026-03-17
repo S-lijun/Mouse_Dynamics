@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 tensor_root = input("Path:")  # 
 
-num_users = input("Number of users: ")
+num_users = 28
 H = 150
 W = 150
 
