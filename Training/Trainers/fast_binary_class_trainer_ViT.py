@@ -23,11 +23,8 @@ def calculate_eer(y_true, y_scores):
         eer = brentq(lambda x: 1 - x - interp1d(fpr, tpr)(x), 0., 1.)
         eer_threshold = thresholds[np.nanargmin(np.abs((1 - tpr) - fpr))]
     except:
-        eer = 0.5
-        eer_threshold = 0.5
-
-    eer = min(eer, 1 - eer)
-    auc = max(auc, 1 - auc)
+        eer = np.nan
+        eer_threshold = np.nan
 
     return eer, auc, eer_threshold
 
