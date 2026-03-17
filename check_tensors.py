@@ -23,7 +23,7 @@ ses_path = os.path.join(tensor_root, "sessions.npy")
 print("Loading dataset...")
 
 labels_raw = np.memmap(lab_path, dtype=np.uint8, mode="r")
-N = labels_raw.size // num_users
+N = labels_raw.size / num_users
 
 images = np.memmap(
     img_path,
