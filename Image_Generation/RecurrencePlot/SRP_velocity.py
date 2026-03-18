@@ -44,7 +44,7 @@ def load_raw_velocity_distribution(path):
 
     data = np.load(path)
 
-    velocities = data["velocities"]
+    velocities = data["values"]
 
     print("\n[Velocity Distribution]")
     print("Samples:", len(velocities))
