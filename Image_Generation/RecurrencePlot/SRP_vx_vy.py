@@ -308,6 +308,9 @@ def process_dataset(dataset, data_root, out_dir, sizes, percentile):
 
             events = df[["x","y","time"]].values.astype(np.float32)
 
+            if dataset in ["chaoshen", "dfl"]:
+                events[:, 2] = events[:, 2] / 1000.0
+
             print("      Events:", len(events))
 
             for chunk_size in sizes:

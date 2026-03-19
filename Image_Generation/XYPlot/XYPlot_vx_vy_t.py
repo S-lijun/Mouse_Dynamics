@@ -347,6 +347,9 @@ def process_dataset(dataset, data_root, out_dir, sizes):
                 df = clean_dfl(df)
 
             events = df.to_dict("records")
+            if dataset in ["chaoshen", "dfl"]:
+                for e in events:
+                    e["time"] = float(e["time"]) / 1000.0
 
             print("      Events:", len(events))
 

@@ -65,7 +65,7 @@ def load_raw_velocity_distribution(path):
 
     data = np.load(path)
 
-    velocities = data["velocities"] # This can be "values"
+    velocities = data["values"] # This can be "values"
 
     print("\n[Velocity] Loaded RAW distribution")
     print("samples:", len(velocities))
@@ -311,6 +311,10 @@ def process_dataset(dataset, data_root, out_dir, sizes):
                 df = clean_dfl(df)
 
             events = df.to_dict("records")
+
+            if dataset in ["chaoshen", "dfl"]:
+                for e in events:
+                    e["time"] = float(e["time"]) / 1000.0
 
             print("      Events:", len(events))
 
