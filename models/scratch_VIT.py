@@ -109,7 +109,7 @@ class TransformerBlock(nn.Module):
 
 
 # ============================================================
-# Binary ViT (论文结构)
+# Binary ViT
 # ============================================================
 
 class BinaryViT(nn.Module):
@@ -133,7 +133,7 @@ class BinaryViT(nn.Module):
 
         self.norm = nn.LayerNorm(embed_dim)
 
-        # 论文 Decision Layer
+        # Decision Layer
         self.head = nn.Linear(embed_dim,1)
 
     def forward(self,x):

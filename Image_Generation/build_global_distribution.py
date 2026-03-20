@@ -231,8 +231,6 @@ def build_distribution(dataset,feature,training_root):
             xs=df["x"].values
             ys=df["y"].values
             ts=df["time"].values
-            if dataset in ["chaoshen","dfl"]:
-                ts = ts / 1000.0
 
             if len(xs)<2:
                 continue

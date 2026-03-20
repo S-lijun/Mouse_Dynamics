@@ -22,8 +22,7 @@ print("[ROOT]", ROOT)
 BASE_CHUNK_SIZE = 150
 BASE_IMG_SIZE = 224
 
-GLOBAL_VX_CDF = None
-GLOBAL_VY_CDF = None
+GLOBAL_V_CDF = None
 
 
 # ============================================================
@@ -38,144 +37,151 @@ def get_dynamic_image_size(chunk_size):
 
 
 # ============================================================
-# Load RAW vx vy Distribution
+# Velocity Distribution
 # ============================================================
 
-def load_raw_directional_velocity_distribution(path):
+def load_raw_velocity_distribution(path):
 
     data = np.load(path)
 
-    vx = data["vx"]
-    vy = data["vy"]
+    velocities = data["values"]
 
-    print("\n[Directional Velocity Distribution]")
+    print("\n[Velocity Distribution]")
+    print("Samples:", len(velocities))
+    print("Min:", velocities.min())
+    print("Max:", velocities.max())
 
-    print("\nvx")
-    print("samples:", len(vx))
-    print("min:", vx.min())
-    print("max:", vx.max())
-
-    print("\nvy")
-    print("samples:", len(vy))
-    print("min:", vy.min())
-    print("max:", vy.max())
-
-    return vx, vy
+    return velocities
 
 
-# ============================================================
-# Build Signed Runtime CDF
-# ============================================================
+def build_runtime_cdf(raw_v, clip_pct):
 
-def build_runtime_cdf_signed(raw_values, clip_pct):
+    print("\nBuilding velocity runtime CDF")
 
-    print("\nBuilding signed runtime CDF")
+    v_upper = np.percentile(raw_v, clip_pct)
 
-    lower = np.percentile(raw_values, 100 - clip_pct)
-    upper = np.percentile(raw_values, clip_pct)
+    v_clipped = raw_v[raw_v <= v_upper]
 
-    clipped = raw_values[
-        (raw_values >= lower) & (raw_values <= upper)
-    ]
+    ranks = rankdata(v_clipped, method="average")
 
-    ranks = rankdata(clipped, method="average")
+    cdf = (ranks - 1) / (len(v_clipped) - 1 + 1e-8)
 
-    cdf = (ranks - 1) / (len(clipped) - 1 + 1e-8)
+    order = np.argsort(v_clipped)
 
-    order = np.argsort(clipped)
-
-    v_sorted = clipped[order]
+    v_sorted = v_clipped[order]
     cdf_sorted = cdf[order]
 
-    print("runtime samples:", len(v_sorted))
-    print("runtime min:", v_sorted.min())
-    print("runtime max:", v_sorted.max())
+    print("Runtime samples:", len(v_sorted))
+    print("Runtime max:", v_sorted.max())
 
     return v_sorted, cdf_sorted
 
 
 # ============================================================
-# Directional Velocity
+# Velocity
 # ============================================================
 
-def compute_vx_vy(xs, ys, ts):
+def compute_velocity(xs, ys, ts):
 
     dt = np.maximum(np.diff(ts), 1e-5)
 
-    vx = np.diff(xs) / dt
-    vy = np.diff(ys) / dt
+    v = np.sqrt(np.diff(xs)**2 + np.diff(ys)**2) / dt
 
-    vx = np.concatenate([[vx[0]], vx])
-    vy = np.concatenate([[vy[0]], vy])
+    v = np.concatenate([[v[0]], v])
 
-    return vx, vy
+    return v
 
 
 # ============================================================
-# SRP + vx vy
+# ARP + Velocity
 # ============================================================
 
-def compute_srp_vxvy(seq, percentile=95):
+def compute_arp_velocity(seq, percentile=95):
 
+    coords = seq[:, :2]
     xs = seq[:,0]
     ys = seq[:,1]
     ts = seq[:,2]
 
     T = len(seq)
+    half = T // 2
 
     # --------------------------------------------------------
-    # Recurrence Plot
+    # Split
     # --------------------------------------------------------
 
-    coords = seq[:, :2]
+    seq1 = coords[:half]
+    seq2 = coords[half:]
 
-    diff = coords[:, None, :] - coords[None, :, :]
+    # --------------------------------------------------------
+    # SRP for both halves
+    # --------------------------------------------------------
 
-    dist = np.sqrt(np.sum(diff**2, axis=2))
+    def compute_srp(c):
+        diff = c[:, None, :] - c[None, :, :]
+        dist = np.sqrt(np.sum(diff**2, axis=2))
 
-    eps = np.percentile(dist, percentile)
+        eps = np.percentile(dist, percentile)
+        rec = np.where(dist <= eps, dist, eps).astype(np.float32)
 
-    rec = np.where(dist <= eps, dist, eps).astype(np.float32)
+        if rec.max() > rec.min():
+            rec = (rec - rec.min()) / (rec.max() - rec.min())
 
-    if rec.max() > rec.min():
-        rec = (rec - rec.min()) / (rec.max() - rec.min())
+        return 1.0 - rec
 
-    rp = 1.0 - rec
+    SRP1 = compute_srp(seq1)
+    SRP2 = compute_srp(seq2)
+
+    # --------------------------------------------------------
+    # ARP structure
+    # --------------------------------------------------------
+
+    U = np.triu(SRP2)   # 🔥 注意：上三角用后半段
+    L = np.tril(SRP1)   # 🔥 下三角用前半段
+
+    arp = U + L
 
 
     # --------------------------------------------------------
-    # Directional Velocity
+    # Velocity
     # --------------------------------------------------------
 
-    vx, vy = compute_vx_vy(xs, ys, ts)
+    v = compute_velocity(xs, ys, ts)
 
-    vx_norm = np.interp(
-        vx,
-        GLOBAL_VX_CDF[0],
-        GLOBAL_VX_CDF[1],
+    v_norm = np.interp(
+        v,
+        GLOBAL_V_CDF[0],
+        GLOBAL_V_CDF[1],
         left=0,
         right=1
     )
 
-    vy_norm = np.interp(
-        vy,
-        GLOBAL_VY_CDF[0],
-        GLOBAL_VY_CDF[1],
-        left=0,
-        right=1
-    )
-
-    stripe_x = np.tile(vx_norm[None, :], (T, 1))
-    stripe_y = np.tile(vy_norm[None, :], (T, 1))
-
+    v1 = v_norm[:half]
+    v2 = v_norm[half:]
 
     # --------------------------------------------------------
-    # OpenCV BGR Order
+    # Triangle-aware stripe
     # --------------------------------------------------------
 
-    b_channel = stripe_y
-    g_channel = stripe_x
-    r_channel = rp
+    stripe = np.zeros((half, half), dtype=np.float32)
+
+    for i in range(half):
+        for j in range(half):
+
+            if i < j:
+                stripe[i, j] = v2[j]   # 上三角 → 后半段
+            elif i > j:
+                stripe[i, j] = v1[j]   # 下三角 → 前半段
+            else:
+                stripe[i, j] = v1[j]   # 对角线（随便选）
+
+    # --------------------------------------------------------
+    # BGR
+    # --------------------------------------------------------
+
+    b_channel = stripe
+    g_channel = stripe
+    r_channel = arp
 
     img = np.stack([b_channel, g_channel, r_channel], axis=-1)
 
@@ -186,9 +192,9 @@ def compute_srp_vxvy(seq, percentile=95):
 # Draw
 # ============================================================
 
-def draw_srp_vxvy(seq, save_path, percentile, chunk_size):
+def draw_arp_velocity(seq, save_path, percentile, chunk_size):
 
-    img = compute_srp_vxvy(seq, percentile)
+    img = compute_arp_velocity(seq, percentile)
 
     img_size = get_dynamic_image_size(chunk_size)
 
@@ -210,19 +216,19 @@ def draw_srp_vxvy(seq, save_path, percentile, chunk_size):
 
 
 # ============================================================
-# Cleaning
+# Cleaning (保持不变)
 # ============================================================
 
 def clean_balabit(df):
 
     df = df.rename(columns={
-        "client timestamp":"time",
-        "x":"x",
-        "y":"y",
-        "state":"state"
+        "client timestamp": "time",
+        "x": "x",
+        "y": "y",
+        "state": "state"
     })
 
-    df = df[df["state"]=="Move"].copy()
+    df = df[df["state"] == "Move"].copy()
 
     for c in ["x","y","time"]:
         df[c] = pd.to_numeric(df[c], errors="coerce")
@@ -239,7 +245,7 @@ def clean_chaoshen(df):
         "EventName":"event"
     })
 
-    df = df[df["event"]=="Move"].copy()
+    df = df[df["event"] == "Move"].copy()
 
     for c in ["x","y","time"]:
         df[c] = pd.to_numeric(df[c], errors="coerce")
@@ -253,7 +259,6 @@ def clean_dfl(df):
 
     if "client timestamp" in df.columns:
         df = df.rename(columns={"client timestamp":"time"})
-
     elif "timestamp" in df.columns:
         df = df.rename(columns={"timestamp":"time"})
 
@@ -267,7 +272,7 @@ def clean_dfl(df):
 
 
 # ============================================================
-# Dataset Processing
+# Dataset
 # ============================================================
 
 def process_dataset(dataset, data_root, out_dir, sizes, percentile):
@@ -299,10 +304,8 @@ def process_dataset(dataset, data_root, out_dir, sizes, percentile):
 
             if dataset == "balabit":
                 df = clean_balabit(df)
-
             elif dataset == "chaoshen":
                 df = clean_chaoshen(df)
-
             elif dataset == "dfl":
                 df = clean_dfl(df)
 
@@ -327,7 +330,7 @@ def process_dataset(dataset, data_root, out_dir, sizes, percentile):
                         f"{session}-{i}.png"
                     )
 
-                    draw_srp_vxvy(seq, save_path, percentile, chunk_size)
+                    draw_arp_velocity(seq, save_path, percentile, chunk_size)
 
 
 # ============================================================
@@ -336,36 +339,21 @@ def process_dataset(dataset, data_root, out_dir, sizes, percentile):
 
 def main():
 
-    global GLOBAL_VX_CDF
-    global GLOBAL_VY_CDF
+    global GLOBAL_V_CDF
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--dataset",
-                        required=True,
+    parser.add_argument("--dataset", required=True,
                         choices=["balabit","chaoshen","dfl"])
 
-    parser.add_argument("--data_root",
-                        required=True)
+    parser.add_argument("--data_root", required=True)
+    parser.add_argument("--velocity_dist", required=True)
+    parser.add_argument("--out_dir", required=True)
 
-    parser.add_argument("--velocity_dist",
-                        required=True)
+    parser.add_argument("--sizes", type=int, nargs="+", default=[150])
 
-    parser.add_argument("--out_dir",
-                        required=True)
-
-    parser.add_argument("--sizes",
-                        type=int,
-                        nargs="+",
-                        default=[150])
-
-    parser.add_argument("--percentile",
-                        type=float,
-                        default=95)
-
-    parser.add_argument("--v_percentile",
-                        type=float,
-                        default=97.5)
+    parser.add_argument("--percentile", type=float, default=95)
+    parser.add_argument("--v_percentile", type=float, default=95)
 
     args = parser.parse_args()
 
@@ -373,10 +361,9 @@ def main():
     out_dir = os.path.join(ROOT, args.out_dir)
     dist_path = os.path.join(ROOT, args.velocity_dist)
 
-    vx_raw, vy_raw = load_raw_directional_velocity_distribution(dist_path)
+    raw_v = load_raw_velocity_distribution(dist_path)
 
-    GLOBAL_VX_CDF = build_runtime_cdf_signed(vx_raw, args.v_percentile)
-    GLOBAL_VY_CDF = build_runtime_cdf_signed(vy_raw, args.v_percentile)
+    GLOBAL_V_CDF = build_runtime_cdf(raw_v, args.v_percentile)
 
     process_dataset(
         args.dataset,
@@ -386,7 +373,7 @@ def main():
         args.percentile
     )
 
-    print("\nSRP vx vy generation finished.")
+    print("\nARP Velocity generation finished.")
 
 
 if __name__ == "__main__":
