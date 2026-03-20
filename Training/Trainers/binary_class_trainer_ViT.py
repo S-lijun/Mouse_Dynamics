@@ -364,7 +364,7 @@ class BinaryClassTrainer:
         # Early stopping
         # ====================================================
 
-        patience = 15
+        patience = 5
         patience_counter = 0
 
         train_losses = []
