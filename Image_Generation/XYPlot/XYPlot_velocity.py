@@ -23,8 +23,8 @@ print("[ROOT]", ROOT)
 
 BASE_EVENT = 150
 BASE_IMG_SIZE = 224
-BASE_LINEWIDTH = 0.5
-BASE_MARKERSIZE = 1.0
+BASE_LINEWIDTH = 1.0
+BASE_MARKERSIZE = 0.0
 
 GLOBAL_V_RAW = None
 GLOBAL_V_CDF = None
@@ -47,7 +47,7 @@ def get_stroke_params(chunk_size):
     scale = math.sqrt(chunk_size / BASE_EVENT)
 
     lw = max(1, int(round(BASE_LINEWIDTH * scale)))
-    ms = max(1, int(round(BASE_MARKERSIZE * scale)))
+    ms = int(round(BASE_MARKERSIZE * scale))
 
     return lw, ms
 
