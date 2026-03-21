@@ -23,8 +23,8 @@ print("[ROOT]", ROOT)
 
 BASE_EVENT = 150
 BASE_IMG_SIZE = 224
-BASE_LINEWIDTH = 0.5
-BASE_MARKERSIZE = 1.0
+BASE_LINEWIDTH = 3
+BASE_MARKERSIZE = 0.0
 
 GLOBAL_VX_CDF = None
 GLOBAL_VY_CDF = None
@@ -201,7 +201,7 @@ def draw_mouse_chunk(chunk, save_path, chunk_size):
         y2 = int(_scaled(ys[i+1], min_y, scale, offset_y))
 
         color = (
-            255,           # B = constant
+            0.0,           # B = constant
             int(g_val[i]), # G = vy
             int(r_val[i])  # R = vx
         )
