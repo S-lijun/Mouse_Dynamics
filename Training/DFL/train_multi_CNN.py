@@ -184,7 +184,7 @@ if __name__ == "__main__":
         batch_size=256,
         shuffle=True,
         num_workers=2,
-        pin_memory=True,
+        pin_memory=False,
         persistent_workers=True,
         prefetch_factor=4
     )
@@ -194,7 +194,7 @@ if __name__ == "__main__":
         batch_size=256,
         shuffle=False,
         num_workers=2,
-        pin_memory=True,
+        pin_memory=False,
         persistent_workers=True,
         prefetch_factor=4
     )
