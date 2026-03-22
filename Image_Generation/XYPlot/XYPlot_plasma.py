@@ -141,7 +141,7 @@ def draw_mouse_chunk(chunk, save_path, chunk_size):
         right=1.0
     )
 
-    v_norm = v_norm * 0.95
+    v_norm = v_norm
     v_norm = np.clip(v_norm, 0.0, 1.0)
 
     # --------------------------------------------------------

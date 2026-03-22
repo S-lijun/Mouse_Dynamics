@@ -148,7 +148,7 @@ def draw_mouse_chunk(chunk, save_path, chunk_size):
         right=1
     )
 
-    vx_norm = vx_norm * 0.8
+    vx_norm = vx_norm 
     vy_norm = np.interp(
         vy,
         GLOBAL_VY_CDF[0],
@@ -156,7 +156,7 @@ def draw_mouse_chunk(chunk, save_path, chunk_size):
         left=0,
         right=1
     )
-    vy_norm = vy_norm * 0.8
+    vy_norm = vy_norm 
 
 
     r_val = (vx_norm * 255).astype(np.uint8)

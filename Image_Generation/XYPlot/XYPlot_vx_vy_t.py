@@ -23,8 +23,8 @@ print("[ROOT]", ROOT)
 
 BASE_EVENT = 150
 BASE_IMG_SIZE = 224
-BASE_LINEWIDTH = 0.5
-BASE_MARKERSIZE = 1.0
+BASE_LINEWIDTH = 3
+BASE_MARKERSIZE = 0.0
 
 GLOBAL_VX_CDF = None
 GLOBAL_VY_CDF = None
@@ -168,9 +168,9 @@ def draw_mouse_chunk(chunk, save_path, chunk_size):
     vy_norm = np.interp(vy, GLOBAL_VY_CDF[0], GLOBAL_VY_CDF[1], left=0, right=1)
     td_norm = np.interp(dt, GLOBAL_T_CDF[0], GLOBAL_T_CDF[1], left=0, right=1)
 
-    vx_norm = vx_norm * 0.8
-    vy_norm = vy_norm * 0.8
-    td_norm = td_norm * 0.8
+    vx_norm = vx_norm 
+    vy_norm = vy_norm 
+    td_norm = td_norm 
 
 
     r_val = (vx_norm * 255).astype(np.uint8)
