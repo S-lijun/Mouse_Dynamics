@@ -48,8 +48,8 @@ sys.stdout = TeeLogger(log_path)
 # Imports
 # ======================================================
 
-#from models.scratch_CNN_multi import ScratchMultiCNN as insiderThreatCNN
-from models.pretrained_googlenet_multi import PretrainedGoogLeNet_Multilabel as insiderThreatCNN
+from models.scratch_CNN_multi import ScratchMultiCNN as insiderThreatCNN
+#from models.pretrained_googlenet_multi import PretrainedGoogLeNet_Multilabel as insiderThreatCNN
 #from Training.Trainers.multi_class_trainer_protocol1 import MultiLabelTrainerCNN as MultiLabelTrainer
 from Training.Trainers.fast_multi_class_trainer_protocol1 import MultiLabelTrainerCNN as MultiLabelTrainer
 from Training.Score_Fusion.Score_Fusion_Multi_82 import (
@@ -206,7 +206,7 @@ if __name__ == "__main__":
     # Model
     # ==========================================
 
-    net = insiderThreatCNN(num_users=num_users).to(device)
+    net = insiderThreatCNN(num_users=num_users, image_size=224).to(device)
 
     trainer = MultiLabelTrainer(
         net=net,
