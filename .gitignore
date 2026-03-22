@@ -4,11 +4,24 @@
 # Ignore all content inside Data but keep the folder
 Data/*
 !Data/.gitkeep
+
+
+
+!Data/DFL/
+
+Data/DFL/*
+
+!Data/DFL/training_files/
+!Data/DFL/testing_files_protocol1/
+
+!Data/DFL/training_files/**
+!Data/DFL/testing_files_protocol1/**
+
+
 !Data/Balabit-dataset
 #!Data/Balabit_PeakClick
 #!Data/Balabit_chunk
-!Data/DFL-dataset
-#!Data/DFL
+#!Data/DFL-dataset
 
 
 ImagesTensors/*
