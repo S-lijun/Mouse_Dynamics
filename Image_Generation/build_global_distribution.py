@@ -83,7 +83,7 @@ def compute_velocity(xs,ys,ts):
     dy = ys[1:] - ys[:-1]
     dt = ts[1:] - ts[:-1]
 
-    dt = np.maximum(dt,1e-7)
+    dt = np.maximum(dt,1e-5)
 
     v = np.sqrt(dx**2 + dy**2)/dt
 
@@ -103,7 +103,7 @@ def compute_vxvy(xs,ys,ts):
     dy = ys[1:] - ys[:-1]
     dt = ts[1:] - ts[:-1]
 
-    dt = np.maximum(dt,1e-7)
+    dt = np.maximum(dt,1e-5)
 
     vx = np.zeros(len(xs))
     vy = np.zeros(len(xs))
@@ -127,7 +127,7 @@ def compute_acceleration(xs,ys,ts):
     dy = ys[1:] - ys[:-1]
     dt = ts[1:] - ts[:-1]
 
-    dt = np.maximum(dt,1e-7)
+    dt = np.maximum(dt,1e-5)
 
     v_segment = np.sqrt(dx**2 + dy**2)/dt
 
