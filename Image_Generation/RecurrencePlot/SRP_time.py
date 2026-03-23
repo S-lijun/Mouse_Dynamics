@@ -44,7 +44,7 @@ def load_raw_time_distribution(path):
 
     data = np.load(path)
 
-    td = data["time_differences"]
+    td = data["values"]
 
     print("\n[Time Difference Distribution]")
     print("samples:", len(td))
