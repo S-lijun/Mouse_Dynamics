@@ -254,7 +254,7 @@ if __name__ == "__main__":
 
     print("\n===== Protocol 1 Score Fusion Curve =====")
 
-    for n in range(1, 31):
+    for n in range(1, 11):
 
         res = multilabel_score_fusion(scores, labels, session_ids, user_ids, n)
 
