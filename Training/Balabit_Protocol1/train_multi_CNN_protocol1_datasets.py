@@ -166,8 +166,8 @@ def run_single_experiment(cfg):
     train_dataset = Protocol1MouseDataset(train_root, user_list, transform)
     test_dataset  = Protocol1MouseDataset(test_root, user_list, transform)
 
-    train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=2)
-    test_loader  = DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=2)
+    train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=2)
+    test_loader  = DataLoader(test_dataset, batch_size=128, shuffle=False, num_workers=2)
 
     print(f"[INFO] Train: {len(train_dataset)} | Test: {len(test_dataset)}")
 
