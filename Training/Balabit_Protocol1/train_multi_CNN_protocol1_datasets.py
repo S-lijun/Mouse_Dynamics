@@ -276,9 +276,9 @@ if __name__ == "__main__":
             "test": "Balabit/XYPlot_protocol1/event150"
         },
         {
-            "name": "XYPlot_velocity",
-            "train": "Balabit/XYPlot_velocity/event150",
-            "test": "Balabit/XYPlot_velocity_protocol1/event150"
+            "name": "XYPlot_plasma",
+            "train": "Balabit/XYPlot_plasma/event150",
+            "test": "Balabit/XYPlot_plasma_protocol1/event150"
         },
         {
             "name": "XYPlot_vx_vy",
