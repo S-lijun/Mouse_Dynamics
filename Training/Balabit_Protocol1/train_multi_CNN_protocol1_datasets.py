@@ -20,7 +20,7 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 # Imports
 # ======================================================
 from models.scratch_CNN_multi import ScratchMultiCNN as insiderThreatCNN
-from Training.Trainers.fast_multi_class_trainer_protocol1 import MultiLabelTrainerCNN as MultiLabelTrainer
+from Training.Trainers.multi_class_trainer_protocol1 import MultiLabelTrainerCNN as MultiLabelTrainer
 from Training.Score_Fusion.Score_Fusion_Multi_82 import multilabel_score_fusion
 
 # ======================================================
