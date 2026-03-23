@@ -146,7 +146,7 @@ def compute_srp_velocity(seq, percentile=95):
     # --------------------------------------------------------
 
     b_channel = stripe
-    g_channel = stripe
+    g_channel = rp
     r_channel = rp
 
     img = np.stack([b_channel, g_channel, r_channel], axis=-1)

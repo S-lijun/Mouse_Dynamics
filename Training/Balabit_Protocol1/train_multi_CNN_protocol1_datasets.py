@@ -1,16 +1,18 @@
-import sys, os, datetime, re, gc, json
+import sys, os, datetime, gc, json
 from collections import defaultdict
 from pathlib import Path
-from PIL import Image
 
 import torch
 from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms
 import numpy as np
 
+import torch.multiprocessing as mp
+mp.set_sharing_strategy('file_system')
+
 # ======================================================
-# Env
+# Env / Path
 # ======================================================
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:32"
 
@@ -19,83 +21,82 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 # ======================================================
 # Imports
 # ======================================================
-from models.scratch_CNN_multi import ScratchMultiCNN as insiderThreatCNN
-from Training.Trainers.multi_class_trainer_protocol1 import MultiLabelTrainerCNN as MultiLabelTrainer
-from Training.Score_Fusion.Score_Fusion_Multi_82 import multilabel_score_fusion
 
-# ======================================================
-# Utils
-# ======================================================
-def parse_session_and_index(filename: str):
-    m = re.match(r"(session_\d+)-(\d+)\.png", filename)
-    if m is None:
-        raise RuntimeError(f"Bad filename: {filename}")
-    return m.group(1), int(m.group(2))
+from models.scratch_CNN_multi import ScratchMultiCNN as insiderThreatCNN
+from Training.Trainers.fast_multi_class_trainer_protocol1 import MultiLabelTrainerCNN as MultiLabelTrainer
+from Training.Score_Fusion.Score_Fusion_Multi_82 import (
+    multilabel_score_fusion,
+    calculate_eer
+)
 
 # ======================================================
 # Dataset
 # ======================================================
-class Protocol1MouseDataset(Dataset):
-    def __init__(self, split_root, all_users, transform=None):
 
-        self.samples = []
-        self.labels = []
-        self.session_ids = []
-        self.transform = transform
+class TensorMouseDataset(Dataset):
 
-        self.user2index = {u: i for i, u in enumerate(all_users)}
-        self.num_users = len(all_users)
+    def __init__(self, tensor_root):
 
-        for user in all_users:
-            user_path = os.path.join(split_root, user)
-            if not os.path.exists(user_path):
-                continue
+        print("[Dataset] Loading tensor dataset from:", tensor_root)
 
-            files = []
-            for f in os.listdir(user_path):
-                if f.endswith(".png"):
-                    try:
-                        sess, idx = parse_session_and_index(f)
-                        files.append((sess, idx, f))
-                    except:
-                        continue
+        img_path = os.path.join(tensor_root, "images.npy")
+        lab_path = os.path.join(tensor_root, "labels.npy")
 
-            files.sort(key=lambda x: (x[0], x[1]))
+        num_users = 10
+        H = 224
+        W = 224
 
-            for sess, idx, f in files:
-                self.samples.append(os.path.join(user_path, f))
+        raw_labels = np.memmap(lab_path, dtype=np.uint8, mode="r")
+        N = raw_labels.size // num_users
 
-                y = torch.zeros(self.num_users)
-                y[self.user2index[user]] = 1.0
-                self.labels.append(y)
+        raw_images = np.memmap(
+            img_path,
+            dtype=np.uint8,
+            mode="r",
+            shape=(N, 3, H, W)
+        )
 
-                self.session_ids.append(sess)
+        self.images = raw_images
+        self.labels = raw_labels.reshape(N, num_users)
+
+        self.sessions = np.load(
+            os.path.join(tensor_root, "sessions.npy"),
+            allow_pickle=True
+        )
+
+        self.num_users = num_users
+
+        print("[Dataset] Samples:", N)
+        print("[Dataset] Users:", num_users)
 
     def __len__(self):
-        return len(self.samples)
+        return len(self.images)
 
     def __getitem__(self, idx):
 
-        img = Image.open(self.samples[idx]).convert("RGB")
+        img = torch.from_numpy(self.images[idx]).to(torch.float32).div_(255)
+        label = torch.from_numpy(self.labels[idx]).float()
+        session_id = self.sessions[idx]
 
-        if self.transform:
-            img = self.transform(img)
+        return img, label, session_id
 
-        return img, self.labels[idx], self.session_ids[idx]
 
 # ======================================================
 # Eval
 # ======================================================
+
 def collect_val_scores(model, loader, device):
 
     model.eval()
 
     outs, labs, sess = [], [], []
 
+    print("[Eval] Collecting scores...")
+
     with torch.no_grad():
         for X, y, s in loader:
 
-            X = X.to(device)
+            X = X.to(device, non_blocking=True)
 
             logits = model(X)
 
@@ -109,34 +110,38 @@ def collect_val_scores(model, loader, device):
 
     return scores, labels, session_ids
 
+
 # ======================================================
 # Core Runner
 # ======================================================
-def run_single_experiment(cfg):
 
-    # 每个 dataset 独立 timestamp
+def run_single_experiment(dataset_cfg):
+
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    name = cfg["name"]
-    train_folder = cfg["train"]
-    test_folder = cfg["test"]
+    name = dataset_cfg["name"]
+    train_tensor_folder = dataset_cfg["train"]
+    test_tensor_folder = dataset_cfg["test"]
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print(f"[DATASET] {name}")
-    print("="*80)
+    print("=" * 80)
 
     # ================= Logging =================
     log_dir = Path(project_root) / "output_logs" / "train_multi_label_p1"
     log_dir.mkdir(parents=True, exist_ok=True)
+
     log_path = log_dir / f"{name}_{timestamp}.out"
 
     class TeeLogger:
         def __init__(self, file_path):
             self.terminal = sys.__stdout__
             self.log = open(file_path, "w")
+
         def write(self, message):
             self.terminal.write(message)
             self.log.write(message)
+
         def flush(self):
             self.terminal.flush()
             self.log.flush()
@@ -145,42 +150,51 @@ def run_single_experiment(cfg):
 
     # ================= Device =================
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    torch.backends.cudnn.benchmark = True
+
     print("[INFO] Device:", device)
 
-    img_size = 224
-    C_pos, C_neg = 60, 60
+    # ================= Path =================
+    train_root = Path(project_root) / "ImagesTensors" / train_tensor_folder
+    test_root = Path(project_root) / "ImagesTensors" / test_tensor_folder
 
-    train_root = Path(project_root) / "Images" / train_folder
-    test_root  = Path(project_root) / "Images" / test_folder
+    # ================= Dataset =================
+    train_dataset = TensorMouseDataset(train_root)
+    test_dataset = TensorMouseDataset(test_root)
 
-    user_list = sorted([u for u in os.listdir(train_root) if os.path.isdir(train_root / u)])
-    num_users = len(user_list)
+    num_users = train_dataset.num_users
 
-    print(f"[INFO] Users: {num_users}")
+    # ================= Loader =================
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=128,
+        shuffle=True,
+        num_workers=2,
+        pin_memory=False,
+        persistent_workers=True,
+        prefetch_factor=4
+    )
 
-    transform = transforms.Compose([
-        transforms.Resize((img_size, img_size)),
-        transforms.ToTensor()
-    ])
-
-    train_dataset = Protocol1MouseDataset(train_root, user_list, transform)
-    test_dataset  = Protocol1MouseDataset(test_root, user_list, transform)
-
-    train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=2)
-    test_loader  = DataLoader(test_dataset, batch_size=128, shuffle=False, num_workers=2)
-
-    print(f"[INFO] Train: {len(train_dataset)} | Test: {len(test_dataset)}")
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=128,
+        shuffle=False,
+        num_workers=2,
+        pin_memory=False,
+        persistent_workers=True,
+        prefetch_factor=4
+    )
 
     # ================= Model =================
-    net = insiderThreatCNN(num_users=num_users, image_size=img_size).to(device)
+    net = insiderThreatCNN(num_users=num_users, image_size=224).to(device)
 
     trainer = MultiLabelTrainer(
         net=net,
         train_loader=train_loader,
         val_loader=test_loader,
         neg_weight_value=1.0,
-        C_pos=C_pos,
-        C_neg=C_neg
+        C_pos=60,
+        C_neg=60
     )
 
     print("\n========== Training ==========")
@@ -223,10 +237,11 @@ def run_single_experiment(cfg):
         valid_eers, valid_aucs = [], []
 
         for col_key, metrics in res.items():
+
             col = int(col_key.replace("user", ""))
 
-            semantic_user_curve[user_list[col]][str(n)] = {
-                "User": user_list[col],
+            semantic_user_curve[col][str(n)] = {
+                "User": col,
                 "n": n,
                 "EER": float(metrics["EER"]),
                 "AUC": float(metrics["AUC"])
@@ -250,24 +265,25 @@ def run_single_experiment(cfg):
     with open(out_dir / "per_user.json", "w") as f:
         json.dump(semantic_user_curve, f, indent=2)
 
-    print(f"[INFO] Results saved: {out_dir}")
+    print(f"[INFO] Results saved to: {out_dir}")
 
     # ================= Clean =================
     del train_loader, test_loader, train_dataset, test_dataset, net, best_model
     gc.collect()
     torch.cuda.empty_cache()
 
-    print(f"[INFO] {name} finished")
+    print(f"[INFO] {name} finished.")
 
 
 # ======================================================
 # MAIN
 # ======================================================
+
 if __name__ == "__main__":
 
-    print("="*80)
-    print("[INFO] Batch Training (Balabit PNG)")
-    print("="*80)
+    print("=" * 80)
+    print("[INFO] Batch Training Started")
+    print("=" * 80)
 
     DATASETS = [
         {
@@ -283,11 +299,11 @@ if __name__ == "__main__":
         {
             "name": "XYPlot_vx_vy",
             "train": "Balabit/XYPlot_vx_vy/event150",
-            "test": "Balabit/XYPlot_vx_vy_protocol1/event150"
+            "test": "Balabit/XYPlot_vx_vy_protocol1/evnet150"
         }
-    ]
+    ]   
 
     for ds in DATASETS:
         run_single_experiment(ds)
 
-    print("\n[INFO] ALL DONE")
+    print("\n[INFO] ALL DATASETS FINISHED")
