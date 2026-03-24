@@ -102,7 +102,7 @@ def compute_srp_velocity(seq):
 
     avg_dist = np.mean(dist_norm)
 
-    epsilon = 0.5
+    epsilon = 0.3
 
     rp = np.where(
         dist_norm > avg_dist,
