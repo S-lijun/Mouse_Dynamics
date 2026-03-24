@@ -155,7 +155,7 @@ if __name__ == "__main__":
     training_folder = input("Enter training folder: ").strip()
     testing_folder = input("Enter testing folder: ").strip()
 
-    img_size = 300
+    img_size = 224
 
     train_root = Path(project_root) / "Images" / training_folder
     test_root  = Path(project_root) / "Images" / testing_folder
@@ -210,7 +210,7 @@ if __name__ == "__main__":
 
         print(f"\n===== Score Fusion Curve for {user} =====")
 
-        for n in range(1, 5):
+        for n in range(1, 31):
 
             metrics = binary_score_fusion(scores, labels, sessions, n)
 

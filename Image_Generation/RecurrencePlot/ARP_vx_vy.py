@@ -19,8 +19,8 @@ print("[ROOT]", ROOT)
 # Config
 # ============================================================
 
-BASE_CHUNK_SIZE = 300
-BASE_IMG_SIZE = 300
+BASE_CHUNK_SIZE = 150
+BASE_IMG_SIZE = 224
 
 GLOBAL_VX_CDF = None
 GLOBAL_VY_CDF = None
@@ -393,7 +393,7 @@ def main():
     parser.add_argument("--velocity_dist", required=True)
     parser.add_argument("--out_dir", required=True)
 
-    parser.add_argument("--sizes", type=int, nargs="+", default=[300])
+    parser.add_argument("--sizes", type=int, nargs="+", default=[150])
 
     parser.add_argument("--percentile", type=float, default=100)
     parser.add_argument("--v_percentile", type=float, default=100)

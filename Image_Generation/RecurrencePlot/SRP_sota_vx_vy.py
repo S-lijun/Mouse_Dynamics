@@ -117,7 +117,7 @@ def compute_srp_vxvy(seq):
 
     avg_dist = np.mean(dist_norm)
 
-    epsilon = 0.3   
+    epsilon = 0.8   
 
     rp = np.where(
         dist_norm > avg_dist,
