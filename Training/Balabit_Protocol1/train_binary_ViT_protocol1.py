@@ -210,7 +210,7 @@ if __name__ == "__main__":
 
         print(f"\n===== Score Fusion Curve for {user} =====")
 
-        for n in range(1, 31):
+        for n in range(1, 5):
 
             metrics = binary_score_fusion(scores, labels, sessions, n)
 
