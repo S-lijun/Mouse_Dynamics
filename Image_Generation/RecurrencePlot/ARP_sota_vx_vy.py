@@ -325,8 +325,8 @@ def main():
     parser.add_argument("--data_root", required=True)
     parser.add_argument("--velocity_dist", required=True)
     parser.add_argument("--out_dir", required=True)
-    parser.add_argument("--sizes", type=int, nargs="+", default=[150])
-    parser.add_argument("--v_percentile", type=float, default=97.5)
+    parser.add_argument("--sizes", type=int, nargs="+", default=[300])
+    parser.add_argument("--v_percentile", type=float, default=100)
 
     args = parser.parse_args()
 
