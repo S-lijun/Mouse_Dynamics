@@ -134,7 +134,15 @@ class BinaryViT(nn.Module):
         self.norm = nn.LayerNorm(embed_dim)
 
         # Decision Layer
-        self.head = nn.Linear(embed_dim,1)
+        #self.head = nn.Linear(embed_dim,1)
+        self.head = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(embed_dim,128),
+                nn.ReLU(),
+                nn.Dropout(0.2),
+                nn.Linear(128 , 1)
+            )
+        ])
 
     def forward(self,x):
 
