@@ -117,7 +117,7 @@ def compute_srp_vxvy(seq):
 
     avg_dist = np.mean(dist_norm)
 
-    epsilon = 0.3   
+    epsilon = 0.5   
 
     rp = np.where(
         dist_norm > avg_dist,
@@ -300,7 +300,7 @@ def main():
     parser.add_argument("--velocity_dist", required=True)
     parser.add_argument("--out_dir", required=True)
     parser.add_argument("--sizes", type=int, nargs="+", default=[150])
-    parser.add_argument("--v_percentile", type=float, default=97.5)
+    parser.add_argument("--v_percentile", type=float, default=100)
 
     args = parser.parse_args()
 
