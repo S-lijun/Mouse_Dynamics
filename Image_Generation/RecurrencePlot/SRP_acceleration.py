@@ -226,7 +226,7 @@ def draw_srp_acceleration(seq, save_path, percentile, chunk_size):
 
 
 # ============================================================
-# Cleaning（保持一致）
+# Cleaning
 # ============================================================
 
 def clean_balabit(df):
