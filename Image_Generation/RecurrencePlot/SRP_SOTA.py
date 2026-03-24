@@ -30,7 +30,7 @@ def get_dynamic_image_size(chunk_size):
     return int(round(BASE_IMG_SIZE * scale))
 
 # ============================================================
-# SRP（你要的版本）
+# SRP
 # ============================================================
 
 def compute_srp(seq, epsilon=0.3):
@@ -38,13 +38,13 @@ def compute_srp(seq, epsilon=0.3):
     coords = seq[:, :2]
 
     # --------------------------------------------------
-    # distance matrix（RAW，不做坐标normalize）
+    # distance matrix
     # --------------------------------------------------
     diff = coords[:, None, :] - coords[None, :, :]
     dist = np.sqrt(np.sum(diff**2, axis=2))
 
     # --------------------------------------------------
-    # normalize distance（关键）
+    # normalize distance
     # --------------------------------------------------
     dist_norm = dist / (dist.max() + 1e-8)
 
@@ -54,7 +54,7 @@ def compute_srp(seq, epsilon=0.3):
     avg_dist = np.mean(dist_norm)
 
     # --------------------------------------------------
-    # build SRP（核心逻辑）
+    # build SRP
     # --------------------------------------------------
     rp = np.zeros_like(dist_norm, dtype=np.float32)
 
@@ -62,10 +62,10 @@ def compute_srp(seq, epsilon=0.3):
         for j in range(len(dist_norm)):
 
             if dist_norm[i, j] > avg_dist:
-                # 非recurrent → 固定亮度
+               
                 rp[i, j] = epsilon
             else:
-                # recurrent → 用 distance
+               
                 rp[i, j] = dist_norm[i, j]
 
     # --------------------------------------------------
@@ -75,7 +75,7 @@ def compute_srp(seq, epsilon=0.3):
 
 
     # --------------------------------------------------
-    # invert（论文风格）
+    # invert
     # --------------------------------------------------
     rp = 1.0 - rp
 
@@ -104,7 +104,7 @@ def draw_srp(seq, save_path, epsilon, chunk_size):
     cv2.imwrite(save_path, img)
 
 # ============================================================
-# Cleaning（含异常值过滤）
+# Cleaning
 # ============================================================
 
 def clean_balabit(df):
@@ -187,7 +187,7 @@ def main():
     parser.add_argument("--data_root", required=True)
     parser.add_argument("--out_dir", required=True)
     parser.add_argument("--sizes", type=int, nargs="+", default=[150])
-    parser.add_argument("--epsilon", type=float, default=0.3)
+    parser.add_argument("--epsilon", type=float, default=0.5)
 
     args = parser.parse_args()
 
