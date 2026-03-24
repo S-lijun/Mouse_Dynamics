@@ -19,8 +19,8 @@ print("[ROOT]", ROOT)
 # Config
 # ============================================================
 
-BASE_CHUNK_SIZE = 150
-BASE_IMG_SIZE = 224
+BASE_CHUNK_SIZE = 300
+BASE_IMG_SIZE = 300
 
 GLOBAL_VX_CDF = None
 GLOBAL_VY_CDF = None
