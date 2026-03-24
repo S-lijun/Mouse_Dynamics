@@ -118,25 +118,33 @@ def compute_vxvy(xs,ys,ts):
 # acceleration (FIXED)
 # ------------------------------------------------
 
-def compute_acceleration(xs,ys,ts):
+def compute_acceleration(xs, ys, ts):
 
-    if len(xs) < 3:
+    T = len(xs)
+
+    if T < 3:
         return np.array([])
 
+    # -------- velocity --------
     dx = xs[1:] - xs[:-1]
     dy = ys[1:] - ys[:-1]
     dt = ts[1:] - ts[:-1]
 
-    dt = np.maximum(dt,1e-5)
+    dt = np.maximum(dt, 1e-5)
 
-    v_segment = np.sqrt(dx**2 + dy**2)/dt
+    v_segment = np.sqrt(dx**2 + dy**2) / dt
 
-    v = np.zeros(len(xs))
+    v = np.zeros(T)
     v[1:] = v_segment
 
-    a = np.zeros(len(xs))
-    a[1:] = v[1:] - v[:-1]
 
+    # -------- acceleration --------
+    a = np.zeros(T)
+
+    a[1:] = (v[1:] - v[:-1]) / dt
+
+
+    # --------  --------
     a = a[np.isfinite(a)]
 
     return a
@@ -257,7 +265,9 @@ def build_distribution(dataset,feature,training_root):
 
                 a=compute_acceleration(xs,ys,ts)
 
-                if len(a)>0:
+                if len(a) > 0:
+                    a = np.abs(a)
+                    a = a[np.abs(a) > 1e-8]
                     all_values.append(a)
 
 
