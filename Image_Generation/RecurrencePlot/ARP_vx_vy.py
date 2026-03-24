@@ -395,8 +395,8 @@ def main():
 
     parser.add_argument("--sizes", type=int, nargs="+", default=[150])
 
-    parser.add_argument("--percentile", type=float, default=95)
-    parser.add_argument("--v_percentile", type=float, default=97.5)
+    parser.add_argument("--percentile", type=float, default=100)
+    parser.add_argument("--v_percentile", type=float, default=100)
 
     args = parser.parse_args()
 
