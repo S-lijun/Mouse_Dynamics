@@ -180,7 +180,7 @@ def compute_arp_velocity(seq, percentile=95):
     # --------------------------------------------------------
 
     b_channel = stripe
-    g_channel = arp
+    g_channel = stripe
     r_channel = arp
 
     img = np.stack([b_channel, g_channel, r_channel], axis=-1)
