@@ -414,7 +414,7 @@ if __name__ == "__main__":
     train_root = Path(project_root) / "ImagesTensors" / train_tensor_folder
     test_root  = Path(project_root) / "ImagesTensors" / test_tensor_folder
 
-    num_users = 21
+    num_users = 28
     user_list = [f"user{i}" for i in range(num_users)]
 
     user_scores = {}
