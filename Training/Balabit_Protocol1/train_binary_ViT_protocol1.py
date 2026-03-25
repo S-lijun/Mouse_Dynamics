@@ -186,8 +186,8 @@ if __name__ == "__main__":
         train_dataset = BinaryMouseDataset(train_root, user, user_list, transform)
         test_dataset  = BinaryMouseDataset(test_root, user, user_list, transform)
 
-        train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=2)
-        test_loader  = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=2)
+        train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=8)
+        test_loader  = DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=8)
 
         net = BinaryViT(img_size=img_size, patch_size=5).to(device)
 
@@ -210,7 +210,7 @@ if __name__ == "__main__":
 
         print(f"\n===== Score Fusion Curve for {user} =====")
 
-        for n in range(1, 31):
+        for n in range(1, 11):
 
             metrics = binary_score_fusion(scores, labels, sessions, n)
 
