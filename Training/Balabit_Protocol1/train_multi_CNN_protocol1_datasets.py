@@ -1,13 +1,14 @@
-import sys, os, datetime, gc, json
+# train_multi_CNN_png_batch.py
+
+import sys, os, datetime, re, gc, json
 from collections import defaultdict
 from pathlib import Path
+from PIL import Image
 
 import torch
 from torch.utils.data import Dataset, DataLoader
+from torchvision import transforms
 import numpy as np
-
-import torch.multiprocessing as mp
-mp.set_sharing_strategy('file_system')
 
 # ======================================================
 # Env / Path
@@ -26,59 +27,75 @@ from models.scratch_CNN_multi import ScratchMultiCNN as insiderThreatCNN
 from Training.Trainers.multi_class_trainer_protocol1 import MultiLabelTrainerCNN as MultiLabelTrainer
 from Training.Score_Fusion.Score_Fusion_Multi_82 import (
     multilabel_score_fusion,
-    calculate_eer
 )
+
+# ======================================================
+# Utils
+# ======================================================
+
+def parse_session_and_index(filename):
+    m = re.match(r"(session_\d+)-(\d+)\.png", filename)
+    if m is None:
+        raise RuntimeError(f"Bad filename: {filename}")
+    return m.group(1), int(m.group(2))
+
 
 # ======================================================
 # Dataset
 # ======================================================
 
-class TensorMouseDataset(Dataset):
+class Protocol1MouseDataset(Dataset):
+    def __init__(self, root, all_users, transform=None):
 
-    def __init__(self, tensor_root):
+        self.samples = []
+        self.labels = []
+        self.session_ids = []
 
-        print("[Dataset] Loading tensor dataset from:", tensor_root)
+        self.transform = transform
+        self.user2index = {u: i for i, u in enumerate(all_users)}
+        self.num_users = len(all_users)
 
-        img_path = os.path.join(tensor_root, "images.npy")
-        lab_path = os.path.join(tensor_root, "labels.npy")
+        for user in all_users:
 
-        num_users = 10
-        H = 224
-        W = 224
+            user_path = os.path.join(root, user)
+            if not os.path.exists(user_path):
+                continue
 
-        raw_labels = np.memmap(lab_path, dtype=np.uint8, mode="r")
-        N = raw_labels.size // num_users
+            files = []
 
-        raw_images = np.memmap(
-            img_path,
-            dtype=np.uint8,
-            mode="r",
-            shape=(N, 3, H, W)
-        )
+            for f in os.listdir(user_path):
+                if f.endswith(".png"):
+                    try:
+                        sess, idx = parse_session_and_index(f)
+                        files.append((sess, idx, f))
+                    except:
+                        continue
 
-        self.images = raw_images
-        self.labels = raw_labels.reshape(N, num_users)
+            files.sort(key=lambda x: (x[0], x[1]))
 
-        self.sessions = np.load(
-            os.path.join(tensor_root, "sessions.npy"),
-            allow_pickle=True
-        )
+            for sess, idx, f in files:
 
-        self.num_users = num_users
+                self.samples.append(os.path.join(user_path, f))
 
-        print("[Dataset] Samples:", N)
-        print("[Dataset] Users:", num_users)
+                y = torch.zeros(self.num_users)
+                y[self.user2index[user]] = 1.0
+                self.labels.append(y)
+
+                self.session_ids.append(sess)
+
+        print(f"[Dataset] Loaded {len(self.samples)} samples")
 
     def __len__(self):
-        return len(self.images)
+        return len(self.samples)
 
     def __getitem__(self, idx):
 
-        img = torch.from_numpy(self.images[idx]).to(torch.float32).div_(255)
-        label = torch.from_numpy(self.labels[idx]).float()
-        session_id = self.sessions[idx]
+        img = Image.open(self.samples[idx]).convert("RGB")
 
-        return img, label, session_id
+        if self.transform:
+            img = self.transform(img)
+
+        return img, self.labels[idx], self.session_ids[idx]
 
 
 # ======================================================
@@ -96,7 +113,7 @@ def collect_val_scores(model, loader, device):
     with torch.no_grad():
         for X, y, s in loader:
 
-            X = X.to(device, non_blocking=True)
+            X = X.to(device)
 
             logits = model(X)
 
@@ -120,14 +137,15 @@ def run_single_experiment(dataset_cfg):
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
     name = dataset_cfg["name"]
-    train_tensor_folder = dataset_cfg["train"]
-    test_tensor_folder = dataset_cfg["test"]
+    train_folder = dataset_cfg["train"]
+    test_folder = dataset_cfg["test"]
 
     print("\n" + "=" * 80)
     print(f"[DATASET] {name}")
     print("=" * 80)
 
     # ================= Logging =================
+
     log_dir = Path(project_root) / "output_logs" / "train_multi_label_p1"
     log_dir.mkdir(parents=True, exist_ok=True)
 
@@ -149,43 +167,43 @@ def run_single_experiment(dataset_cfg):
     sys.stdout = TeeLogger(log_path)
 
     # ================= Device =================
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     torch.backends.cudnn.benchmark = True
 
     print("[INFO] Device:", device)
 
     # ================= Path =================
-    train_root = Path(project_root) / "ImagesTensors" / train_tensor_folder
-    test_root = Path(project_root) / "ImagesTensors" / test_tensor_folder
+
+    train_root = Path(project_root) / "Images" / train_folder
+    test_root  = Path(project_root) / "Images" / test_folder
+
+    # ================= Users =================
+
+    user_list = sorted([u for u in os.listdir(train_root) if os.path.isdir(train_root / u)])
+    num_users = len(user_list)
+
+    print(f"[INFO] Users: {num_users}")
+
+    # ================= Transform =================
+
+    transform = transforms.Compose([
+        transforms.Resize((224, 224)),
+        transforms.ToTensor()
+    ])
 
     # ================= Dataset =================
-    train_dataset = TensorMouseDataset(train_root)
-    test_dataset = TensorMouseDataset(test_root)
 
-    num_users = train_dataset.num_users
+    train_dataset = Protocol1MouseDataset(train_root, user_list, transform)
+    test_dataset  = Protocol1MouseDataset(test_root, user_list, transform)
 
     # ================= Loader =================
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=128,
-        shuffle=True,
-        num_workers=2,
-        pin_memory=False,
-        persistent_workers=True,
-        prefetch_factor=4
-    )
 
-    test_loader = DataLoader(
-        test_dataset,
-        batch_size=128,
-        shuffle=False,
-        num_workers=2,
-        pin_memory=False,
-        persistent_workers=True,
-        prefetch_factor=4
-    )
+    train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=2)
+    test_loader  = DataLoader(test_dataset, batch_size=128, shuffle=False, num_workers=2)
 
     # ================= Model =================
+
     net = insiderThreatCNN(num_users=num_users, image_size=224).to(device)
 
     trainer = MultiLabelTrainer(
@@ -209,6 +227,7 @@ def run_single_experiment(dataset_cfg):
     )
 
     # ================= Save Model =================
+
     model_dir = Path(project_root) / "saved_models"
     model_dir.mkdir(exist_ok=True)
 
@@ -218,6 +237,7 @@ def run_single_experiment(dataset_cfg):
     print(f"[INFO] Model saved: {model_path}")
 
     # ================= Eval =================
+
     scores, labels, session_ids = collect_val_scores(best_model, test_loader, device)
 
     user_ids = list(range(num_users))
@@ -268,6 +288,7 @@ def run_single_experiment(dataset_cfg):
     print(f"[INFO] Results saved to: {out_dir}")
 
     # ================= Clean =================
+
     del train_loader, test_loader, train_dataset, test_dataset, net, best_model
     gc.collect()
     torch.cuda.empty_cache()
@@ -282,7 +303,7 @@ def run_single_experiment(dataset_cfg):
 if __name__ == "__main__":
 
     print("=" * 80)
-    print("[INFO] Batch Training Started")
+    print("[INFO] Batch PNG Training Started")
     print("=" * 80)
 
     DATASETS = [
@@ -311,7 +332,7 @@ if __name__ == "__main__":
             "train": "Balabit/ARP_acceleration/event150",
             "test": "Balabit/ARP_acceleration_protocol1/evnet150"
         }
-    ]   
+    ] 
 
     for ds in DATASETS:
         run_single_experiment(ds)
