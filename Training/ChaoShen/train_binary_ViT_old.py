@@ -190,7 +190,7 @@ if __name__ == "__main__":
             prefetch_factor=4
         )
 
-        net = BinaryViT(img_size=150).to(device)
+        net = BinaryViT(img_size=224).to(device)
 
         trainer = BinaryClassTrainer(
             net=net,
