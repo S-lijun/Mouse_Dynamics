@@ -151,7 +151,7 @@ if __name__ == "__main__":
 
     num_users = 28
 
-    user_list = [f"user{i}" for i in range(1,num_users)]
+    user_list = [f"user{i}" for i in range(num_users)]
 
     user_scores = {}
     user_labels = {}
@@ -201,9 +201,9 @@ if __name__ == "__main__":
         _, best_model, *_ = trainer.train(
             optim_name="adamw",
             num_epochs=20,
-            learning_rate=0.0001,
+            learning_rate=0.001,
             step_size=5,
-            learning_rate_decay=0.1,
+            learning_rate_decay=0.5,
             verbose=True
         )
 
