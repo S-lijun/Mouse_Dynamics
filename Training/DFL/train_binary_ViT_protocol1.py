@@ -160,8 +160,8 @@ if __name__ == "__main__":
         train_dataset = TensorBinaryMouseDataset(train_root, user, num_users)
         test_dataset  = TensorBinaryMouseDataset(test_root, user, num_users)
 
-        train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=2)
-        test_loader  = DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=2)
+        train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=8)
+        test_loader  = DataLoader(test_dataset, batch_size=128, shuffle=False, num_workers=8)
 
         net = BinaryViT(img_size=224).to(device)
 
