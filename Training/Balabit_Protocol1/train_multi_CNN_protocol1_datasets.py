@@ -308,29 +308,19 @@ if __name__ == "__main__":
 
     DATASETS = [
         {
-            "name": "SRP_ax_ay",
-            "train": "Balabit/SRP_ax_ay/event150",
-            "test": "Balabit/SRP_ax_ay_protocol1/event150"
-        },
-        {
-            "name": "ARP_vx_vy",
-            "train": "Balabit/ARP_vx_vy/event150",
-            "test": "Balabit/ARP_vx_vy_protocol1/event150"
-        },
-        {
             "name": "ARP_velocity",
             "train": "Balabit/ARP_velocity/event150",
-            "test": "Balabit/ARP_velocity_protocol1/evnet150"
+            "test": "Balabit/ARP_velocity_protocol1/event150"
         },
         {
             "name": "ARP_ax_ay",
             "train": "Balabit/ARP_ax_ay/event150",
-            "test": "Balabit/ARP_ax_ay_protocol1/evnet150"
+            "test": "Balabit/ARP_ax_ay_protocol1/event150"
         },
         {
             "name": "ARP_acceleration",
             "train": "Balabit/ARP_acceleration/event150",
-            "test": "Balabit/ARP_acceleration_protocol1/evnet150"
+            "test": "Balabit/ARP_acceleration_protocol1/event150"
         }
     ] 
 
