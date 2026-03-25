@@ -23,7 +23,7 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 # ======================================================
 
 from models.scratch_CNN_multi import ScratchMultiCNN as insiderThreatCNN
-from Training.Trainers.fast_multi_class_trainer_protocol1 import MultiLabelTrainerCNN as MultiLabelTrainer
+from Training.Trainers.multi_class_trainer_protocol1 import MultiLabelTrainerCNN as MultiLabelTrainer
 from Training.Score_Fusion.Score_Fusion_Multi_82 import (
     multilabel_score_fusion,
     calculate_eer
@@ -287,19 +287,29 @@ if __name__ == "__main__":
 
     DATASETS = [
         {
-            "name": "XYPlot",
-            "train": "Balabit/XYPlot/event150",
-            "test": "Balabit/XYPlot_protocol1/event150"
+            "name": "SRP_ax_ay",
+            "train": "Balabit/SRP_ax_ay/event150",
+            "test": "Balabit/SRP_ax_ay_protocol1/event150"
         },
         {
-            "name": "XYPlot_plasma",
-            "train": "Balabit/XYPlot_plasma/event150",
-            "test": "Balabit/XYPlot_plasma_protocol1/event150"
+            "name": "ARP_vx_vy",
+            "train": "Balabit/ARP_vx_vy/event150",
+            "test": "Balabit/ARP_vx_vy_protocol1/event150"
         },
         {
-            "name": "XYPlot_vx_vy",
-            "train": "Balabit/XYPlot_vx_vy/event150",
-            "test": "Balabit/XYPlot_vx_vy_protocol1/evnet150"
+            "name": "ARP_velocity",
+            "train": "Balabit/ARP_velocity/event150",
+            "test": "Balabit/ARP_velocity_protocol1/evnet150"
+        },
+        {
+            "name": "ARP_ax_ay",
+            "train": "Balabit/ARP_ax_ay/event150",
+            "test": "Balabit/ARP_ax_ay_protocol1/evnet150"
+        },
+        {
+            "name": "ARP_acceleration",
+            "train": "Balabit/ARP_acceleration/event150",
+            "test": "Balabit/ARP_acceleration_protocol1/evnet150"
         }
     ]   
 
