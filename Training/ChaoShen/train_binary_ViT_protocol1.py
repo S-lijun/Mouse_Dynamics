@@ -1,4 +1,4 @@
-import sys, os, datetime, gc, json, re
+import sys, os, datetime, gc, json
 from pathlib import Path
 from collections import defaultdict
 
@@ -51,19 +51,12 @@ from Training.Trainers.fast_binary_class_trainer_ViT import BinaryClassTrainer
 from Training.Score_Fusion.Score_Fusion_Binary import binary_score_fusion
 
 # ======================================================
-# Natural sort
-# ======================================================
-
-def natural_key(s):
-    return [int(x) if x.isdigit() else x for x in re.split(r'(\d+)', s)]
-
-# ======================================================
 # Tensor Dataset
 # ======================================================
 
 class TensorBinaryMouseDataset(Dataset):
 
-    def __init__(self, tensor_root, target_user, user_list):
+    def __init__(self, tensor_root, target_user, num_users):
 
         print("[Dataset] Loading:", tensor_root)
 
@@ -73,8 +66,6 @@ class TensorBinaryMouseDataset(Dataset):
 
         H = 224
         W = 224
-
-        num_users = len(user_list)
 
         raw_labels = np.memmap(lab_path, dtype=np.uint8, mode="r")
         N = raw_labels.size // num_users
@@ -90,8 +81,8 @@ class TensorBinaryMouseDataset(Dataset):
         self.labels = raw_labels.reshape(N, num_users)
         self.sessions = np.load(sess_path, allow_pickle=True)
 
-        # 🔥 正确 mapping（基于 folder 顺序）
-        self.target_user = user_list.index(target_user)
+        # 🔥 直接 index（不搞字符串 mapping）
+        self.target_user = target_user
 
         print("[Dataset] Samples:", N)
 
@@ -149,28 +140,19 @@ if __name__ == "__main__":
     train_tensor_folder = input("Enter training tensor folder: ").strip()
     test_tensor_folder = input("Enter testing tensor folder: ").strip()
 
-    # 控制分批训练
+    # 分批训练（直接用 index）
     start_idx = int(input("Start user index (e.g. 0): "))
     end_idx = int(input("End user index (e.g. 9): "))
 
     train_root = Path(project_root) / "ImagesTensors" / train_tensor_folder
     test_root  = Path(project_root) / "ImagesTensors" / test_tensor_folder
 
-    # ======================================================
-    # Build user list from folder
-    # ======================================================
+    # 🔥 固定用户数（你说的）
+    num_users = 28
 
-    user_list = sorted(
-        [d for d in os.listdir(train_root.parent / train_tensor_folder.replace("_protocol1","")) if d.startswith("user")],
-        key=natural_key
-    )
+    selected_users = list(range(start_idx, end_idx))
 
-    print("\n[User List]")
-    print(user_list)
-
-    selected_users = user_list[start_idx:end_idx]
-
-    print("\n[Selected Users]")
+    print("\n[Selected User Indices]")
     print(selected_users)
 
     user_scores = {}
@@ -181,20 +163,20 @@ if __name__ == "__main__":
     # train per user
     # ======================================================
 
-    for user in selected_users:
+    for user_idx in selected_users:
 
         print("\n==============================")
-        print("Training model for user:", user)
+        print(f"Training model for user index: {user_idx}")
         print("==============================")
 
-        train_dataset = TensorBinaryMouseDataset(train_root, user, user_list)
-        test_dataset  = TensorBinaryMouseDataset(test_root, user, user_list)
+        train_dataset = TensorBinaryMouseDataset(train_root, user_idx, num_users)
+        test_dataset  = TensorBinaryMouseDataset(test_root, user_idx, num_users)
 
         train_loader = DataLoader(
             train_dataset,
             batch_size=128,
             shuffle=True,
-            num_workers=2,
+            num_workers=8,
             pin_memory=True,
             persistent_workers=True,
             prefetch_factor=4
@@ -204,7 +186,7 @@ if __name__ == "__main__":
             test_dataset,
             batch_size=128,
             shuffle=False,
-            num_workers=2,
+            num_workers=8,
             pin_memory=True,
             persistent_workers=True,
             prefetch_factor=4
@@ -229,9 +211,9 @@ if __name__ == "__main__":
 
         scores, labels, sessions = collect_scores(best_model, test_loader, device)
 
-        user_scores[user] = scores
-        user_labels[user] = labels
-        user_sessions[user] = sessions
+        user_scores[user_idx] = scores
+        user_labels[user_idx] = labels
+        user_sessions[user_idx] = sessions
 
     # ======================================================
     # Score Fusion
@@ -245,21 +227,21 @@ if __name__ == "__main__":
 
     print("\n===== Protocol 1 Score Fusion Curve =====")
 
-    for n in range(1,31):
+    for n in range(1,11):
 
         valid_eers = []
         valid_aucs = []
 
-        for user in selected_users:
+        for user_idx in selected_users:
 
-            scores = user_scores[user]
-            labels = user_labels[user]
-            sessions = user_sessions[user]
+            scores = user_scores[user_idx]
+            labels = user_labels[user_idx]
+            sessions = user_sessions[user_idx]
 
             metrics = binary_score_fusion(scores, labels, sessions, n)
 
-            semantic_user_curve[user][str(n)] = {
-                "User": user,
+            semantic_user_curve[str(user_idx)][str(n)] = {
+                "User": f"user{user_idx}",
                 "n": n,
                 "EER": float(metrics["EER"]),
                 "AUC": float(metrics["AUC"])
