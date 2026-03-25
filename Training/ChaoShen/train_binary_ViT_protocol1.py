@@ -110,7 +110,7 @@ class TensorBinaryMouseDataset(Dataset):
         self.sessions = np.load(sess_path, allow_pickle=True)
 
         # ======================================================
-        #  mapping
+        # 🔥 正确 mapping（含 event 层）
         # ======================================================
 
         parts = Path(tensor_root).parts
@@ -118,8 +118,9 @@ class TensorBinaryMouseDataset(Dataset):
 
         dataset_name = parts[idx + 1]
         representation = parts[idx + 2]
+        event = parts[idx + 3]
 
-        image_root = Path(project_root) / "Images" / dataset_name / representation
+        image_root = Path(project_root) / "Images" / dataset_name / representation / event
 
         print("[DEBUG] image_root:", image_root)
 
@@ -196,7 +197,7 @@ if __name__ == "__main__":
     test_root  = Path(project_root) / "ImagesTensors" / test_tensor_folder
 
     # ======================================================
-    #  user_list
+    # 🔥 正确 user_list（含 event）
     # ======================================================
 
     parts = Path(train_root).parts
@@ -204,8 +205,9 @@ if __name__ == "__main__":
 
     dataset_name = parts[idx + 1]
     representation = parts[idx + 2]
+    event = parts[idx + 3]
 
-    image_root = Path(project_root) / "Images" / dataset_name / representation
+    image_root = Path(project_root) / "Images" / dataset_name / representation / event
 
     print("[DEBUG] image_root:", image_root)
 
