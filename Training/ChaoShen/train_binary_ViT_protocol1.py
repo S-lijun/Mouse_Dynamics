@@ -1,12 +1,56 @@
 # -*- coding: utf-8 -*-
 
-import os
+import sys, os, datetime, gc, json
+from pathlib import Path
+from collections import defaultdict
+
 import torch
-import numpy as np
 from torch.utils.data import Dataset, DataLoader
+import numpy as np
+
+import torch.multiprocessing as mp
+mp.set_sharing_strategy('file_system')
+
+# ======================================================
+# Env
+# ======================================================
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:32"
+
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+
+# ======================================================
+# Logging
+# ======================================================
+
+log_dir = Path(project_root) / "output_logs" / "train_binary_vit_tensor"
+log_dir.mkdir(parents=True, exist_ok=True)
+log_path = log_dir / f"BinaryViT_tensor_{timestamp}.out"
+
+class TeeLogger:
+    def __init__(self, file_path):
+        self.terminal = sys.__stdout__
+        self.log = open(file_path, "w")
+
+    def write(self, message):
+        self.terminal.write(message)
+        self.log.write(message)
+
+    def flush(self):
+        self.terminal.flush()
+        self.log.flush()
+
+sys.stdout = TeeLogger(log_path)
+
+# ======================================================
+# Imports
+# ======================================================
 
 from models.scratch_VIT import BinaryViT
 from Training.Trainers.fast_binary_class_trainer_ViT import BinaryClassTrainer
+from Training.Score_Fusion.Score_Fusion_Binary import binary_score_fusion
 
 # ======================================================
 # Dataset
