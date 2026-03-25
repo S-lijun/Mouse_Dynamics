@@ -358,7 +358,8 @@ class TensorBinaryMouseDataset(Dataset):
         self.labels = raw_labels.reshape(N, num_users)
         self.sessions = np.load(sess_path, allow_pickle=True)
 
-        self.target_user = int(target_user.replace("user",""))
+
+        self.target_user = int(target_user.replace("user","")) - 1
 
         print("[Dataset] Samples:", N)
 
@@ -415,7 +416,7 @@ if __name__ == "__main__":
     test_root  = Path(project_root) / "ImagesTensors" / test_tensor_folder
 
     num_users = 28
-    user_list = [f"user{i}" for i in range(num_users)]
+    user_list = [f"user{i}" for i in range(1, 29)]
 
     user_scores = {}
     user_labels = {}
@@ -434,7 +435,7 @@ if __name__ == "__main__":
         train_dataset = TensorBinaryMouseDataset(train_root, user, num_users)
         test_dataset  = TensorBinaryMouseDataset(test_root, user, num_users)
 
-        train_loader = DataLoader(train_dataset, batch_size=128, shuffle=False, num_workers=8)
+        train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=8)
         test_loader  = DataLoader(test_dataset, batch_size=128, shuffle=False, num_workers=8)
 
         net = BinaryViT(img_size=224).to(device)
