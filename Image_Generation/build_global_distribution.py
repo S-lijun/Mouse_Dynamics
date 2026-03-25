@@ -149,6 +149,43 @@ def compute_acceleration(xs, ys, ts):
 
     return a
 
+# ------------------------------------------------
+# ax ay (NEW)
+# ------------------------------------------------
+
+def compute_axay(xs, ys, ts):
+
+    T = len(xs)
+
+    if T < 3:
+        return np.array([]), np.array([])
+
+    # velocity
+    dx = xs[1:] - xs[:-1]
+    dy = ys[1:] - ys[:-1]
+    dt = ts[1:] - ts[:-1]
+
+    dt = np.maximum(dt, 1e-5)
+
+    vx = dx / dt
+    vy = dy / dt
+
+    vx = np.concatenate([[vx[0]], vx])
+    vy = np.concatenate([[vy[0]], vy])
+
+    # acceleration (strict physical)
+    ax = np.zeros(T)
+    ay = np.zeros(T)
+
+    ax[1:] = (vx[1:] - vx[:-1]) / dt
+    ay[1:] = (vy[1:] - vy[:-1]) / dt
+
+    # clean
+    ax = ax[np.isfinite(ax)]
+    ay = ay[np.isfinite(ay)]
+
+    return ax, ay
+
 
 # ------------------------------------------------
 # timediff node
@@ -269,6 +306,15 @@ def build_distribution(dataset,feature,training_root):
                     a = np.abs(a)
                     a = a[np.abs(a) > 1e-8]
                     all_values.append(a)
+                
+            elif feature=="axay":
+
+                ax, ay = compute_axay(xs, ys, ts)
+
+                if len(ax) > 0:
+                    all_vx.append(ax)
+                if len(ay) > 0:
+                    all_vy.append(ay)
 
 
             elif feature=="timediff_node":
@@ -287,7 +333,7 @@ def build_distribution(dataset,feature,training_root):
                     all_values.append(dt)
 
 
-    if feature=="vxvy":
+    if feature in ["vxvy", "axay"]:
 
         vx_values=np.concatenate(all_vx)
         vy_values=np.concatenate(all_vy)
@@ -326,6 +372,7 @@ def main():
             "velocity",
             "vxvy",
             "acceleration",
+            "axay",
             "timediff_node",
             "timediff_pair"
         ])
@@ -339,7 +386,7 @@ def main():
     out_path=os.path.join(ROOT,args.out_dir)
 
 
-    if args.feature=="vxvy":
+    if args.feature in ["vxvy", "axay"]:
 
         vx,vy=build_distribution(args.dataset,args.feature,training_root)
 
