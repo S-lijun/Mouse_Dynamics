@@ -125,56 +125,54 @@ def compute_acceleration(xs, ys, ts):
 # ARP + Acceleration
 # ============================================================
 
-def compute_arp_acceleration(seq, epsilon=0.3):
-
-    xs = seq[:, 0]
-    ys = seq[:, 1]
-    ts = seq[:, 2]
-
-    T = len(seq)
-
-    # --------------------------------------------------------
-    # Distance Matrix
-    # --------------------------------------------------------
+def compute_arp_acceleration(seq, percentile=95):
 
     coords = seq[:, :2]
+    xs = seq[:,0]
+    ys = seq[:,1]
+    ts = seq[:,2]
 
-    diff = coords[:, None, :] - coords[None, :, :]
-
-    dist = np.sqrt(np.sum(diff ** 2, axis=2))
-
-    # per-sequence normalization
-    max_dist = dist.max() + 1e-8
-    dist_norm = dist / max_dist
+    T = len(seq)
+    half = T // 2
 
     # --------------------------------------------------------
-    # Average Distance per node
+    # Split
     # --------------------------------------------------------
 
-    avg_dist = dist_norm.mean(axis=1)
-
-    # recurrent mask
-    recurrent = avg_dist < epsilon
+    seq1 = coords[:half]
+    seq2 = coords[half:]
 
     # --------------------------------------------------------
-    # ARP matrix
+    # SRP for both halves（完全照抄）
     # --------------------------------------------------------
 
-    arp = np.full((T, T), epsilon, dtype=np.float32)
+    def compute_srp(c):
+        diff = c[:, None, :] - c[None, :, :]
+        dist = np.sqrt(np.sum(diff**2, axis=2))
 
-    for i in range(T):
-        if recurrent[i]:
-            arp[i, :] = dist_norm[i, :]
+        eps = np.percentile(dist, percentile)
+        rec = np.where(dist <= eps, dist, eps).astype(np.float32)
 
-    # normalize
-    if arp.max() > arp.min():
-        arp = (arp - arp.min()) / (arp.max() - arp.min())
+        if rec.max() > rec.min():
+            rec = (rec - rec.min()) / (rec.max() - rec.min())
 
-    arp = 1.0 - arp
+        return 1.0 - rec
+
+    SRP1 = compute_srp(seq1)
+    SRP2 = compute_srp(seq2)
+
+    # --------------------------------------------------------
+    # ARP structure（关键！！！）
+    # --------------------------------------------------------
+
+    U = np.triu(SRP2)
+    L = np.tril(SRP1)
+
+    arp = U + L
 
 
     # --------------------------------------------------------
-    # Acceleration
+    # Acceleration（唯一改动）
     # --------------------------------------------------------
 
     a = compute_acceleration(xs, ys, ts)
@@ -189,16 +187,31 @@ def compute_arp_acceleration(seq, epsilon=0.3):
         right=1
     )
 
-
-    # --------------------------------------------------------
-    # STRIP（竖纹）
-    # --------------------------------------------------------
-
-    stripe = np.tile(a_norm[None, :], (T, 1))
+    a1 = a_norm[:half]
+    a2 = a_norm[half:]
 
 
     # --------------------------------------------------------
-    # OpenCV BGR
+    # Triangle-aware stripe（完全照抄）
+    # --------------------------------------------------------
+
+    stripe = np.zeros((half, half), dtype=np.float32)
+
+    for i in range(half):
+        for j in range(half):
+
+            if i < j:
+                stripe[i, j] = a2[j]   # 上三角 → 后半段
+
+            elif i > j:
+                stripe[i, j] = a1[j]   # 下三角 → 前半段
+
+            else:
+                stripe[i, j] = a1[j]   # 对角线
+
+
+    # --------------------------------------------------------
+    # BGR（完全一样）
     # --------------------------------------------------------
 
     b_channel = stripe

@@ -1,4 +1,4 @@
-import sys, os, datetime, gc, json
+import sys, os, datetime, gc, json, re
 from pathlib import Path
 from collections import defaultdict
 
@@ -51,12 +51,19 @@ from Training.Trainers.fast_binary_class_trainer_ViT import BinaryClassTrainer
 from Training.Score_Fusion.Score_Fusion_Binary import binary_score_fusion
 
 # ======================================================
+# Natural sort
+# ======================================================
+
+def natural_key(s):
+    return [int(x) if x.isdigit() else x for x in re.split(r'(\d+)', s)]
+
+# ======================================================
 # Tensor Dataset
 # ======================================================
 
 class TensorBinaryMouseDataset(Dataset):
 
-    def __init__(self, tensor_root, target_user, num_users):
+    def __init__(self, tensor_root, target_user, user_list):
 
         print("[Dataset] Loading:", tensor_root)
 
@@ -64,8 +71,10 @@ class TensorBinaryMouseDataset(Dataset):
         lab_path = os.path.join(tensor_root, "labels.npy")
         sess_path = os.path.join(tensor_root, "sessions.npy")
 
-        H = 150
-        W = 150
+        H = 224
+        W = 224
+
+        num_users = len(user_list)
 
         raw_labels = np.memmap(lab_path, dtype=np.uint8, mode="r")
         N = raw_labels.size // num_users
@@ -81,8 +90,8 @@ class TensorBinaryMouseDataset(Dataset):
         self.labels = raw_labels.reshape(N, num_users)
         self.sessions = np.load(sess_path, allow_pickle=True)
 
-        self.target_user = int(target_user.replace("user",""))
-        self.num_users = num_users
+        # 🔥 正确 mapping（基于 folder 顺序）
+        self.target_user = user_list.index(target_user)
 
         print("[Dataset] Samples:", N)
 
@@ -94,7 +103,6 @@ class TensorBinaryMouseDataset(Dataset):
         img = torch.from_numpy(self.images[idx]).float().div_(255)
 
         multi_label = self.labels[idx]
-
         label = float(multi_label[self.target_user])
 
         session_id = self.sessions[idx]
@@ -114,7 +122,6 @@ def collect_scores(model, loader, device):
     sessions = []
 
     with torch.no_grad():
-
         for X, y, s in loader:
 
             X = X.to(device, non_blocking=True)
@@ -142,17 +149,29 @@ if __name__ == "__main__":
     train_tensor_folder = input("Enter training tensor folder: ").strip()
     test_tensor_folder = input("Enter testing tensor folder: ").strip()
 
+    # 控制分批训练
+    start_idx = int(input("Start user index (e.g. 0): "))
+    end_idx = int(input("End user index (e.g. 9): "))
+
     train_root = Path(project_root) / "ImagesTensors" / train_tensor_folder
     test_root  = Path(project_root) / "ImagesTensors" / test_tensor_folder
 
     # ======================================================
-    # dataset
+    # Build user list from folder
     # ======================================================
 
-    train_dataset_full = np.load(train_root / "labels.npy", mmap_mode="r")
-    num_users = 28
+    user_list = sorted(
+        [d for d in os.listdir(train_root.parent / train_tensor_folder.replace("_protocol1","")) if d.startswith("user")],
+        key=natural_key
+    )
 
-    user_list = [f"user{i}" for i in range(num_users)]
+    print("\n[User List]")
+    print(user_list)
+
+    selected_users = user_list[start_idx:end_idx]
+
+    print("\n[Selected Users]")
+    print(selected_users)
 
     user_scores = {}
     user_labels = {}
@@ -162,18 +181,18 @@ if __name__ == "__main__":
     # train per user
     # ======================================================
 
-    for user in user_list:
+    for user in selected_users:
 
         print("\n==============================")
         print("Training model for user:", user)
         print("==============================")
 
-        train_dataset = TensorBinaryMouseDataset(train_root, user, num_users)
-        test_dataset  = TensorBinaryMouseDataset(test_root, user, num_users)
+        train_dataset = TensorBinaryMouseDataset(train_root, user, user_list)
+        test_dataset  = TensorBinaryMouseDataset(test_root, user, user_list)
 
         train_loader = DataLoader(
             train_dataset,
-            batch_size=256,
+            batch_size=128,
             shuffle=True,
             num_workers=2,
             pin_memory=True,
@@ -183,7 +202,7 @@ if __name__ == "__main__":
 
         test_loader = DataLoader(
             test_dataset,
-            batch_size=256,
+            batch_size=128,
             shuffle=False,
             num_workers=2,
             pin_memory=True,
@@ -191,7 +210,7 @@ if __name__ == "__main__":
             prefetch_factor=4
         )
 
-        net = BinaryViT(img_size=150).to(device)
+        net = BinaryViT(img_size=224).to(device)
 
         trainer = BinaryClassTrainer(
             net=net,
@@ -201,7 +220,7 @@ if __name__ == "__main__":
 
         _, best_model, *_ = trainer.train(
             optim_name="adamw",
-            num_epochs=20,
+            num_epochs=17,
             learning_rate=0.0001,
             step_size=5,
             learning_rate_decay=0.1,
@@ -231,7 +250,7 @@ if __name__ == "__main__":
         valid_eers = []
         valid_aucs = []
 
-        for user in user_list:
+        for user in selected_users:
 
             scores = user_scores[user]
             labels = user_labels[user]
