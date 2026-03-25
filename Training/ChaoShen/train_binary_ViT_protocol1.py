@@ -61,6 +61,22 @@ def natural_key(string):
     return [int(s) if s.isdigit() else s.lower()
             for s in re.split(r'(\d+)', string)]
 
+def get_user_list(image_root):
+    all_items = os.listdir(image_root)
+
+    users = [
+        u for u in all_items
+        if os.path.isdir(os.path.join(image_root, u))
+        and "user" in u.lower()
+    ]
+
+    users = sorted(users, key=natural_key)
+
+    if len(users) == 0:
+        raise ValueError(f"[FATAL] No user folders found in {image_root}")
+
+    return users
+
 # ======================================================
 # Dataset
 # ======================================================
@@ -78,7 +94,7 @@ class TensorBinaryMouseDataset(Dataset):
         H, W = 224, 224
 
         raw_labels = np.memmap(lab_path, dtype=np.uint8, mode="r")
-        assert raw_labels.size % num_users == 0
+        assert raw_labels.size % num_users == 0, "[ERROR] label size mismatch"
 
         N = raw_labels.size // num_users
 
@@ -94,7 +110,7 @@ class TensorBinaryMouseDataset(Dataset):
         self.sessions = np.load(sess_path, allow_pickle=True)
 
         # ======================================================
-        # 🔥 正确 mapping（关键修复）
+        #  mapping
         # ======================================================
 
         parts = Path(tensor_root).parts
@@ -105,7 +121,16 @@ class TensorBinaryMouseDataset(Dataset):
 
         image_root = Path(project_root) / "Images" / dataset_name / representation
 
-        users = sorted(os.listdir(image_root), key=natural_key)
+        print("[DEBUG] image_root:", image_root)
+
+        users = get_user_list(image_root)
+
+        print("[DEBUG] users:", users[:10])
+
+        if len(users) != num_users:
+            raise ValueError(
+                f"[FATAL] num_users mismatch: labels={num_users}, folders={len(users)}"
+            )
 
         self.user_to_idx = {u: i for i, u in enumerate(users)}
 
@@ -114,7 +139,6 @@ class TensorBinaryMouseDataset(Dataset):
 
         self.target_user = self.user_to_idx[target_user]
 
-        print("[Dataset] Users order:", users[:10])
         print("[Dataset] Target user:", target_user)
         print("[Dataset] Mapped index:", self.target_user)
         print("[Dataset] Samples:", N)
@@ -125,7 +149,6 @@ class TensorBinaryMouseDataset(Dataset):
     def __getitem__(self, idx):
 
         img = torch.from_numpy(self.images[idx]).float().div_(255)
-
         label = float(self.labels[idx][self.target_user])
         session_id = self.sessions[idx]
 
@@ -173,7 +196,7 @@ if __name__ == "__main__":
     test_root  = Path(project_root) / "ImagesTensors" / test_tensor_folder
 
     # ======================================================
-    # 🔥 自动获取真实 user_list（关键修复）
+    #  user_list
     # ======================================================
 
     parts = Path(train_root).parts
@@ -184,7 +207,9 @@ if __name__ == "__main__":
 
     image_root = Path(project_root) / "Images" / dataset_name / representation
 
-    user_list = sorted(os.listdir(image_root), key=natural_key)
+    print("[DEBUG] image_root:", image_root)
+
+    user_list = get_user_list(image_root)
 
     print("\n[User List]")
     print(user_list)
@@ -238,10 +263,6 @@ if __name__ == "__main__":
         user_labels[user] = labels
         user_sessions[user] = sessions
 
-    # ======================================================
-    # Global Curve
-    # ======================================================
-
     print("\n===== Protocol 1 Score Fusion Curve =====")
 
     for n in range(1, 31):
@@ -251,11 +272,12 @@ if __name__ == "__main__":
 
         for user in user_list:
 
-            scores = user_scores[user]
-            labels = user_labels[user]
-            sessions = user_sessions[user]
-
-            metrics = binary_score_fusion(scores, labels, sessions, n)
+            metrics = binary_score_fusion(
+                user_scores[user],
+                user_labels[user],
+                user_sessions[user],
+                n
+            )
 
             valid_eers.append(metrics["EER"])
             valid_aucs.append(metrics["AUC"])
