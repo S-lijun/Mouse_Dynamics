@@ -64,8 +64,8 @@ class TensorBinaryMouseDataset(Dataset):
         lab_path = os.path.join(tensor_root, "labels.npy")
         sess_path = os.path.join(tensor_root, "sessions.npy")
 
-        H = 150
-        W = 150
+        H = 224
+        W = 224
 
         raw_labels = np.memmap(lab_path, dtype=np.uint8, mode="r")
         N = raw_labels.size // num_users
@@ -149,7 +149,7 @@ if __name__ == "__main__":
     # dataset
     # ======================================================
 
-    num_users = 21
+    num_users = 28
 
     user_list = [f"user{i}" for i in range(num_users)]
 
