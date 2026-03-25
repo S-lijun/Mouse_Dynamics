@@ -81,7 +81,7 @@ class TensorBinaryMouseDataset(Dataset):
         self.labels = raw_labels.reshape(N, num_users)
         self.sessions = np.load(sess_path, allow_pickle=True)
 
-        self.target_user = int(target_user.replace("user",""))
+        self.target_user = int(target_user.replace("user","")) 
         self.num_users = num_users
 
         print("[Dataset] Samples:", N)
@@ -151,7 +151,7 @@ if __name__ == "__main__":
 
     num_users = 28
 
-    user_list = [f"user{i}" for i in range(num_users)]
+    user_list = [f"user{i}" for i in range(1,num_users)]
 
     user_scores = {}
     user_labels = {}
