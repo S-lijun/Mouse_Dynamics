@@ -198,10 +198,10 @@ if __name__ == "__main__":
         )
 
         _, best_model, *_ = trainer.train(
-            optim_name="adamw",
-            num_epochs=20,
-            learning_rate=0.0001,
-            step_size=6,
+            optim_name="adam",
+            num_epochs=100,
+            learning_rate=0.001,
+            step_size=40,
             learning_rate_decay=0.1,
             verbose=True
         )
@@ -210,7 +210,7 @@ if __name__ == "__main__":
 
         print(f"\n===== Score Fusion Curve for {user} =====")
 
-        for n in range(1, 11):
+        for n in range(1, 2):
 
             metrics = binary_score_fusion(scores, labels, sessions, n)
 
@@ -232,7 +232,7 @@ if __name__ == "__main__":
 
     print("\n===== Protocol 1 Score Fusion Curve =====")
 
-    for n in range(1, 31):
+    for n in range(1, 2):
 
         valid_eers = []
         valid_aucs = []

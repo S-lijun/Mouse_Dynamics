@@ -18,8 +18,8 @@ print("[ROOT]", ROOT)
 # Config
 # ============================================================
 
-BASE_CHUNK_SIZE = 150
-BASE_IMG_SIZE = 224
+BASE_CHUNK_SIZE = 600
+BASE_IMG_SIZE = 600
 
 # ============================================================
 # Dynamic Image Size
@@ -33,6 +33,10 @@ def get_dynamic_image_size(chunk_size):
 # SRP
 # ============================================================
 
+# ============================================================
+# SRP (FIXED VERSION)
+# ============================================================
+
 def compute_srp(seq, epsilon=0.3):
 
     coords = seq[:, :2]
@@ -44,45 +48,37 @@ def compute_srp(seq, epsilon=0.3):
     dist = np.sqrt(np.sum(diff**2, axis=2))
 
     # --------------------------------------------------
-    # normalize distance
+    # normalize distance to [0,1]
     # --------------------------------------------------
     dist_norm = dist / (dist.max() + 1e-8)
 
     # --------------------------------------------------
-    # average threshold（pair-level）
+    # average threshold
     # --------------------------------------------------
     avg_dist = np.mean(dist_norm)
 
     # --------------------------------------------------
-    # build SRP
+    # build SRP (DIRECT brightness mapping)
     # --------------------------------------------------
     rp = np.zeros_like(dist_norm, dtype=np.float32)
+
+    threshold_val = epsilon * 225.0
 
     for i in range(len(dist_norm)):
         for j in range(len(dist_norm)):
 
             if dist_norm[i, j] > avg_dist:
-               
-                rp[i, j] = epsilon
+                # use threshold
+                rp[i, j] = threshold_val
             else:
-               
-                rp[i, j] = dist_norm[i, j]
-
-    # --------------------------------------------------
-    # normalize to [0,1]
-    # --------------------------------------------------
-    rp = rp / (rp.max() + 1e-8)
-
-
-    # --------------------------------------------------
-    # invert
-    # --------------------------------------------------
-    rp = 1.0 - rp
+                # use normalized distance
+                rp[i, j] = dist_norm[i, j] * 225.0
 
     return rp
 
+
 # ============================================================
-# Draw
+# Draw (FIXED)
 # ============================================================
 
 def draw_srp(seq, save_path, epsilon, chunk_size):
@@ -91,7 +87,8 @@ def draw_srp(seq, save_path, epsilon, chunk_size):
 
     img_size = get_dynamic_image_size(chunk_size)
 
-    img = (rp * 255).astype(np.uint8)
+    # already [0,225], just cast
+    img = np.clip(rp, 0, 255).astype(np.uint8)
 
     if img.shape[0] != img_size:
         img = cv2.resize(img, (img_size, img_size),
@@ -186,8 +183,8 @@ def main():
     parser.add_argument("--dataset", required=True)
     parser.add_argument("--data_root", required=True)
     parser.add_argument("--out_dir", required=True)
-    parser.add_argument("--sizes", type=int, nargs="+", default=[150])
-    parser.add_argument("--epsilon", type=float, default=0.5)
+    parser.add_argument("--sizes", type=int, nargs="+", default=[600])
+    parser.add_argument("--epsilon", type=float, default=0.3)
 
     args = parser.parse_args()
 
