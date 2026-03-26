@@ -43,9 +43,18 @@ def compute_srp(seq, epsilon=0.3):
 
     dist_norm = dist / (dist.max() + 1e-8)
 
-    avg_dist = np.mean(dist_norm)
+    # --------------------------------------------------
+    # LOCAL average per point 
+    # --------------------------------------------------
+    avg_per_point = np.sum(dist_norm, axis=1) / (dist_norm.shape[1] - 1)
 
-    rp = np.where(dist_norm > avg_dist, epsilon, dist_norm).astype(np.float32)
+    # reshape for broadcasting
+    avg_matrix = avg_per_point[:, None]
+
+    # --------------------------------------------------
+    # recurrence (row-wise threshold)
+    # --------------------------------------------------
+    rp = np.where(dist_norm > avg_matrix, epsilon, dist_norm).astype(np.float32)
 
     return rp
 
@@ -148,7 +157,7 @@ def process_dataset(dataset, data_root, out_dir, sizes, epsilon):
             for chunk_size in sizes:
 
                 # ------------------------------------------
-                # Sliding Strategy (核心)
+                # Sliding Strategy 
                 # ------------------------------------------
                 if "train" in data_root.lower():
                     stride = chunk_size // 4

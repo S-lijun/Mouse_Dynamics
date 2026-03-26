@@ -155,7 +155,7 @@ if __name__ == "__main__":
     training_folder = input("Enter training folder: ").strip()
     testing_folder = input("Enter testing folder: ").strip()
 
-    img_size = 224
+    img_size = 300
 
     train_root = Path(project_root) / "Images" / training_folder
     test_root  = Path(project_root) / "Images" / testing_folder
@@ -189,7 +189,7 @@ if __name__ == "__main__":
         train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=8)
         test_loader  = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=8)
 
-        net = BinaryViT(img_size=img_size, patch_size=5).to(device)
+        net = BinaryViT(img_size=img_size, patch_size=15).to(device)
 
         trainer = BinaryClassTrainer(
             net=net,
