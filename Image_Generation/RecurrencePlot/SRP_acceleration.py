@@ -58,7 +58,7 @@ def build_runtime_cdf(raw_a, clip_pct):
 
     print("\nBuilding acceleration runtime CDF")
 
-    # ⚠️ acceleration 有正有负 → 取绝对值分布
+    # acceleration 有正有负 → 取绝对值分布
     raw_a = np.abs(raw_a)
 
     a_upper = np.percentile(raw_a, clip_pct)
@@ -122,7 +122,6 @@ def compute_acceleration(xs, ys, ts):
     # a_i = (v_i - v_{i-1}) / dt_i
     a[1:] = (v[1:] - v[:-1]) / dt
 
-    # 数值稳定
     a[~np.isfinite(a)] = 0
 
     return a

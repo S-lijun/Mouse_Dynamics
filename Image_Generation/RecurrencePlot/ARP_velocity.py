@@ -169,11 +169,11 @@ def compute_arp_velocity(seq, percentile=95):
         for j in range(half):
 
             if i < j:
-                stripe[i, j] = v2[j]   # 上三角 → 后半段
+                stripe[i, j] = v2[j]   
             elif i > j:
-                stripe[i, j] = v1[j]   # 下三角 → 前半段
+                stripe[i, j] = v1[j]   
             else:
-                stripe[i, j] = v1[j]   # 对角线（随便选）
+                stripe[i, j] = v1[j]   
 
     # --------------------------------------------------------
     # BGR

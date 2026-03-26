@@ -158,8 +158,8 @@ def compute_arp_vxvy(seq, percentile=95):
     # ARP structure
     # --------------------------------------------------------
 
-    U = np.triu(SRP2)   # 上三角：后半段
-    L = np.tril(SRP1)   # 下三角：前半段
+    U = np.triu(SRP2)   
+    L = np.tril(SRP1)  
 
     arp = U + L
 
@@ -257,7 +257,7 @@ def draw_arp_vxvy(seq, save_path, percentile, chunk_size):
 
 
 # ============================================================
-# Cleaning（不变）
+# Cleaning
 # ============================================================
 
 def clean_balabit(df):
@@ -395,8 +395,8 @@ def main():
 
     parser.add_argument("--sizes", type=int, nargs="+", default=[150])
 
-    parser.add_argument("--percentile", type=float, default=100)
-    parser.add_argument("--v_percentile", type=float, default=100)
+    parser.add_argument("--percentile", type=float, default=95)
+    parser.add_argument("--v_percentile", type=float, default=97.5)
 
     args = parser.parse_args()
 
