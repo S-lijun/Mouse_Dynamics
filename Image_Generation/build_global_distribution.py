@@ -92,6 +92,37 @@ def compute_velocity(xs,ys,ts):
 
     return out
 
+# ------------------------------------------------
+# velocity differences
+# ------------------------------------------------
+
+def compute_velocity_pair(xs, ys, ts, chunk_size=150):
+
+    if len(xs) < chunk_size:
+        return np.array([])
+
+    v = compute_velocity(xs, ys, ts)
+
+    results = []
+    n_chunks = len(xs) // chunk_size
+
+    for i in range(n_chunks):
+
+        v_chunk = v[i*chunk_size:(i+1)*chunk_size]
+
+        # pairwise difference
+        diff = np.abs(v_chunk[:, None] - v_chunk[None, :])
+
+        # upper triangle
+        upper = diff[np.triu_indices(chunk_size, k=1)]
+
+        results.append(upper)
+
+    if results:
+        return np.concatenate(results)
+
+    return np.array([])
+
 
 # ------------------------------------------------
 # vx vy
@@ -296,6 +327,13 @@ def build_distribution(dataset,feature,training_root):
 
                 all_vx.append(vx)
                 all_vy.append(vy)
+            
+            elif feature=="velocity_pair":
+
+                dv = compute_velocity_pair(xs, ys, ts, 150)
+
+                if len(dv) > 0:
+                    all_values.append(dv)
 
 
             elif feature=="acceleration":
@@ -371,6 +409,7 @@ def main():
         choices=[
             "velocity",
             "vxvy",
+            "velocity_pair",
             "acceleration",
             "axay",
             "timediff_node",
