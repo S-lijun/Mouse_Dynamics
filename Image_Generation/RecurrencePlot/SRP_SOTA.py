@@ -18,8 +18,8 @@ print("[ROOT]", ROOT)
 # Config
 # ============================================================
 
-BASE_CHUNK_SIZE = 600
-BASE_IMG_SIZE = 600
+BASE_CHUNK_SIZE = 300
+BASE_IMG_SIZE = 300
 
 # ============================================================
 # Dynamic Image Size
@@ -29,56 +29,29 @@ def get_dynamic_image_size(chunk_size):
     scale = math.sqrt(chunk_size / BASE_CHUNK_SIZE)
     return int(round(BASE_IMG_SIZE * scale))
 
-# ============================================================
-# SRP
-# ============================================================
 
 # ============================================================
-# SRP (FIXED VERSION)
+# SRP (PAPER VERSION)
 # ============================================================
 
 def compute_srp(seq, epsilon=0.3):
 
     coords = seq[:, :2]
 
-    # --------------------------------------------------
-    # distance matrix
-    # --------------------------------------------------
     diff = coords[:, None, :] - coords[None, :, :]
     dist = np.sqrt(np.sum(diff**2, axis=2))
 
-    # --------------------------------------------------
-    # normalize distance to [0,1]
-    # --------------------------------------------------
     dist_norm = dist / (dist.max() + 1e-8)
 
-    # --------------------------------------------------
-    # average threshold
-    # --------------------------------------------------
     avg_dist = np.mean(dist_norm)
 
-    # --------------------------------------------------
-    # build SRP (DIRECT brightness mapping)
-    # --------------------------------------------------
-    rp = np.zeros_like(dist_norm, dtype=np.float32)
-
-    threshold_val = epsilon * 225.0
-
-    for i in range(len(dist_norm)):
-        for j in range(len(dist_norm)):
-
-            if dist_norm[i, j] > avg_dist:
-                # use threshold
-                rp[i, j] = threshold_val
-            else:
-                # use normalized distance
-                rp[i, j] = dist_norm[i, j] * 225.0
+    rp = np.where(dist_norm > avg_dist, epsilon, dist_norm).astype(np.float32)
 
     return rp
 
 
 # ============================================================
-# Draw (FIXED)
+# Draw
 # ============================================================
 
 def draw_srp(seq, save_path, epsilon, chunk_size):
@@ -87,18 +60,34 @@ def draw_srp(seq, save_path, epsilon, chunk_size):
 
     img_size = get_dynamic_image_size(chunk_size)
 
-    # already [0,225], just cast
-    img = np.clip(rp, 0, 255).astype(np.uint8)
+    img = (rp * 255).astype(np.uint8)
 
     if img.shape[0] != img_size:
         img = cv2.resize(img, (img_size, img_size),
                          interpolation=cv2.INTER_NEAREST)
 
+    # 保持 (0,0) 在左下
     img = np.flipud(img)
 
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
     cv2.imwrite(save_path, img)
+
+
+# ============================================================
+# Sliding Window
+# ============================================================
+
+def generate_windows(events, chunk_size, stride):
+
+    windows = []
+
+    for start in range(0, len(events) - chunk_size + 1, stride):
+        end = start + chunk_size
+        windows.append(events[start:end])
+
+    return windows
+
 
 # ============================================================
 # Cleaning
@@ -123,6 +112,7 @@ def clean_balabit(df):
     df = df[(df["x"] < 1e4) & (df["y"] < 1e4)]
 
     return df
+
 
 # ============================================================
 # Process Dataset
@@ -157,11 +147,19 @@ def process_dataset(dataset, data_root, out_dir, sizes, epsilon):
 
             for chunk_size in sizes:
 
-                n_chunks = len(events) // chunk_size
+                # ------------------------------------------
+                # Sliding Strategy (核心)
+                # ------------------------------------------
+                if "train" in data_root.lower():
+                    stride = chunk_size // 4
+                else:
+                    stride = chunk_size
 
-                for i in range(n_chunks):
+                windows = generate_windows(events, chunk_size, stride)
 
-                    seq = events[i*chunk_size:(i+1)*chunk_size]
+                print(f"      chunk_size={chunk_size}, stride={stride}, windows={len(windows)}")
+
+                for i, seq in enumerate(windows):
 
                     save_path = os.path.join(
                         out_dir,
@@ -171,6 +169,7 @@ def process_dataset(dataset, data_root, out_dir, sizes, epsilon):
                     )
 
                     draw_srp(seq, save_path, epsilon, chunk_size)
+
 
 # ============================================================
 # CLI
@@ -183,7 +182,7 @@ def main():
     parser.add_argument("--dataset", required=True)
     parser.add_argument("--data_root", required=True)
     parser.add_argument("--out_dir", required=True)
-    parser.add_argument("--sizes", type=int, nargs="+", default=[600])
+    parser.add_argument("--sizes", type=int, nargs="+", default=[300])
     parser.add_argument("--epsilon", type=float, default=0.3)
 
     args = parser.parse_args()
@@ -200,6 +199,7 @@ def main():
     )
 
     print("\nSRP generation finished.")
+
 
 if __name__ == "__main__":
     main()
