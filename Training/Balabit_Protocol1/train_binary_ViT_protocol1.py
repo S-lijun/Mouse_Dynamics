@@ -200,8 +200,8 @@ if __name__ == "__main__":
         _, best_model, *_ = trainer.train(
             optim_name="adam",
             num_epochs=100,
-            learning_rate=0.001,
-            step_size=40,
+            learning_rate=0.0001,
+            step_size=60,
             learning_rate_decay=0.1,
             verbose=True
         )
