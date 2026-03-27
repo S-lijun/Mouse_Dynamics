@@ -161,7 +161,7 @@ def process_dataset(dataset, data_root, out_dir, sizes, epsilon):
                         f"{session}-{i}.png"
                     )
 
-                    draw_distance_matrix(seq, save_path.replace(".png", "_dist.png"))
+                    draw_distance_matrix(seq, save_path.replace(".png", ".png"))
 
 
 # ============================================================
