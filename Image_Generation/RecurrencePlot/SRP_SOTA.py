@@ -29,62 +29,57 @@ def get_dynamic_image_size(chunk_size):
     scale = math.sqrt(chunk_size / BASE_CHUNK_SIZE)
     return int(round(BASE_IMG_SIZE * scale))
 
+
 # ============================================================
-# SRP (PAPER VERSION)
+# SRP (SOTA VERSION)
 # ============================================================
 
-def compute_srp(seq, epsilon=0.3):
+def draw_distance_matrix(seq, save_path):
 
-    coords = seq[:, :2]
+    coords = seq[:, :2].astype(np.float32)
 
     # --------------------------------------------------
-    # distance matrix
+    # Step 1: normalize x,y（分别）
+    # --------------------------------------------------
+    x = coords[:, 0]
+    y = coords[:, 1]
+
+    x = (x - x.min()) / (x.max() - x.min() + 1e-8)
+    y = (y - y.min()) / (y.max() - y.min() + 1e-8)
+
+    coords = np.stack([x, y], axis=1)
+
+    # --------------------------------------------------
+    # Step 2: distance matrix（raw）
     # --------------------------------------------------
     diff = coords[:, None, :] - coords[None, :, :]
-    dist = np.sqrt(np.sum(diff**2, axis=2))
+    dist = np.sqrt(np.sum(diff**2, axis=2))   # ∈ [0, √2]
 
     # --------------------------------------------------
-    # normalize to [0,1]
+    # Step 3: 用固定尺度 √2 映射（关键）
     # --------------------------------------------------
-    dist_norm = dist / (dist.max() + 1e-8)
-
-    # --------------------------------------------------
-    # average threshold
-    # --------------------------------------------------
-    avg_dist = np.mean(dist_norm)
-
-    # --------------------------------------------------
-    # recurrence matrix (paper-style)
-    # --------------------------------------------------
-    rp = np.where(dist_norm > avg_dist, epsilon, dist_norm).astype(np.float32)
-
-    return rp
-
-
-# ============================================================
-# Draw
-# ============================================================
-
-def draw_srp(seq, save_path, epsilon, chunk_size):
-
-    rp = compute_srp(seq, epsilon)
-
-    img_size = get_dynamic_image_size(chunk_size)
-
-    # --------------------------------------------------
-    # convert to image (0~1 → 0~255 ONLY for saving)
-    # --------------------------------------------------
-    img = (rp * 255).astype(np.uint8)
-
-    if img.shape[0] != img_size:
-        img = cv2.resize(img, (img_size, img_size),
-                         interpolation=cv2.INTER_NEAREST)
-
-    #img = np.flipud(img)
+    img = (dist / np.sqrt(2) * 255).astype(np.uint8)
 
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
-
     cv2.imwrite(save_path, img)
+
+    # Debug print
+    print("dist min:", dist.min())
+    print("dist max:", dist.max())
+
+
+# ============================================================
+# Sliding Window（核心）
+# ============================================================
+
+def generate_windows(events, chunk_size, stride):
+
+    windows = []
+
+    for start in range(0, len(events) - chunk_size + 1, stride):
+        windows.append(events[start:start + chunk_size])
+
+    return windows
 
 
 # ============================================================
@@ -145,11 +140,19 @@ def process_dataset(dataset, data_root, out_dir, sizes, epsilon):
 
             for chunk_size in sizes:
 
-                n_chunks = len(events) // chunk_size
+                # --------------------------------------------------
+                # Sliding strategy（关键）
+                # --------------------------------------------------
+                if "train" in data_root.lower():
+                    stride = chunk_size // 4
+                else:
+                    stride = chunk_size
 
-                for i in range(n_chunks):
+                windows = generate_windows(events, chunk_size, stride)
 
-                    seq = events[i*chunk_size:(i+1)*chunk_size]
+                print(f"      chunk={chunk_size}, stride={stride}, windows={len(windows)}")
+
+                for i, seq in enumerate(windows):
 
                     save_path = os.path.join(
                         out_dir,
@@ -158,7 +161,7 @@ def process_dataset(dataset, data_root, out_dir, sizes, epsilon):
                         f"{session}-{i}.png"
                     )
 
-                    draw_srp(seq, save_path, epsilon, chunk_size)
+                    draw_distance_matrix(seq, save_path.replace(".png", "_dist.png"))
 
 
 # ============================================================
