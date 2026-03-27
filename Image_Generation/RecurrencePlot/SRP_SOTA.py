@@ -29,58 +29,85 @@ def get_dynamic_image_size(chunk_size):
     scale = math.sqrt(chunk_size / BASE_CHUNK_SIZE)
     return int(round(BASE_IMG_SIZE * scale))
 
-
 # ============================================================
-# SRP (SOTA VERSION)
+# SRP (FINAL VERSION)
 # ============================================================
 
-def draw_distance_matrix(seq, save_path):
+def compute_srp(seq, epsilon=0.3):
 
     coords = seq[:, :2].astype(np.float32)
 
     # --------------------------------------------------
-    # Step 1: normalize x,y（分别）
-    # --------------------------------------------------
-    x = coords[:, 0]
-    y = coords[:, 1]
-
-    x = (x - x.min()) / (x.max() - x.min() + 1e-8)
-    y = (y - y.min()) / (y.max() - y.min() + 1e-8)
-
-    coords = np.stack([x, y], axis=1)
-
-    # --------------------------------------------------
-    # Step 2: distance matrix（raw）
+    # Step 1: RAW distance
     # --------------------------------------------------
     diff = coords[:, None, :] - coords[None, :, :]
-    dist = np.sqrt(np.sum(diff**2, axis=2))   # ∈ [0, √2]
+    dist = np.sqrt(np.sum(diff**2, axis=2))
 
     # --------------------------------------------------
-    # Step 3: 用固定尺度 √2 映射（关键）
+    # Step 2: normalize distance
     # --------------------------------------------------
-    img = (dist / np.sqrt(2) * 255).astype(np.uint8)
+    max_val = dist.max()
+    if max_val < 1e-8:
+        max_val = 1e-8
+
+    dist = dist / max_val   # ∈ [0,1]
+
+    M = dist.shape[0]
+
+    # --------------------------------------------------
+    # Step 3: avg distance
+    # --------------------------------------------------
+    avg = np.sum(dist, axis=1) / (M - 1 + 1e-8)
+
+    # --------------------------------------------------
+    # Step 4: recurrent points
+    # --------------------------------------------------
+    recurrent = avg < epsilon
+
+    # --------------------------------------------------
+    # Step 5: clip distance
+    # --------------------------------------------------
+    dist_clipped = np.minimum(dist, epsilon)
+
+    # --------------------------------------------------
+    # Step 6: SRP
+    # --------------------------------------------------
+    rp = np.where(
+        recurrent[:, None] & recurrent[None, :],
+        dist_clipped,
+        epsilon
+    ).astype(np.float32)
+
+    return rp
+
+
+def draw_srp(seq, save_path, epsilon):
+
+    rp = compute_srp(seq, epsilon)
+
+    # --------------------------------------------------
+    # 映射到灰度
+    # --------------------------------------------------
+    img = (rp / (epsilon + 1e-8) * 255).astype(np.uint8)
 
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     cv2.imwrite(save_path, img)
 
-    # Debug print
-    print("dist min:", dist.min())
-    print("dist max:", dist.max())
-
-
 # ============================================================
-# Sliding Window（核心）
+# Sliding Window
 # ============================================================
 
 def generate_windows(events, chunk_size, stride):
 
     windows = []
 
+    if len(events) < chunk_size:
+        return windows
+
     for start in range(0, len(events) - chunk_size + 1, stride):
         windows.append(events[start:start + chunk_size])
 
     return windows
-
 
 # ============================================================
 # Cleaning
@@ -105,7 +132,6 @@ def clean_balabit(df):
     df = df[(df["x"] < 1e4) & (df["y"] < 1e4)]
 
     return df
-
 
 # ============================================================
 # Process Dataset
@@ -140,9 +166,6 @@ def process_dataset(dataset, data_root, out_dir, sizes, epsilon):
 
             for chunk_size in sizes:
 
-                # --------------------------------------------------
-                # Sliding strategy（关键）
-                # --------------------------------------------------
                 if "train" in data_root.lower():
                     stride = chunk_size // 4
                 else:
@@ -161,8 +184,7 @@ def process_dataset(dataset, data_root, out_dir, sizes, epsilon):
                         f"{session}-{i}.png"
                     )
 
-                    draw_distance_matrix(seq, save_path.replace(".png", ".png"))
-
+                    draw_srp(seq, save_path, epsilon)
 
 # ============================================================
 # CLI
@@ -176,7 +198,7 @@ def main():
     parser.add_argument("--data_root", required=True)
     parser.add_argument("--out_dir", required=True)
     parser.add_argument("--sizes", type=int, nargs="+", default=[300])
-    parser.add_argument("--epsilon", type=float, default=0.3)
+    parser.add_argument("--epsilon", type=float, default=0.5)
 
     args = parser.parse_args()
 
@@ -192,7 +214,6 @@ def main():
     )
 
     print("\nSRP generation finished.")
-
 
 if __name__ == "__main__":
     main()
