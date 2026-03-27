@@ -18,69 +18,78 @@ print("[ROOT]", ROOT)
 # Config
 # ============================================================
 
-BASE_CHUNK_SIZE = 300
-BASE_IMG_SIZE = 300
+BASE_CHUNK_SIZE = 600
+BASE_IMG_SIZE = 600
 
 # ============================================================
-# Dynamic Image Size
+# ARP (SOTA VERSION - SAME BRIGHTNESS AS SRP)
 # ============================================================
 
-def get_dynamic_image_size(chunk_size):
-    scale = math.sqrt(chunk_size / BASE_CHUNK_SIZE)
-    return int(round(BASE_IMG_SIZE * scale))
-
-# ============================================================
-# SRP (PAPER VERSION)
-# ============================================================
-
-def compute_srp(seq, epsilon=0.3):
+def compute_arp(seq, epsilon=0.3):
 
     coords = seq[:, :2]
 
+    N = coords.shape[0]
+
+
+    if N % 2 != 0:
+        coords = coords[:-1]
+        N -= 1
+
+    half = N // 2
+
     # --------------------------------------------------
-    # distance matrix
+    # Step 1: FULL distance matrix
     # --------------------------------------------------
     diff = coords[:, None, :] - coords[None, :, :]
     dist = np.sqrt(np.sum(diff**2, axis=2))
 
     # --------------------------------------------------
-    # normalize to [0,1]
+    # Step 2: normalize（和SRP完全一致）
     # --------------------------------------------------
     dist_norm = dist / (dist.max() + 1e-8)
 
     # --------------------------------------------------
-    # average threshold
+    # Step 3: global average（和SRP一致）
     # --------------------------------------------------
     avg_dist = np.mean(dist_norm)
 
     # --------------------------------------------------
-    # recurrence matrix (paper-style)
+    # Step 4: threshold（关键！！！）
     # --------------------------------------------------
-    rp = np.where(dist_norm > avg_dist, epsilon, dist_norm).astype(np.float32)
+    srp_matrix = np.where(dist_norm > avg_dist, epsilon, dist_norm)
 
-    return rp
+    # --------------------------------------------------
+    # Step 5: build ARP（只改排版）
+    # --------------------------------------------------
+    arp = np.zeros((half, half), dtype=np.float32)
+
+    for i in range(half):
+        for j in range(half):
+
+            if i < j:
+                # 上三角 → 前半段
+                arp[i, j] = srp_matrix[i, j]
+
+            elif i > j:
+                # 下三角 → 后半段
+                arp[i, j] = srp_matrix[i + half, j + half]
+
+            else:
+                arp[i, j] = 0.0
+
+    return arp
 
 
 # ============================================================
 # Draw
 # ============================================================
 
-def draw_srp(seq, save_path, epsilon, chunk_size):
+def draw_arp(seq, save_path, epsilon, chunk_size):
 
-    rp = compute_srp(seq, epsilon)
+    arp = compute_arp(seq, epsilon)
 
-    img_size = get_dynamic_image_size(chunk_size)
-
-    # --------------------------------------------------
-    # convert to image (0~1 → 0~255 ONLY for saving)
-    # --------------------------------------------------
-    img = (rp * 255).astype(np.uint8)
-
-    if img.shape[0] != img_size:
-        img = cv2.resize(img, (img_size, img_size),
-                         interpolation=cv2.INTER_NEAREST)
-
-    #img = np.flipud(img)
+    img = (arp * 255).astype(np.uint8)
 
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
@@ -158,7 +167,7 @@ def process_dataset(dataset, data_root, out_dir, sizes, epsilon):
                         f"{session}-{i}.png"
                     )
 
-                    draw_srp(seq, save_path, epsilon, chunk_size)
+                    draw_arp(seq, save_path, epsilon, chunk_size)
 
 
 # ============================================================
@@ -172,7 +181,7 @@ def main():
     parser.add_argument("--dataset", required=True)
     parser.add_argument("--data_root", required=True)
     parser.add_argument("--out_dir", required=True)
-    parser.add_argument("--sizes", type=int, nargs="+", default=[300])
+    parser.add_argument("--sizes", type=int, nargs="+", default=[BASE_CHUNK_SIZE])
     parser.add_argument("--epsilon", type=float, default=0.3)
 
     args = parser.parse_args()
@@ -188,7 +197,7 @@ def main():
         args.epsilon
     )
 
-    print("\nSRP generation finished.")
+    print("\nARP generation finished.")
 
 
 if __name__ == "__main__":
