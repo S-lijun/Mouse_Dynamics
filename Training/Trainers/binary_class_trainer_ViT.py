@@ -258,11 +258,8 @@ def calculate_eer(y_true, y_scores):
         eer = brentq(lambda x: 1 - x - interp1d(fpr, tpr)(x), 0., 1.)
         eer_threshold = thresholds[np.nanargmin(np.abs((1 - tpr) - fpr))]
     except:
-        eer = 0.5
-        eer_threshold = 0.5
-
-    eer = min(eer, 1 - eer)
-    auc = max(auc, 1 - auc)
+        eer = np.nan
+        eer_threshold = np.nan
 
     return eer, auc, eer_threshold
 
@@ -270,7 +267,7 @@ def calculate_eer(y_true, y_scores):
 # ============================================================
 # GHM BCE
 # ============================================================
-
+'''
 class GHMBCE(nn.Module):
 
     def __init__(self, bins=10):
@@ -304,7 +301,61 @@ class GHMBCE(nn.Module):
         )
 
         return (weights * loss).mean()
+'''
 
+class GHMBCE(nn.Module):
+
+    def __init__(self, bins=10):
+        super().__init__()
+        self.bins = bins
+
+    def forward(self, logits, targets):
+
+        # -----------------------------------
+        # gradient norm (no grad)
+        # -----------------------------------
+        with torch.no_grad():
+            pred = torch.sigmoid(logits)
+            g = torch.abs(pred - targets)
+
+        # -----------------------------------
+        # build bins
+        # -----------------------------------
+        edges = torch.linspace(0, 1, self.bins + 1, device=logits.device)
+
+        weights = torch.zeros_like(g)
+        total = g.numel()
+
+        # -----------------------------------
+        # compute density & weights
+        # -----------------------------------
+        for i in range(self.bins):
+
+            if i == self.bins - 1:
+                inds = (g >= edges[i]) & (g <= edges[i+1])
+            else:
+                inds = (g >= edges[i]) & (g < edges[i+1])
+
+            num = inds.sum().item()
+
+            if num > 0:
+                weights[inds] = total / (num + 1e-6)
+
+        # -----------------------------------
+        # normalize weights
+        # -----------------------------------
+        weights = weights / weights.mean()
+
+        # -----------------------------------
+        # BCE loss
+        # -----------------------------------
+        loss = nn.functional.binary_cross_entropy_with_logits(
+            logits,
+            targets,
+            reduction="none"
+        )
+
+        return (weights * loss).mean()
 
 # ============================================================
 # Trainer

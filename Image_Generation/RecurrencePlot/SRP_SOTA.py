@@ -38,19 +38,36 @@ def compute_srp(seq, epsilon=0.3):
     coords = seq[:, :2].astype(np.float32)
 
     # --------------------------------------------------
-    # Step 1: RAW distance
+    # Step 1: 分开写 x, y 的 normalize（用统一 scale）
     # --------------------------------------------------
-    diff = coords[:, None, :] - coords[None, :, :]
-    dist = np.sqrt(np.sum(diff**2, axis=2))
+    x = coords[:, 0]
+    y = coords[:, 1]
+
+    min_x, max_x = x.min(), x.max()
+    min_y, max_y = y.min(), y.max()
+
+    x_range = max_x - min_x
+    y_range = max_y - min_y
+
+    # 关键：统一 scale（取较大的 range）
+    scale = max(x_range, y_range)
+    if scale < 1e-8:
+        scale = 1e-8
+
+    # 用同一个 scale 做 min-max
+    x_norm = (x - min_x) / scale
+    y_norm = (y - min_y) / scale
+
+    coords_norm = np.stack([x_norm, y_norm], axis=1)
 
     # --------------------------------------------------
-    # Step 2: normalize distance
+    # Step 2: distance
     # --------------------------------------------------
-    max_val = dist.max()
-    if max_val < 1e-8:
-        max_val = 1e-8
+    diff = coords_norm[:, None, :] - coords_norm[None, :, :]
+    dist = np.sqrt(np.sum(diff**2, axis=2))   # ∈ [0, √2]
 
-    dist = dist / max_val   # ∈ [0,1]
+    # 推荐：统一到 [0,1]（让 epsilon 有意义）
+    dist = dist / np.sqrt(2)
 
     M = dist.shape[0]
 
@@ -65,7 +82,7 @@ def compute_srp(seq, epsilon=0.3):
     recurrent = avg < epsilon
 
     # --------------------------------------------------
-    # Step 5: clip distance
+    # Step 5: clip
     # --------------------------------------------------
     dist_clipped = np.minimum(dist, epsilon)
 
@@ -88,7 +105,7 @@ def draw_srp(seq, save_path, epsilon):
     # --------------------------------------------------
     # 映射到灰度
     # --------------------------------------------------
-    img = (rp / (epsilon + 1e-8) * 255).astype(np.uint8)
+    img = (rp / epsilon * 255).astype(np.uint8)
 
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     cv2.imwrite(save_path, img)
@@ -198,7 +215,7 @@ def main():
     parser.add_argument("--data_root", required=True)
     parser.add_argument("--out_dir", required=True)
     parser.add_argument("--sizes", type=int, nargs="+", default=[300])
-    parser.add_argument("--epsilon", type=float, default=0.5)
+    parser.add_argument("--epsilon", type=float, default=1)
 
     args = parser.parse_args()
 
