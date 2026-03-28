@@ -216,7 +216,7 @@ def main():
     parser.add_argument("--data_root", required=True)
     parser.add_argument("--out_dir", required=True)
     parser.add_argument("--sizes", type=int, nargs="+", default=[300])
-    parser.add_argument("--epsilon", type=float, default=1)
+    parser.add_argument("--epsilon", type=float, default=0.5)
 
     args = parser.parse_args()
 
