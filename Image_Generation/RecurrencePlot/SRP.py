@@ -18,8 +18,8 @@ print("[ROOT]", ROOT)
 # Config
 # ============================================================
 
-BASE_CHUNK_SIZE = 150
-BASE_IMG_SIZE = 224
+BASE_CHUNK_SIZE = 300
+BASE_IMG_SIZE = 300
 
 # ============================================================
 # Dynamic Image Size
@@ -64,12 +64,25 @@ def draw_rp(seq, save_path, percentile, chunk_size):
         img = cv2.resize(img, (img_size, img_size),
                          interpolation=cv2.INTER_NEAREST)
 
-    img = 255 - img
-    img = np.flipud(img)
+    img = img
+    #img = np.flipud(img)
 
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
     cv2.imwrite(save_path, img)
+
+
+def generate_windows(events, chunk_size, stride):
+
+    windows = []
+
+    if len(events) < chunk_size:
+        return windows
+
+    for start in range(0, len(events) - chunk_size + 1, stride):
+        windows.append(events[start:start + chunk_size])
+
+    return windows
 
 
 # ============================================================
@@ -202,7 +215,7 @@ def process_dataset(dataset, data_root, out_dir, sizes, percentile):
             print("      Events:", len(events_np))
 
             for chunk_size in sizes:
-
+                '''
                 n_chunks = len(events_np) // chunk_size
 
                 print("      chunk", chunk_size, "->", n_chunks)
@@ -217,6 +230,26 @@ def process_dataset(dataset, data_root, out_dir, sizes, percentile):
                         user,
                         f"{session}-{i}.png"
                     )
+                '''
+
+                if "train" in data_root.lower():
+                    stride = chunk_size // 4
+                else:
+                    stride = chunk_size
+
+                windows = generate_windows(events_np, chunk_size, stride)
+
+                print(f"      chunk={chunk_size}, stride={stride}, windows={len(windows)}")
+
+                for i, seq in enumerate(windows):
+
+                    save_path = os.path.join(
+                        out_dir,
+                        f"event{chunk_size}",
+                        user,
+                        f"{session}-{i}.png"
+                    )
+
 
                     draw_rp(seq, save_path, percentile, chunk_size)
 
@@ -242,7 +275,7 @@ def main():
     parser.add_argument("--sizes",
                         type=int,
                         nargs="+",
-                        default=[150])
+                        default=[300])
 
     parser.add_argument("--percentile",
                         type=float,
