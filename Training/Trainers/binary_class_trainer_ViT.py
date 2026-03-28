@@ -305,7 +305,7 @@ class GHMBCE(nn.Module):
 
 class GHMBCE(nn.Module):
 
-    def __init__(self, bins=10):
+    def __init__(self, bins=5):
         super().__init__()
         self.bins = bins
 
@@ -415,7 +415,7 @@ class BinaryClassTrainer:
         # Early stopping
         # ====================================================
 
-        patience = 20
+        patience = 100
         patience_counter = 0
 
         train_losses = []
