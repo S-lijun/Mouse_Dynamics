@@ -85,6 +85,7 @@ def compute_srp(seq, epsilon=0.3):
     # Step 5: clip
     # --------------------------------------------------
     dist_clipped = np.minimum(dist, epsilon)
+   
 
     # --------------------------------------------------
     # Step 6: SRP
@@ -105,7 +106,7 @@ def draw_srp(seq, save_path, epsilon):
     # --------------------------------------------------
     # 映射到灰度
     # --------------------------------------------------
-    img = (rp / epsilon * 255).astype(np.uint8)
+    img = (rp/ epsilon * 255).astype(np.uint8)
 
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     cv2.imwrite(save_path, img)
