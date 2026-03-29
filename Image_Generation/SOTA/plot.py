@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 import cv2
 import math
+import matplotlib.pyplot as plt
 
 # ============================================================
 # ROOT
@@ -21,6 +22,8 @@ print("[ROOT]", ROOT)
 BASE_CHUNK_SIZE = 300
 BASE_IMG_SIZE = 300
 
+# ⭐ 全局收集 ratio
+all_ratios = []
 
 # ============================================================
 # Dynamic Image Size
@@ -31,16 +34,13 @@ def get_dynamic_image_size(chunk_size):
     return int(round(BASE_IMG_SIZE * scale))
 
 # ============================================================
-# SRP (FINAL VERSION)
+# SRP
 # ============================================================
 
 def compute_srp(seq, epsilon=0.3):
 
     coords = seq[:, :2].astype(np.float32)
 
-    # --------------------------------------------------
-    # Step 1: 分开写 x, y 的 normalize（用统一 scale）
-    # --------------------------------------------------
     x = coords[:, 0]
     y = coords[:, 1]
 
@@ -50,68 +50,57 @@ def compute_srp(seq, epsilon=0.3):
     x_range = max_x - min_x
     y_range = max_y - min_y
 
-    # 关键：统一 scale（取较大的 range）
     scale = max(x_range, y_range)
     if scale < 1e-8:
         scale = 1e-8
 
-    # 用同一个 scale 做 min-max
     x_norm = (x - min_x) / scale
     y_norm = (y - min_y) / scale
 
     coords_norm = np.stack([x_norm, y_norm], axis=1)
 
-    # --------------------------------------------------
-    # Step 2: distance
-    # --------------------------------------------------
+    # ---------------- distance ----------------
     diff = coords_norm[:, None, :] - coords_norm[None, :, :]
-    dist = np.sqrt(np.sum(diff**2, axis=2))   # ∈ [0, √2]
-
-    # 推荐：统一到 [0,1]（让 epsilon 有意义）
+    dist = np.sqrt(np.sum(diff**2, axis=2))
     dist = dist / np.sqrt(2)
 
     M = dist.shape[0]
 
-    # --------------------------------------------------
-    # Step 3: avg distance
-    # --------------------------------------------------
+    # ---------------- avg ----------------
     avg = np.sum(dist, axis=1) / (M - 1 + 1e-8)
 
-    # --------------------------------------------------
-    # Step 4: recurrent points
-    # --------------------------------------------------
+    # ---------------- recurrent ----------------
     recurrent = avg < epsilon
 
-    # --------------------------------------------------
-    # Step 5: clip
-    # --------------------------------------------------
-    dist_clipped = np.minimum(dist, epsilon)
-   
+    # ⭐ 计算 ratio
+    ratio = recurrent.mean()
 
-    # --------------------------------------------------
-    # Step 6: SRP
-    # --------------------------------------------------
+    # ---------------- clip ----------------
+    dist_clipped = np.minimum(dist, epsilon)
+
     rp = np.where(
         recurrent[:, None] & recurrent[None, :],
         dist_clipped,
         epsilon
     ).astype(np.float32)
-    #print("recurrent ratio:", recurrent.mean())
 
-    return rp
+    return rp, ratio
 
 
 def draw_srp(seq, save_path, epsilon):
 
-    rp = compute_srp(seq, epsilon)
+    global all_ratios
 
-    # --------------------------------------------------
-    # 映射到灰度
-    # --------------------------------------------------
-    img = (rp/ epsilon * 255).astype(np.uint8)
+    rp, ratio = compute_srp(seq, epsilon)
+
+    # ⭐ 收集 ratio
+    all_ratios.append(ratio)
+
+    img = (rp / epsilon * 255).astype(np.uint8)
 
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     cv2.imwrite(save_path, img)
+
 
 # ============================================================
 # Sliding Window
@@ -128,6 +117,7 @@ def generate_windows(events, chunk_size, stride):
         windows.append(events[start:start + chunk_size])
 
     return windows
+
 
 # ============================================================
 # Cleaning
@@ -148,6 +138,7 @@ def clean_balabit(df):
     df = df.dropna(subset=["x", "y", "time"])
 
     return df
+
 
 # ============================================================
 # Process Dataset
@@ -175,12 +166,7 @@ def process_dataset(dataset, data_root, out_dir, sizes, epsilon):
 
             print("   Session:", session)
 
-            df = pd.read_csv(
-                path,
-                sep=",",
-                engine="python",
-                header=0
-            )
+            df = pd.read_csv(path)
             df = clean_balabit(df)
 
             events = df[["x", "y", "time"]].values.astype(np.float32)
@@ -206,6 +192,42 @@ def process_dataset(dataset, data_root, out_dir, sizes, epsilon):
                     )
 
                     draw_srp(seq, save_path, epsilon)
+
+
+# ============================================================
+# Plot ratio distribution
+# ============================================================
+
+def analyze_ratios(out_dir):
+
+    ratios = np.array(all_ratios)
+
+    print("\n==============================")
+    print("[Recurrence Ratio Stats]")
+    print("Count:", len(ratios))
+    print("Mean :", ratios.mean())
+    print("Std  :", ratios.std())
+    print("Min  :", ratios.min())
+    print("Max  :", ratios.max())
+    print("==============================")
+
+    # 保存 raw
+    np.save(os.path.join(out_dir, "recurrence_ratios.npy"), ratios)
+
+    # ⭐ 画 histogram
+    plt.figure()
+    plt.hist(ratios, bins=50)
+    plt.title("Recurrence Ratio Distribution")
+    plt.xlabel("Ratio")
+    plt.ylabel("Count")
+    plt.grid()
+
+    save_path = os.path.join(out_dir, "recurrence_ratio_distribution.png")
+    plt.savefig(save_path)
+    plt.show()
+
+    print("\nSaved plot to:", save_path)
+
 
 # ============================================================
 # CLI
@@ -234,7 +256,11 @@ def main():
         args.epsilon
     )
 
+    # ⭐ 最关键：分析 ratio
+    analyze_ratios(out_dir)
+
     print("\nSRP generation finished.")
+
 
 if __name__ == "__main__":
     main()
