@@ -328,9 +328,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class WeightedBCE(nn.Module):
-    def __init__(self, pos_weight):
+    def __init__(self, pos_weight, device):
         super().__init__()
-        self.loss = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+        self.loss = nn.BCEWithLogitsLoss(
+            pos_weight=torch.tensor([pos_weight], dtype=torch.float32).to(device)
+        )
 
     def forward(self, logits, targets):
         return self.loss(logits, targets)
