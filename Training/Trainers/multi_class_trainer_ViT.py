@@ -81,8 +81,8 @@ class MultiLabelTrainerViT:
         def custom_multilabel_loss(logits, labels):
             probs = torch.sigmoid(logits)  # [B, num_users]
             B, num_users = labels.shape
-            w1 = (self.C_pos / self.F1_all).to(self.device)  # 正样本权重
-            w2 = (self.C_neg / self.F2_all).to(self.device)  # 负样本权重
+            w1 = (self.C_pos / self.F1_all).to(self.device)  
+            w2 = (self.C_neg / self.F2_all).to(self.device)  
             loss = - (w1 * labels * torch.log(probs + 1e-6) +
                       w2 * (1 - labels) * torch.log(1 - probs + 1e-6))
             return loss.mean()

@@ -200,8 +200,8 @@ if __name__ == "__main__":
             optim_name="adam",
             num_epochs=100,
             learning_rate=0.001,
-            step_size=20,
-            learning_rate_decay=0.5,
+            step_size=40,
+            learning_rate_decay=0.1,
             verbose=True
         )
 
