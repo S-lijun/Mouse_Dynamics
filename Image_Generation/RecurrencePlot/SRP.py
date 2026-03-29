@@ -215,7 +215,7 @@ def process_dataset(dataset, data_root, out_dir, sizes, percentile):
             print("      Events:", len(events_np))
 
             for chunk_size in sizes:
-                '''
+
                 n_chunks = len(events_np) // chunk_size
 
                 print("      chunk", chunk_size, "->", n_chunks)
@@ -230,25 +230,7 @@ def process_dataset(dataset, data_root, out_dir, sizes, percentile):
                         user,
                         f"{session}-{i}.png"
                     )
-                '''
-
-                if "train" in data_root.lower():
-                    stride = chunk_size // 4
-                else:
-                    stride = chunk_size
-
-                windows = generate_windows(events_np, chunk_size, stride)
-
-                print(f"      chunk={chunk_size}, stride={stride}, windows={len(windows)}")
-
-                for i, seq in enumerate(windows):
-
-                    save_path = os.path.join(
-                        out_dir,
-                        f"event{chunk_size}",
-                        user,
-                        f"{session}-{i}.png"
-                    )
+                
 
 
                     draw_rp(seq, save_path, percentile, chunk_size)
