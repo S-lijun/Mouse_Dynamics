@@ -117,7 +117,7 @@ class BinaryViT(nn.Module):
     def __init__(self,
                  img_size=224,
                  patch_size=15,
-                 in_chans=1,
+                 in_chans=3,
                  embed_dim=225,
                  depth=3,
                  num_heads=3,
