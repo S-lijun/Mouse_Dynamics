@@ -120,7 +120,7 @@ class BinaryViT(nn.Module):
                  in_chans=3,
                  embed_dim=675,
                  depth=3,
-                 num_heads=3):
+                 num_heads=9):
 
         super().__init__()
 
