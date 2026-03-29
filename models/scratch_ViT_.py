@@ -19,17 +19,14 @@ class PatchEmbed(nn.Module):
 
         patch_dim = patch_size * patch_size * in_chans
 
-        self.unfold = nn.Unfold(kernel_size=patch_size, stride=patch_size)
-        self.proj = nn.Linear(patch_dim, embed_dim)
+        self.proj = nn.Conv2d(in_chans, embed_dim,
+                                kernel_size=patch_size, stride=patch_size)
 
     def forward(self, x):
 
         # x: [B,C,H,W]
-
-        patches = self.unfold(x)
-        patches = patches.transpose(1,2)
-
-        embeddings = self.proj(patches)
+        embeddings = self.proj(x)
+        x = x.flatten(2).transpose(1, 2)
 
         return embeddings
 
@@ -117,7 +114,7 @@ class BinaryViT(nn.Module):
     def __init__(self,
                  img_size=224,
                  patch_size=15,
-                 in_chans=1,
+                 in_chans=3,
                  embed_dim=225,
                  depth=3,
                  num_heads=3,
