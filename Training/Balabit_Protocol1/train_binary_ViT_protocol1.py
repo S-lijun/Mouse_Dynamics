@@ -108,10 +108,15 @@ class BinaryMouseDataset(Dataset):
 
     def __getitem__(self, idx):
 
-        img = Image.open(self.samples[idx]).convert("RGB")
+        #img = Image.open(self.samples[idx]).convert("RGB") # 3 channels
+        img = Image.open(self.samples[idx]).convert("L") # 1 channel
 
         if self.transform:
             img = self.transform(img)
+        
+        # 保证是 [1,H,W]
+        if img.dim() == 2:
+            img = img.unsqueeze(0)
 
         return img, torch.tensor(self.labels[idx]).float(), self.session_ids[idx]
 
