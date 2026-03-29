@@ -69,6 +69,7 @@ def compute_srp(seq, epsilon=0.3):
 
     # 推荐：统一到 [0,1]（让 epsilon 有意义）
     dist = dist / np.sqrt(2)
+  
 
     M = dist.shape[0]
 
@@ -108,7 +109,7 @@ def draw_srp(seq, save_path, epsilon):
     # --------------------------------------------------
     # 映射到灰度
     # --------------------------------------------------
-    img = (rp/ epsilon * 255).astype(np.uint8)
+    img = (rp * 255).astype(np.uint8)
     #print(img.shape)
 
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
