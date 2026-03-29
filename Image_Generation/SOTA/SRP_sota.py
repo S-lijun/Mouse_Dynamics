@@ -86,6 +86,7 @@ def compute_srp(seq, epsilon=0.3):
     # --------------------------------------------------
     # Step 5: clip
     # --------------------------------------------------
+    #dist_clipped = dist
     dist_clipped = np.minimum(dist, epsilon)
    
 
@@ -109,8 +110,20 @@ def draw_srp(seq, save_path, epsilon):
     # --------------------------------------------------
     # 映射到灰度
     # --------------------------------------------------
-    img = (rp * 255).astype(np.uint8)
+    #img = (rp * 255).astype(np.uint8)
     #print(img.shape)
+
+    mask = (rp >= epsilon - 1e-8)
+
+    img = rp.copy()
+
+    # 0~0.3 → 0~76（只占低灰度）
+    img[~mask] = img[~mask] * 255.0
+
+    # 非recurrence → 255
+    img[mask] = 255.0
+
+    img = img.astype(np.uint8)
 
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     cv2.imwrite(save_path, img)
@@ -221,7 +234,7 @@ def main():
     parser.add_argument("--data_root", required=True)
     parser.add_argument("--out_dir", required=True)
     parser.add_argument("--sizes", type=int, nargs="+", default=[300])
-    parser.add_argument("--epsilon", type=float, default=0.3)
+    parser.add_argument("--epsilon", type=float, default=1)
 
     args = parser.parse_args()
 
