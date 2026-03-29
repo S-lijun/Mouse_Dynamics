@@ -108,8 +108,8 @@ class BinaryMouseDataset(Dataset):
 
     def __getitem__(self, idx):
 
-        #img = Image.open(self.samples[idx]).convert("RGB") # 3 channels
-        img = Image.open(self.samples[idx]).convert("L") # 1 channel
+        img = Image.open(self.samples[idx]).convert("RGB") # 3 channels
+        #img = Image.open(self.samples[idx]).convert("L") # 1 channel
 
         if self.transform:
             img = self.transform(img)
