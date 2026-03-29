@@ -327,76 +327,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
-class GHMBCE(nn.Module):
-    """
-    Strict implementation of GHM-BCE based on paper definition.
-    No engineering tricks (no clamp, no weight cap, no normalization).
-    """
-
-    def __init__(self, bins=10):
+class WeightedBCE(nn.Module):
+    def __init__(self, pos_weight):
         super().__init__()
-        self.bins = bins
+        self.loss = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
 
     def forward(self, logits, targets):
-        """
-        logits: (B, *)
-        targets: (B, *)  ∈ {0,1}
-        """
-
-        # --------------------------------------------------
-        # Step 1: compute predicted probability
-        # --------------------------------------------------
-        pred = torch.sigmoid(logits)
-
-        # --------------------------------------------------
-        # Step 2: compute gradient magnitude
-        # g = |p - y|
-        # --------------------------------------------------
-        g = torch.abs(pred - targets)
-
-        # --------------------------------------------------
-        # Step 3: build bins (uniform partition of [0,1])
-        # --------------------------------------------------
-        edges = torch.linspace(0, 1, self.bins + 1, device=logits.device)
-
-        weights = torch.zeros_like(g)
-        total = g.numel()   # n in paper
-
-        # --------------------------------------------------
-        # Step 4: compute gradient density GD(g)
-        # using histogram bins
-        # --------------------------------------------------
-        for i in range(self.bins):
-
-            if i == self.bins - 1:
-                inds = (g >= edges[i]) & (g <= edges[i + 1])
-            else:
-                inds = (g >= edges[i]) & (g < edges[i + 1])
-
-            num_in_bin = inds.sum().float()   # count in bin
-
-            if num_in_bin > 0:
-                # β_i = n / GD ≈ n / num_in_bin
-                weights[inds] = total / num_in_bin
-
-        # --------------------------------------------------
-        # Step 5: compute BCE loss (per-sample)
-        # --------------------------------------------------
-        loss = F.binary_cross_entropy_with_logits(
-            logits,
-            targets,
-            reduction='none'
-        )
-
-        # --------------------------------------------------
-        # Step 6: apply weights
-        # L = (1/n) Σ β_i * L_i
-        # --------------------------------------------------
-        loss = weights * loss
-
-        return loss.mean()
-
+        return self.loss(logits, targets)
 # ============================================================
 # Trainer
 # ============================================================
@@ -426,7 +363,8 @@ class BinaryClassTrainer:
         verbose=True
     ):
 
-        loss_function = GHMBCE()
+        #loss_function = GHMBCE()
+        loss_function = WeightedBCE(pos_weight=10)
 
         # ====================================================
         # Optimizer
