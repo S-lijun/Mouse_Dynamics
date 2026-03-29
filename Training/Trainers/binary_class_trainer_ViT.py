@@ -362,10 +362,6 @@ class GHMBCE(nn.Module):
             reduction="none"
         )
 
-        if torch.rand(1).item() < 0.01:   # 1%概率打印
-            print("g mean:", g.mean().item())
-            print("weights max:", weights.max().item())
-
         return (weights * loss).mean()
 
 # ============================================================
