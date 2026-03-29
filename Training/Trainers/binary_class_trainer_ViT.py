@@ -323,46 +323,79 @@ class GHMBCE(nn.Module):
         return (weights * loss).mean()
 '''
     
-class GHMBCE(nn.Module):
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
-    def __init__(self, bins=5):
+
+class GHMBCE(nn.Module):
+    """
+    Strict implementation of GHM-BCE based on paper definition.
+    No engineering tricks (no clamp, no weight cap, no normalization).
+    """
+
+    def __init__(self, bins=10):
         super().__init__()
         self.bins = bins
 
     def forward(self, logits, targets):
+        """
+        logits: (B, *)
+        targets: (B, *)  ∈ {0,1}
+        """
 
-        with torch.no_grad():
-            pred = torch.sigmoid(logits)
-            g = torch.abs(pred - targets)
-            g = torch.clamp(g, min=1e-3)   
+        # --------------------------------------------------
+        # Step 1: compute predicted probability
+        # --------------------------------------------------
+        pred = torch.sigmoid(logits)
 
+        # --------------------------------------------------
+        # Step 2: compute gradient magnitude
+        # g = |p - y|
+        # --------------------------------------------------
+        g = torch.abs(pred - targets)
+
+        # --------------------------------------------------
+        # Step 3: build bins (uniform partition of [0,1])
+        # --------------------------------------------------
         edges = torch.linspace(0, 1, self.bins + 1, device=logits.device)
 
         weights = torch.zeros_like(g)
-        total = g.numel()
+        total = g.numel()   # n in paper
 
+        # --------------------------------------------------
+        # Step 4: compute gradient density GD(g)
+        # using histogram bins
+        # --------------------------------------------------
         for i in range(self.bins):
 
             if i == self.bins - 1:
-                inds = (g >= edges[i]) & (g <= edges[i+1])
+                inds = (g >= edges[i]) & (g <= edges[i + 1])
             else:
-                inds = (g >= edges[i]) & (g < edges[i+1])
+                inds = (g >= edges[i]) & (g < edges[i + 1])
 
-            num = inds.sum().item()
+            num_in_bin = inds.sum().float()   # count in bin
 
-            if num > 0:
-                w = total / (num + 1e-6)
-                weights[inds] = min(w, 10.0)  
+            if num_in_bin > 0:
+                # β_i = n / GD ≈ n / num_in_bin
+                weights[inds] = total / num_in_bin
 
-        weights = weights / (weights.mean() + 1e-6)
-
-        loss = nn.functional.binary_cross_entropy_with_logits(
+        # --------------------------------------------------
+        # Step 5: compute BCE loss (per-sample)
+        # --------------------------------------------------
+        loss = F.binary_cross_entropy_with_logits(
             logits,
             targets,
-            reduction="none"
+            reduction='none'
         )
 
-        return (weights * loss).mean()
+        # --------------------------------------------------
+        # Step 6: apply weights
+        # L = (1/n) Σ β_i * L_i
+        # --------------------------------------------------
+        loss = weights * loss
+
+        return loss.mean()
 
 # ============================================================
 # Trainer
