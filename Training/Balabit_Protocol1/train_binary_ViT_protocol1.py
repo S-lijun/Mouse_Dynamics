@@ -165,7 +165,6 @@ if __name__ == "__main__":
     print("Detected users:", len(user_list))
 
     transform = transforms.Compose([
-        transforms.Resize((img_size, img_size)),
         transforms.ToTensor()
     ])
 

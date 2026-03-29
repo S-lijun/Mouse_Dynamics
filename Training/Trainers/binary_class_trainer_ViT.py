@@ -305,7 +305,7 @@ class GHMBCE(nn.Module):
 
 class GHMBCE(nn.Module):
 
-    def __init__(self, bins=20):
+    def __init__(self, bins=10):
         super().__init__()
         self.bins = bins
 
@@ -444,7 +444,7 @@ class BinaryClassTrainer:
                                      leave=False):
 
                 X = X.to(self.device)
-                y = y.to(self.device)
+                y = y.to(self.device).float()
 
                 optimizer.zero_grad()
 
@@ -482,7 +482,7 @@ class BinaryClassTrainer:
                 for X, y, _ in self.val_loader:
 
                     X = X.to(self.device)
-                    y = y.to(self.device)
+                    y = y.to(self.device).float()
 
                     logits = self.net(X).squeeze(dim=1)
 
