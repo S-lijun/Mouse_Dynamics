@@ -366,7 +366,7 @@ class BinaryClassTrainer:
     ):
 
         #loss_function = GHMBCE()
-        loss_function = WeightedBCE(pos_weight=10)
+        loss_function = WeightedBCE(pos_weight=10,device=self.device)
 
         # ====================================================
         # Optimizer
