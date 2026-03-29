@@ -26,7 +26,7 @@ class PatchEmbed(nn.Module):
 
         # x: [B,C,H,W]
         embeddings = self.proj(x)
-        x = x.flatten(2).transpose(1, 2)
+        embeddings = embeddings.flatten(2).transpose(1, 2)
 
         return embeddings
 
