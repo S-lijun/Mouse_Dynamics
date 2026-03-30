@@ -172,8 +172,8 @@ if __name__ == "__main__":
 
     img_size = 300
 
-    train_root = Path(project_root) / "Images" / training_folder
-    test_root  = Path(project_root) / "Images" / testing_folder
+    #train_root = Path(project_root) / "Images" / training_folder
+    #test_root  = Path(project_root) / "Images" / testing_folder
 
     train_root = Path(project_root) / "ImagesTensors" / training_folder
     test_root  = Path(project_root) / "ImagesTensors" / testing_folder
