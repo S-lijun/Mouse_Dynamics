@@ -270,7 +270,7 @@ def calculate_eer(y_true, y_scores):
 
 class GHMBCE(nn.Module):
 
-    def __init__(self, bins=30):
+    def __init__(self, bins=10):
         super().__init__()
         self.bins = bins
 
@@ -359,7 +359,7 @@ class BinaryClassTrainer:
         # ====================================================
 
         if optim_name == "adam":
-            optimizer = optim.Adam(self.net.parameters(), lr=learning_rate, weight_decay=1e-4)
+            optimizer = optim.Adam(self.net.parameters(), lr=learning_rate, weight_decay=0.01)
 
         elif optim_name == "adamw":
             optimizer = optim.AdamW(self.net.parameters(), lr=learning_rate, weight_decay=0.01)
