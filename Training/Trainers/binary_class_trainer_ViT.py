@@ -510,15 +510,15 @@ class BinaryClassTrainer:
             pos = scores[labels == 1]
             neg = scores[labels == 0]
 
-            plt.figure()
-            plt.hist(pos, bins=50, alpha=0.5, label="pos")
-            plt.hist(neg, bins=50, alpha=0.5, label="neg")
-            plt.legend()
-            plt.title(f"Score Distribution Epoch {epoch+1}")
+            print("\n[Score Stats]")
+            print(f"Pos mean: {pos.mean():.4f}, std: {pos.std():.4f}")
+            print(f"Neg mean: {neg.mean():.4f}, std: {neg.std():.4f}")
 
-            os.makedirs("debug_plots", exist_ok=True)
-            plt.savefig(f"debug_plots/epoch_{epoch+1}.png")
-            plt.close()
+            print(f"Pos min/max: {pos.min():.4f} / {pos.max():.4f}")
+            print(f"Neg min/max: {neg.min():.4f} / {neg.max():.4f}")
+
+            # overlap indicator
+            print(f"Overlap approx: pos_mean - neg_mean = {pos.mean() - neg.mean():.4f}")
 
             val_eer_history.append(eer)
             val_auc_history.append(auc)
