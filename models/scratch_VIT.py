@@ -115,7 +115,7 @@ class TransformerBlock(nn.Module):
 class BinaryViT(nn.Module):
 
     def __init__(self,
-                 img_size=224,
+                 img_size=300,
                  patch_size=15,
                  in_chans=3,
                  embed_dim=225,

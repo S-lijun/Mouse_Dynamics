@@ -270,7 +270,7 @@ def calculate_eer(y_true, y_scores):
 
 class GHMBCE(nn.Module):
 
-    def __init__(self, bins=10):
+    def __init__(self, bins=30):
         super().__init__()
         self.bins = bins
 

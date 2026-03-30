@@ -47,7 +47,7 @@ sys.stdout = TeeLogger(log_path)
 
 from models.scratch_VIT import BinaryViT
 #from models.scratch_ViT_ import BinaryViT
-from Training.Trainers.binary_class_trainer_ViT_BCE import BinaryClassTrainer
+from Training.Trainers.binary_class_trainer_ViT import BinaryClassTrainer
 from Training.Score_Fusion.Score_Fusion_Binary import (
     binary_score_fusion
 )
