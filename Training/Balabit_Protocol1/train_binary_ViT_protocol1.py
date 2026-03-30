@@ -175,6 +175,9 @@ if __name__ == "__main__":
     train_root = Path(project_root) / "Images" / training_folder
     test_root  = Path(project_root) / "Images" / testing_folder
 
+    train_root = Path(project_root) / "ImagesTensors" / training_folder
+    test_root  = Path(project_root) / "ImagesTensors" / testing_folder
+
     user_list = sorted([u for u in os.listdir(train_root) if os.path.isdir(train_root / u)])
 
     print("Detected users:", len(user_list))
