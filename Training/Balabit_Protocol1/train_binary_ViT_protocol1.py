@@ -155,8 +155,11 @@ if __name__ == "__main__":
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    training_folder = input("Enter training folder: ").strip()
-    testing_folder = input("Enter testing folder: ").strip()
+    #training_folder = input("Enter training folder: ").strip()
+    #testing_folder = input("Enter testing folder: ").strip()
+
+    training_folder = "Balabit/SRP_sota/event300"
+    testing_folder = "Balabit/SRP_sota_protocol1/event300"
 
     img_size = 300
 
@@ -208,7 +211,7 @@ if __name__ == "__main__":
         _, best_model, *_ = trainer.train(
             optim_name="adam",
             num_epochs=100,
-            learning_rate=0.001,
+            learning_rate=0.0001,
             step_size=30,
             learning_rate_decay=0.1,
             verbose=True
