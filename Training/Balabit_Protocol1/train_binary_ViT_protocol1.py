@@ -109,8 +109,8 @@ class BinaryMouseDataset(Dataset):
     
     def __getitem__(self, idx):
 
-        img = Image.open(self.samples[idx]).convert("RGB") # 3 channels
-        #img = Image.open(self.samples[idx]).convert("L") # 1 channel
+        #img = Image.open(self.samples[idx]).convert("RGB") # 3 channels
+        img = Image.open(self.samples[idx]).convert("L") # 1 channel
 
         if self.transform:
             img = self.transform(img)
@@ -197,7 +197,7 @@ if __name__ == "__main__":
         train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=8)
         test_loader  = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=8)
 
-        net = BinaryViT(img_size=img_size, patch_size=15, in_chans=3).to(device)
+        net = BinaryViT(img_size=img_size, patch_size=15, in_chans=1).to(device)
 
         trainer = BinaryClassTrainer(
             net=net,
