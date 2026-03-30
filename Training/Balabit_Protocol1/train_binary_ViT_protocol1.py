@@ -57,7 +57,7 @@ from Training.Score_Fusion.Score_Fusion_Binary import (
 # ======================================================
 
 def parse_session_and_index(filename: str):
-    m = re.match(r"(session_\d+)-(\d+)\.png", filename)
+    m = re.match(r"(session_\d+)-(\d+)\.npy", filename) # tensors
     if m is None:
         raise RuntimeError(f"Bad filename: {filename}")
     return m.group(1), int(m.group(2))
