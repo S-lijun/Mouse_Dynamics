@@ -450,7 +450,9 @@ class BinaryClassTrainer:
 
                 logits = self.net(X).squeeze(dim=1)
 
-                loss = loss_function(logits, y)
+                #loss = loss_function(logits, y)
+                loss = loss_function().forward(logits,y)
+                
 
                 loss.backward()
 

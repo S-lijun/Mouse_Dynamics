@@ -119,13 +119,13 @@ class BinaryMouseDataset(Dataset):
     '''
     def __getitem__(self, idx):
 
-        # 🔥 load float32
+        # load float32
         rp = np.load(self.samples[idx])   # [H, W]
 
-        # 👉 转 tensor
+        # 转 tensor
         img = torch.from_numpy(rp).float()
 
-        # 👉 加 channel 维度
+        # 加 channel 维度
         img = img.unsqueeze(0)   # [1, H, W]
 
         return img, torch.tensor(self.labels[idx]).float(), self.session_ids[idx]
@@ -210,7 +210,7 @@ if __name__ == "__main__":
         test_dataset  = BinaryMouseDataset(test_root, user, user_list)
 
         train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=8)
-        test_loader  = DataLoader(test_dataset, batch_size=64, shuffle=True, num_workers=8)
+        test_loader  = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=8)
 
         net = BinaryViT(img_size=img_size, patch_size=15, in_chans=1).to(device)
 
