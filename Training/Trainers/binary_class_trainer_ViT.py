@@ -270,57 +270,43 @@ def calculate_eer(y_true, y_scores):
 
 class GHMBCE(nn.Module):
 
-    def __init__(self, bins=10):
+    def __init__(self, delta=0.1):
         super().__init__()
-        self.bins = bins
+        self.delta = delta
 
     def forward(self, logits, targets):
 
-        # -----------------------------------
-        # gradient norm (no grad)
-        # -----------------------------------
+        pred = torch.sigmoid(logits)
+        g = torch.abs(pred - targets)   # (B, ...)
+
+        n = g.numel()
+
         with torch.no_grad():
-            pred = torch.sigmoid(logits)
-            g = torch.abs(pred - targets)
 
-        # -----------------------------------
-        # build bins
-        # -----------------------------------
-        edges = torch.linspace(0, 1, self.bins + 1, device=logits.device)
+            g_flat = g.view(-1)
 
-        weights = torch.zeros_like(g)
-        total = g.numel()
+            # pairwise |g_k - g_i|
+            diff = torch.abs(g_flat.unsqueeze(0) - g_flat.unsqueeze(1))
 
-        # -----------------------------------
-        # compute density & weights
-        # -----------------------------------
-        for i in range(self.bins):
+            # δΔ(g_k, g_i)
+            mask = (diff <= self.delta).float()
 
-            if i == self.bins - 1:
-                inds = (g >= edges[i]) & (g <= edges[i+1])
-            else:
-                inds = (g >= edges[i]) & (g < edges[i+1])
+            # GD(g_i)
+            GD = mask.sum(dim=1) / self.delta   # (N,)
 
-            num = inds.sum().item()
+            GD = GD.view_as(g)
 
-            if num > 0:
-                weights[inds] = total / (num + 1e-6)
+            # β_i
+            beta = n / (GD + 1e-6)
 
-        # -----------------------------------
-        # normalize weights
-        # -----------------------------------
-        weights = weights / weights.mean()
+            # normalize（论文说 normalize n，但没说 mean normalize，这里保持稳定）
+            beta = beta / beta.mean()
 
-        # -----------------------------------
-        # BCE loss
-        # -----------------------------------
         loss = nn.functional.binary_cross_entropy_with_logits(
-            logits,
-            targets,
-            reduction="none"
+            logits, targets, reduction="none"
         )
 
-        return (weights * loss).mean(), loss
+        return (beta * loss).mean(), loss
 
 # ============================================================
 # Trainer
@@ -359,7 +345,7 @@ class BinaryClassTrainer:
         # ====================================================
 
         if optim_name == "adam":
-            optimizer = optim.Adam(self.net.parameters(), lr=learning_rate, weight_decay=0.001)
+            optimizer = optim.Adam(self.net.parameters(), lr=learning_rate)
 
         elif optim_name == "adamw":
             optimizer = optim.AdamW(self.net.parameters(), lr=learning_rate, weight_decay=0.01)
