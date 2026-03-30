@@ -210,7 +210,7 @@ if __name__ == "__main__":
         test_dataset  = BinaryMouseDataset(test_root, user, user_list)
 
         train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=8)
-        test_loader  = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=8)
+        test_loader  = DataLoader(test_dataset, batch_size=64, shuffle=True, num_workers=8)
 
         net = BinaryViT(img_size=img_size, patch_size=15, in_chans=1).to(device)
 
@@ -224,7 +224,7 @@ if __name__ == "__main__":
             optim_name="adam",
             num_epochs=100,
             learning_rate=0.001,
-            step_size=40,
+            step_size=60,
             learning_rate_decay=0.1,
             verbose=True
         )
