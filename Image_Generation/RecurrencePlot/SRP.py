@@ -64,8 +64,8 @@ def draw_rp(seq, save_path, percentile, chunk_size):
         img = cv2.resize(img, (img_size, img_size),
                          interpolation=cv2.INTER_NEAREST)
 
-    img = img
-    #img = np.flipud(img)
+    img = 255 - img
+    img = np.flipud(img)
 
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
 

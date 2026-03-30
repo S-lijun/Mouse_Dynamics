@@ -57,7 +57,7 @@ from Training.Score_Fusion.Score_Fusion_Binary import (
 # ======================================================
 
 def parse_session_and_index(filename: str):
-    m = re.match(r"(session_\d+)-(\d+)\.npy", filename) # tensors
+    m = re.match(r"(session_\d+)-(\d+)\.png", filename) # tensors npy
     if m is None:
         raise RuntimeError(f"Bad filename: {filename}")
     return m.group(1), int(m.group(2))
@@ -85,7 +85,7 @@ class BinaryMouseDataset(Dataset):
 
             for f in os.listdir(user_path):
 
-                if f.endswith(".npy"): # tensors files
+                if f.endswith(".png"): # tensors files .npy
 
                     try:
                         sess, idx = parse_session_and_index(f)
@@ -106,7 +106,7 @@ class BinaryMouseDataset(Dataset):
 
     def __len__(self):
         return len(self.samples)
-    '''
+    
     def __getitem__(self, idx):
 
         img = Image.open(self.samples[idx]).convert("RGB") # 3 channels
@@ -116,19 +116,7 @@ class BinaryMouseDataset(Dataset):
             img = self.transform(img)
 
         return img, torch.tensor(self.labels[idx]).float(), self.session_ids[idx]
-    '''
-    def __getitem__(self, idx):
-
-        # load float32
-        rp = np.load(self.samples[idx])   # [H, W]
-
-        # 转 tensor
-        img = torch.from_numpy(rp).float()
-
-        # 加 channel 维度
-        img = img.unsqueeze(0)   # [1, H, W]
-
-        return img, torch.tensor(self.labels[idx]).float(), self.session_ids[idx]
+    
 
 # ======================================================
 # Score Collection
@@ -172,21 +160,18 @@ if __name__ == "__main__":
 
     img_size = 300
 
-    #train_root = Path(project_root) / "Images" / training_folder
-    #test_root  = Path(project_root) / "Images" / testing_folder
-
-    train_root = Path(project_root) / "ImagesTensors" / training_folder
-    test_root  = Path(project_root) / "ImagesTensors" / testing_folder
+    train_root = Path(project_root) / "Images" / training_folder
+    test_root  = Path(project_root) / "Images" / testing_folder
 
     user_list = sorted([u for u in os.listdir(train_root) if os.path.isdir(train_root / u)])
 
     print("Detected users:", len(user_list))
 
-    '''
+    
     transform = transforms.Compose([
         transforms.ToTensor()
     ])
-    '''
+    
 
 
     user_scores = {}
@@ -206,8 +191,8 @@ if __name__ == "__main__":
         #train_dataset = BinaryMouseDataset(train_root, user, user_list, transform)
         #test_dataset  = BinaryMouseDataset(test_root, user, user_list, transform)
 
-        train_dataset = BinaryMouseDataset(train_root, user, user_list)
-        test_dataset  = BinaryMouseDataset(test_root, user, user_list)
+        train_dataset = BinaryMouseDataset(train_root, user, user_list, transform=transform)
+        test_dataset  = BinaryMouseDataset(test_root, user, user_list, transform=transform)
 
         train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=8)
         test_loader  = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=8)

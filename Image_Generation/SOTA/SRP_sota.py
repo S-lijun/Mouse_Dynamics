@@ -101,7 +101,6 @@ def compute_srp(seq, epsilon=0.3):
 
     return rp
 
-'''
 def draw_srp(seq, save_path, epsilon):
 
     rp = compute_srp(seq, epsilon)
@@ -126,16 +125,7 @@ def draw_srp(seq, save_path, epsilon):
 
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     cv2.imwrite(save_path, img)
-'''
 
-def draw_srp(seq, save_path, epsilon):
-
-    rp = compute_srp(seq, epsilon)
-
-    os.makedirs(os.path.dirname(save_path), exist_ok=True)
-
-    # 🔥 直接存 float32
-    np.save(save_path, rp.astype(np.float32))
 # ============================================================
 # Sliding Window
 # ============================================================
@@ -225,7 +215,7 @@ def process_dataset(dataset, data_root, out_dir, sizes, epsilon):
                         out_dir,
                         f"event{chunk_size}",
                         user,
-                        f"{session}-{i}.npy" # save tensors
+                        f"{session}-{i}.png" # save tensors
                     )
 
                     draw_srp(seq, save_path, epsilon)
@@ -242,7 +232,7 @@ def main():
     parser.add_argument("--data_root", required=True)
     parser.add_argument("--out_dir", required=True)
     parser.add_argument("--sizes", type=int, nargs="+", default=[300])
-    parser.add_argument("--epsilon", type=float, default=1)
+    parser.add_argument("--epsilon", type=float, default=0.3)
 
     args = parser.parse_args()
 
