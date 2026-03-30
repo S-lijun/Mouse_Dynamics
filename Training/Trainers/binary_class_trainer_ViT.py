@@ -471,8 +471,6 @@ class BinaryClassTrainer:
 
             eer, auc, eer_threshold = calculate_eer(labels, scores)
 
-            import matplotlib.pyplot as plt
-
             pos = scores[labels == 1]
             neg = scores[labels == 0]
 
