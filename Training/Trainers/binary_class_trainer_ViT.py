@@ -303,7 +303,7 @@ class GHMBCE(nn.Module):
             beta = beta / beta.mean()
 
         loss = nn.functional.binary_cross_entropy_with_logits(
-            logits, targets, reduction="none"
+            logits, targets, reduction="none", pos_weight=10
         )
 
         return (beta * loss).mean(), loss
