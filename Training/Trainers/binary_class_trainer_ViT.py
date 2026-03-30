@@ -274,7 +274,7 @@ class GHMBCE(nn.Module):
         super().__init__()
         self.delta = delta
 
-    def forward(self, logits, targets):
+    def forward(self, logits, targets, pos_weight):
 
         pred = torch.sigmoid(logits)
         g = torch.abs(pred - targets)   # (B, ...)
@@ -303,7 +303,7 @@ class GHMBCE(nn.Module):
             beta = beta / beta.mean()
 
         loss = nn.functional.binary_cross_entropy_with_logits(
-            logits, targets, reduction="none", pos_weight=10
+            logits, targets, reduction="none", pos_weight=pos_weight
         )
 
         return (beta * loss).mean(), loss
@@ -314,7 +314,7 @@ class GHMBCE(nn.Module):
 
 class BinaryClassTrainer:
 
-    def __init__(self, net, train_loader, val_loader):
+    def __init__(self, net, train_loader, val_loader, pos_weight = 10):
 
         self.net = net
         self.train_loader = train_loader
@@ -325,6 +325,8 @@ class BinaryClassTrainer:
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.net.to(self.device)
+
+        self.pos_weight = torch.tensor([pos_weight], dtype=torch.float).to(self.device)
 
 
     def train(
@@ -402,7 +404,7 @@ class BinaryClassTrainer:
 
                 logits = self.net(X).squeeze(dim=1)
 
-                loss, pure_loss = loss_function(logits, y)
+                loss, pure_loss = loss_function(logits, y, self.pos_weight)
               
 
                 loss.backward()
@@ -440,7 +442,7 @@ class BinaryClassTrainer:
 
                     logits = self.net(X).squeeze(dim=1)
 
-                    loss, pure_loss = loss_function(logits, y)
+                    loss, pure_loss = loss_function(logits, y, self.pos_weight)
 
                     #epoch_val_loss += loss.item()
                     epoch_val_loss += pure_loss.mean().item()
