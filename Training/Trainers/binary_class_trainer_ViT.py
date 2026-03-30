@@ -300,10 +300,10 @@ class GHMBCE(nn.Module):
             beta = n / (GD + 1e-6)
 
             # normalize（论文说 normalize n，但没说 mean normalize，这里保持稳定）
-            beta = beta / beta.mean()
+            beta = beta / beta.max()
 
         loss = nn.functional.binary_cross_entropy_with_logits(
-            logits, targets, reduction="none", pos_weight=pos_weight
+            logits, targets, reduction="none"
         )
 
         return (beta * loss).mean(), loss
@@ -404,7 +404,7 @@ class BinaryClassTrainer:
 
                 logits = self.net(X).squeeze(dim=1)
 
-                loss, pure_loss = loss_function(logits, y, self.pos_weight)
+                loss, pure_loss = loss_function(logits, y)
               
 
                 loss.backward()
@@ -442,7 +442,7 @@ class BinaryClassTrainer:
 
                     logits = self.net(X).squeeze(dim=1)
 
-                    loss, pure_loss = loss_function(logits, y, self.pos_weight)
+                    loss, pure_loss = loss_function(logits, y)
 
                     #epoch_val_loss += loss.item()
                     epoch_val_loss += pure_loss.mean().item()
