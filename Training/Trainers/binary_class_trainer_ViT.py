@@ -274,7 +274,7 @@ class GHMBCE(nn.Module):
         super().__init__()
         self.delta = delta
 
-    def forward(self, logits, targets, pos_weight):
+    def forward(self, logits, targets):
 
         pred = torch.sigmoid(logits)
         g = torch.abs(pred - targets)   # (B, ...)
