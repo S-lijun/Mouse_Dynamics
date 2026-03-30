@@ -202,10 +202,9 @@ class MultiLabelTrainerViT:
                 print(f" Val   Loss: {avg_val_loss:.4f}")
                 print(f" EER: {avg_eer:.4f} | AUC: {avg_auc:.4f}")
                 print(f" Precision: {precision:.4f}, Recall: {recall:.4f}, F1: {f1_score:.4f}")
-
+                
         # ------------------ Load best model ------------------ #
-        best_model = self.net.__class__(num_users=self.num_users)
+        best_model = copy.deepcopy(self.net)
         best_model.load_state_dict(self.best_model_state)
         best_model.to(self.device)
-
         return self.net, best_model, train_losses, val_losses, val_eer_history, val_auc_history
