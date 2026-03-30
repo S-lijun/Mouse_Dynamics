@@ -355,7 +355,7 @@ class GHMBCE(nn.Module):
             reduction="none"
         )
 
-        return (weights * loss).mean()
+        return (weights * loss).mean(), loss
 # ============================================================
 # Trainer
 # ============================================================
@@ -450,14 +450,15 @@ class BinaryClassTrainer:
 
                 logits = self.net(X).squeeze(dim=1)
 
-                loss = loss_function(logits, y)
+                loss, pure_loss = loss_function(logits, y)
               
 
                 loss.backward()
 
                 optimizer.step()
 
-                epoch_train_loss += loss.item()
+                #epoch_train_loss += loss.item()
+                epoch_train_loss += pure_loss.item()
 
                 preds = (torch.sigmoid(logits) >= 0.5).float()
 
@@ -487,9 +488,10 @@ class BinaryClassTrainer:
 
                     logits = self.net(X).squeeze(dim=1)
 
-                    loss = loss_function(logits, y)
+                    loss, pure_loss = loss_function(logits, y)
 
-                    epoch_val_loss += loss.item()
+                    #epoch_val_loss += loss.item()
+                    epoch_val_loss += pure_loss.item()
 
                     scores.extend(torch.sigmoid(logits).cpu().numpy())
                     labels.extend(y.cpu().numpy())
