@@ -35,8 +35,7 @@ def calculate_eer(y_true, y_scores):
 
 class BinaryClassTrainer:
 
-    def __init__(self, net, train_loader, val_loader,
-                 pos_count, neg_count):
+    def __init__(self, net, train_loader, val_loader, pos_weight=10.0):
 
         self.net = net
         self.train_loader = train_loader
@@ -48,11 +47,9 @@ class BinaryClassTrainer:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.net.to(self.device)
 
-        # 🔥 关键：pos_weight
-        pos_weight_value = neg_count / max(pos_count, 1)
-        self.pos_weight = torch.tensor([pos_weight_value], dtype=torch.float).to(self.device)
+        self.pos_weight = torch.tensor([pos_weight], dtype=torch.float).to(self.device)
 
-        print(f"[INFO] pos_weight = {self.pos_weight.item():.4f}")
+        print(f"[INFO] pos_weight = {self.pos_weight.item():.2f}")
 
 
     def train(
