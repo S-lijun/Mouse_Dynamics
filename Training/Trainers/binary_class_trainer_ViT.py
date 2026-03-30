@@ -515,7 +515,10 @@ class BinaryClassTrainer:
             plt.hist(neg, bins=50, alpha=0.5, label="neg")
             plt.legend()
             plt.title(f"Score Distribution Epoch {epoch+1}")
-            plt.show()
+
+            os.makedirs("debug_plots", exist_ok=True)
+            plt.savefig(f"debug_plots/epoch_{epoch+1}.png")
+            plt.close()
 
             val_eer_history.append(eer)
             val_auc_history.append(auc)
