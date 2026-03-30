@@ -85,7 +85,7 @@ class BinaryMouseDataset(Dataset):
 
             for f in os.listdir(user_path):
 
-                if f.endswith(".png"):
+                if f.endswith(".npy"): # tensors files
 
                     try:
                         sess, idx = parse_session_and_index(f)
@@ -106,7 +106,7 @@ class BinaryMouseDataset(Dataset):
 
     def __len__(self):
         return len(self.samples)
-
+    '''
     def __getitem__(self, idx):
 
         img = Image.open(self.samples[idx]).convert("RGB") # 3 channels
@@ -114,6 +114,19 @@ class BinaryMouseDataset(Dataset):
 
         if self.transform:
             img = self.transform(img)
+
+        return img, torch.tensor(self.labels[idx]).float(), self.session_ids[idx]
+    '''
+    def __getitem__(self, idx):
+
+        # 🔥 load float32
+        rp = np.load(self.samples[idx])   # [H, W]
+
+        # 👉 转 tensor
+        img = torch.from_numpy(rp).float()
+
+        # 👉 加 channel 维度
+        img = img.unsqueeze(0)   # [1, H, W]
 
         return img, torch.tensor(self.labels[idx]).float(), self.session_ids[idx]
 
@@ -166,9 +179,12 @@ if __name__ == "__main__":
 
     print("Detected users:", len(user_list))
 
+    '''
     transform = transforms.Compose([
         transforms.ToTensor()
     ])
+    '''
+
 
     user_scores = {}
     user_labels = {}
@@ -184,13 +200,16 @@ if __name__ == "__main__":
         print("Training model for user:", user)
         print("==============================")
 
-        train_dataset = BinaryMouseDataset(train_root, user, user_list, transform)
-        test_dataset  = BinaryMouseDataset(test_root, user, user_list, transform)
+        #train_dataset = BinaryMouseDataset(train_root, user, user_list, transform)
+        #test_dataset  = BinaryMouseDataset(test_root, user, user_list, transform)
+
+        train_dataset = BinaryMouseDataset(train_root, user, user_list)
+        test_dataset  = BinaryMouseDataset(test_root, user, user_list)
 
         train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=8)
         test_loader  = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=8)
 
-        net = BinaryViT(img_size=img_size, patch_size=15).to(device)
+        net = BinaryViT(img_size=img_size, patch_size=15, in_chans=1).to(device)
 
         trainer = BinaryClassTrainer(
             net=net,

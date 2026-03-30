@@ -325,7 +325,7 @@ class GHMBCE(nn.Module):
     
 class GHMBCE(nn.Module):
 
-    def __init__(self, bins=10):
+    def __init__(self, bins=20):
         super().__init__()
         self.bins = bins
 
