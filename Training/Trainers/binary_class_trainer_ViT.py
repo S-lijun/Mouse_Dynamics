@@ -505,6 +505,18 @@ class BinaryClassTrainer:
 
             eer, auc, eer_threshold = calculate_eer(labels, scores)
 
+            import matplotlib.pyplot as plt
+
+            pos = scores[labels == 1]
+            neg = scores[labels == 0]
+
+            plt.figure()
+            plt.hist(pos, bins=50, alpha=0.5, label="pos")
+            plt.hist(neg, bins=50, alpha=0.5, label="neg")
+            plt.legend()
+            plt.title(f"Score Distribution Epoch {epoch+1}")
+            plt.show()
+
             val_eer_history.append(eer)
             val_auc_history.append(auc)
 
