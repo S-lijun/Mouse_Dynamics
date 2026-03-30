@@ -47,7 +47,7 @@ sys.stdout = TeeLogger(log_path)
 
 from models.scratch_VIT import BinaryViT
 #from models.scratch_ViT_ import BinaryViT
-from Training.Trainers.binary_class_trainer_ViT import BinaryClassTrainer
+from Training.Trainers.binary_class_trainer_ViT_BCE import BinaryClassTrainer
 from Training.Score_Fusion.Score_Fusion_Binary import (
     binary_score_fusion
 )
@@ -212,7 +212,7 @@ if __name__ == "__main__":
         train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=8)
         test_loader  = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=8)
 
-        net = BinaryViT(img_size=img_size, patch_size=25, in_chans=1).to(device)
+        net = BinaryViT(img_size=img_size, patch_size=15, in_chans=1).to(device)
 
         trainer = BinaryClassTrainer(
             net=net,
