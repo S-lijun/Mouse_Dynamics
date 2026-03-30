@@ -197,7 +197,7 @@ if __name__ == "__main__":
         train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=8)
         test_loader  = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=8)
 
-        net = BinaryViT(img_size=img_size, patch_size=15, in_chans=1, embed_dim=75).to(device)
+        net = BinaryViT(img_size=img_size, patch_size=15, in_chans=1, embed_dim=75, mlp_ratio= 150 / 75).to(device)
 
         trainer = BinaryClassTrainer(
             net=net,
