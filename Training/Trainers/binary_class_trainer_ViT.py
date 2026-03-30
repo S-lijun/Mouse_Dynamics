@@ -458,7 +458,7 @@ class BinaryClassTrainer:
                 optimizer.step()
 
                 #epoch_train_loss += loss.item()
-                epoch_train_loss += pure_loss.item()
+                epoch_train_loss += pure_loss.mean().item()
 
                 preds = (torch.sigmoid(logits) >= 0.5).float()
 
@@ -491,7 +491,7 @@ class BinaryClassTrainer:
                     loss, pure_loss = loss_function(logits, y)
 
                     #epoch_val_loss += loss.item()
-                    epoch_val_loss += pure_loss.item()
+                    epoch_val_loss += pure_loss.mean().item()
 
                     scores.extend(torch.sigmoid(logits).cpu().numpy())
                     labels.extend(y.cpu().numpy())
