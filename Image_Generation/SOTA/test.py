@@ -47,28 +47,13 @@ def compute_srp(seq, epsilon=0.3):
     min_x, max_x = x.min(), x.max()
     min_y, max_y = y.min(), y.max()
 
-    x_range = max_x - min_x
-    y_range = max_y - min_y
+    coords_dist = np.stack([x, y], axis=1)
 
-    # 关键：统一 scale（取较大的 range）
-    scale = max(x_range, y_range)
-    if scale < 1e-8:
-        scale = 1e-8
+    diff = coords_dist[:, None, :] - coords_dist[None, :, :]
+    dist = np.sqrt(np.sum(diff**2, axis=2))   
 
-    # 用同一个 scale 做 min-max
-    x_norm = (x - min_x) / scale
-    y_norm = (y - min_y) / scale
-
-    coords_norm = np.stack([x_norm, y_norm], axis=1)
-
-    # --------------------------------------------------
-    # Step 2: distance
-    # --------------------------------------------------
-    diff = coords_norm[:, None, :] - coords_norm[None, :, :]
-    dist = np.sqrt(np.sum(diff**2, axis=2))   # ∈ [0, √2]
-
-    # 推荐：统一到 [0,1]（让 epsilon 有意义）
-    dist = dist / np.sqrt(2)
+    dist = dist / dist.max()
+  
 
     M = dist.shape[0]
 
@@ -85,8 +70,8 @@ def compute_srp(seq, epsilon=0.3):
     # --------------------------------------------------
     # Step 5: clip
     # --------------------------------------------------
+    #dist_clipped = dist
     dist_clipped = np.minimum(dist, epsilon)
-   
 
     # --------------------------------------------------
     # Step 6: SRP
@@ -100,7 +85,6 @@ def compute_srp(seq, epsilon=0.3):
 
     return rp
 
-
 def draw_srp(seq, save_path, epsilon):
 
     rp = compute_srp(seq, epsilon)
@@ -108,7 +92,12 @@ def draw_srp(seq, save_path, epsilon):
     # --------------------------------------------------
     # 映射到灰度
     # --------------------------------------------------
-    img = (rp/ epsilon * 255).astype(np.uint8)
+    #img = (rp * 255).astype(np.uint8)
+    #print(img.shape)
+
+    img = (rp * 255).astype(np.uint8)
+
+    img = img.astype(np.uint8)
 
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     cv2.imwrite(save_path, img)
@@ -202,7 +191,7 @@ def process_dataset(dataset, data_root, out_dir, sizes, epsilon):
                         out_dir,
                         f"event{chunk_size}",
                         user,
-                        f"{session}-{i}.png"
+                        f"{session}-{i}.png" # save tensors
                     )
 
                     draw_srp(seq, save_path, epsilon)

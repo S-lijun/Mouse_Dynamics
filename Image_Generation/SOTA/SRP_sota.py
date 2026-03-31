@@ -111,15 +111,7 @@ def draw_srp(seq, save_path, epsilon):
     #img = (rp * 255).astype(np.uint8)
     #print(img.shape)
 
-    mask = (rp >= epsilon - 1e-8)
-
-    img = rp.copy()
-
-    # 0~0.3 → 0~76（只占低灰度）
-    img[~mask] = img[~mask] * 255.0
-
-    # 非recurrence → 255
-    img[mask] = 255.0
+    img = (rp / epsilon * 255).astype(np.uint8)
 
     img = img.astype(np.uint8)
 
@@ -232,7 +224,7 @@ def main():
     parser.add_argument("--data_root", required=True)
     parser.add_argument("--out_dir", required=True)
     parser.add_argument("--sizes", type=int, nargs="+", default=[300])
-    parser.add_argument("--epsilon", type=float, default=0.3)
+    parser.add_argument("--epsilon", type=float, default=0.5)
 
     args = parser.parse_args()
 
