@@ -197,8 +197,8 @@ if __name__ == "__main__":
         train_dataset = BinaryMouseDataset(train_root, user, user_list, transform=transform)
         test_dataset  = BinaryMouseDataset(test_root, user, user_list, transform=transform)
 
-        train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=8)
-        test_loader  = DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=8)
+        train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=8)
+        test_loader  = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=8)
 
         net = BinaryViT(img_size=img_size, patch_size=15, in_chans=1).to(device)
 
