@@ -18,8 +18,8 @@ print("[ROOT]", ROOT)
 # Config
 # ============================================================
 
-BASE_CHUNK_SIZE = 300
-BASE_IMG_SIZE = 300
+BASE_CHUNK_SIZE = 600
+BASE_IMG_SIZE = 600
 
 
 # ============================================================
@@ -69,7 +69,6 @@ def compute_srp(seq, epsilon=0.3):
 
     # 推荐：统一到 [0,1]（让 epsilon 有意义）
     dist = dist/ np.sqrt(2)
-  
 
     M = dist.shape[0]
 
@@ -289,8 +288,8 @@ def main():
     parser.add_argument("--dataset", required=True)
     parser.add_argument("--data_root", required=True)
     parser.add_argument("--out_dir", required=True)
-    parser.add_argument("--sizes", type=int, nargs="+", default=[300])
-    parser.add_argument("--epsilon", type=float, default=0.3)
+    parser.add_argument("--sizes", type=int, nargs="+", default=[600])
+    parser.add_argument("--epsilon", type=float, default=0.4)
 
     args = parser.parse_args()
 
