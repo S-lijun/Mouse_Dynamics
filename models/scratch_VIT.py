@@ -61,7 +61,7 @@ class EfficientAttention(nn.Module):
         q = self.q(x).reshape(B,N,self.num_heads,self.head_dim).permute(0,2,1,3)
         k = self.k(x).reshape(B,N,self.num_heads,self.head_dim).permute(0,2,1,3)
         v = self.v(x).reshape(B,N,self.num_heads,self.head_dim).permute(0,2,1,3)
-
+        '''
         q = F.softmax(q, dim=-1)
         k = F.softmax(k, dim=-2)
 
@@ -73,7 +73,20 @@ class EfficientAttention(nn.Module):
         out = out.permute(0,2,1,3).reshape(B,N,C)
 
         return self.proj(out)
+        '''
 
+        # -----------------------------
+        # Standard Attention
+        # -----------------------------
+        attn = torch.matmul(q, k.transpose(-2, -1))   # (B, h, N, N)
+        attn = attn / math.sqrt(self.head_dim)
+        attn = torch.softmax(attn, dim=-1)
+
+        out = torch.matmul(attn, v)  # (B, h, N, d)
+
+        out = out.permute(0,2,1,3).reshape(B, N, C)
+
+        return self.proj(out)
 
 
 # ============================================================
