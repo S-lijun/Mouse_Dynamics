@@ -214,7 +214,7 @@ if __name__ == "__main__":
     out_dir.mkdir(parents=True, exist_ok=True)
 
     print("\n===== Protocol 1 Score Fusion Curve =====")
-    for n in range(1, 31):
+    for n in range(1, 3):
        
         res = multilabel_score_fusion(scores, labels, session_ids, user_ids, n)
         
