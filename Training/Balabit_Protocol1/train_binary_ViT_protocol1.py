@@ -158,10 +158,10 @@ if __name__ == "__main__":
     #training_folder = input("Enter training folder: ").strip()
     #testing_folder = input("Enter testing folder: ").strip()
 
-    training_folder = "Balabit/SRP_sota/event300"
-    testing_folder = "Balabit/SRP_sota_protocol1/event300"
+    training_folder = "Balabit/SRP_sota/event150"
+    testing_folder = "Balabit/SRP_sota_protocol1/event150"
 
-    img_size = 300
+    img_size = 150
 
     train_root = Path(project_root) / "Images" / training_folder
     test_root  = Path(project_root) / "Images" / testing_folder
@@ -243,7 +243,7 @@ if __name__ == "__main__":
 
     print("\n===== Protocol 1 Score Fusion Curve =====")
 
-    for n in range(1, 2):
+    for n in range(1, 6):
 
         valid_eers = []
         valid_aucs = []
