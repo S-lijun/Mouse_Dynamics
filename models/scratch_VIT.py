@@ -164,7 +164,7 @@ class BinaryViT(nn.Module):
 
         # MAX-AGGR-2
         #x = x.max(dim=1)[0]
-        x = x.max(dim=1)
+        x = x.mean(dim=1)
 
         logits = self.head(x)
 
