@@ -172,8 +172,7 @@ if __name__ == "__main__":
 
     
     transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5], std=[0.5])
+        transforms.ToTensor()
     ])
     
 
@@ -201,7 +200,7 @@ if __name__ == "__main__":
         train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=8)
         test_loader  = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=8)
 
-        net = BinaryViT(img_size=img_size, patch_size=15, in_chans=1).to(device)
+        net = BinaryViT(img_size=img_size, patch_size=30, in_chans=1).to(device)
 
         trainer = BinaryClassTrainer(
             net=net,
