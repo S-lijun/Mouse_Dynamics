@@ -111,7 +111,7 @@ def draw_srp(seq, save_path, epsilon):
     #img = (rp * 255).astype(np.uint8)
     #print(img.shape)
 
-    img = (rp / epsilon * 255).astype(np.uint8)
+    img = (rp  * 255).astype(np.uint8)
 
     img = img.astype(np.uint8)
 

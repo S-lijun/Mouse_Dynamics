@@ -172,7 +172,8 @@ if __name__ == "__main__":
 
     
     transform = transforms.Compose([
-        transforms.ToTensor()
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.5], std=[0.5])
     ])
     
 
@@ -209,7 +210,7 @@ if __name__ == "__main__":
         )
 
         _, best_model, *_ = trainer.train(
-            optim_name="adamw",
+            optim_name="adam",
             num_epochs=100,
             learning_rate=0.001,
             step_size=30,
