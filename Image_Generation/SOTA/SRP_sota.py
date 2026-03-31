@@ -68,7 +68,7 @@ def compute_srp(seq, epsilon=0.3):
     dist = np.sqrt(np.sum(diff**2, axis=2))   # ∈ [0, √2]
 
     # 推荐：统一到 [0,1]（让 epsilon 有意义）
-    dist = dist / np.sqrt(2)
+    dist = dist/ np.sqrt(2)
   
 
     M = dist.shape[0]
@@ -76,7 +76,7 @@ def compute_srp(seq, epsilon=0.3):
     # --------------------------------------------------
     # Step 3: avg distance
     # --------------------------------------------------
-    avg = np.sum(dist, axis=1) / (M - 1 + 1e-8)
+    avg = np.sum(dist, axis=1) / (M - 1)
 
     # --------------------------------------------------
     # Step 4: recurrent points
@@ -86,8 +86,8 @@ def compute_srp(seq, epsilon=0.3):
     # --------------------------------------------------
     # Step 5: clip
     # --------------------------------------------------
-    dist_clipped = dist
-    #dist_clipped = np.minimum(dist, epsilon)
+    #dist_clipped = dist
+    dist_clipped = np.minimum(dist, epsilon)
 
     # --------------------------------------------------
     # Step 6: SRP
@@ -111,7 +111,7 @@ def draw_srp(seq, save_path, epsilon):
     #img = (rp * 255).astype(np.uint8)
     #print(img.shape)
 
-    img = (rp  * 255).astype(np.uint8)
+    img = (rp / epsilon  * 255).astype(np.uint8)
 
     img = img.astype(np.uint8)
 
@@ -154,6 +154,59 @@ def clean_balabit(df):
 
     return df
 
+
+def clean_chaoshen(df):
+
+    df = df.rename(columns={
+        "X":"x",
+        "Y":"y",
+        "Timestamp":"time",
+        "EventName":"event"
+    })
+
+    for c in ["x","y","time"]:
+        df[c] = pd.to_numeric(df[c], errors="coerce")
+
+    return df.dropna(subset=["x","y","time"])
+
+
+def clean_dfl(df):
+
+    df.columns = [c.strip().lower() for c in df.columns]
+
+    if "client timestamp" in df.columns:
+        df = df.rename(columns={"client timestamp":"time"})
+    elif "timestamp" in df.columns:
+        df = df.rename(columns={"timestamp":"time"})
+
+    if "state" in df.columns:
+        df = df[df["state"].str.lower() == "move"]
+
+    for c in ["x","y","time"]:
+        df[c] = pd.to_numeric(df[c], errors="coerce")
+
+    return df.dropna(subset=["x","y","time"])
+
+
+# ============================================================
+# Session Detection
+# ============================================================
+
+def get_session_files(dataset, user_dir):
+
+    files = os.listdir(user_dir)
+
+    sessions = []
+
+    for f in files:
+
+        path = os.path.join(user_dir, f)
+
+        if os.path.isfile(path):
+            sessions.append(f)
+
+    return sorted(sessions)
+
 # ============================================================
 # Process Dataset
 # ============================================================
@@ -163,6 +216,7 @@ def process_dataset(dataset, data_root, out_dir, sizes, epsilon):
     users = sorted(os.listdir(data_root))
 
     print("\nDataset:", dataset)
+    print("Users:", len(users))
 
     for user in users:
 
@@ -170,10 +224,14 @@ def process_dataset(dataset, data_root, out_dir, sizes, epsilon):
 
         if not os.path.isdir(user_dir):
             continue
-
+    
+        print("\n------------------------------")
         print("\nUser:", user)
 
-        for file in sorted(os.listdir(user_dir)):
+        session_files = get_session_files(dataset, user_dir)
+        print("Sessions found:", len(session_files))
+
+        for file in session_files:
 
             session = os.path.splitext(file)[0]
             path = os.path.join(user_dir, file)
@@ -186,7 +244,15 @@ def process_dataset(dataset, data_root, out_dir, sizes, epsilon):
                 engine="python",
                 header=0
             )
-            df = clean_balabit(df)
+
+            if dataset == "balabit":
+                df = clean_balabit(df)
+
+            elif dataset == "chaoshen":
+                df = clean_chaoshen(df)
+
+            elif dataset == "dfl":
+                df = clean_dfl(df)
 
             events = df[["x", "y", "time"]].values.astype(np.float32)
 
@@ -224,7 +290,7 @@ def main():
     parser.add_argument("--data_root", required=True)
     parser.add_argument("--out_dir", required=True)
     parser.add_argument("--sizes", type=int, nargs="+", default=[300])
-    parser.add_argument("--epsilon", type=float, default=0.4)
+    parser.add_argument("--epsilon", type=float, default=0.3)
 
     args = parser.parse_args()
 
