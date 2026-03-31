@@ -300,7 +300,8 @@ class GHMBCE(nn.Module):
             beta = n / (GD + 1e-6)
 
             # normalize（论文说 normalize n，但没说 mean normalize，这里保持稳定）
-            beta = beta / beta.max()
+    
+            beta = beta / beta.mean()
 
         loss = nn.functional.binary_cross_entropy_with_logits(
             logits, targets, reduction="none"

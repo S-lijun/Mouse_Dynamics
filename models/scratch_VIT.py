@@ -74,20 +74,22 @@ class EfficientAttention(nn.Module):
 
         return self.proj(out)
         '''
-
         # -----------------------------
-        # Standard Attention
+        # Efficient Attention (paper)
         # -----------------------------
-        attn = torch.matmul(q, k.transpose(-2, -1))   # (B, h, N, N)
-        attn = attn / math.sqrt(self.head_dim)
-        attn = torch.softmax(attn, dim=-1)
+        q = F.softmax(q, dim=-1)   # over feature
+        k = F.softmax(k, dim=-2)   # over tokens
 
-        out = torch.matmul(attn, v)  # (B, h, N, d)
+        # 👉 关键：scale 放这里
+        v = v / math.sqrt(self.head_dim)
+
+        kv = torch.einsum("bhnd,bhne->bhde", k, v)   # (B,h,d,d)
+
+        out = torch.einsum("bhnd,bhde->bhne", q, kv)
 
         out = out.permute(0,2,1,3).reshape(B, N, C)
 
         return self.proj(out)
-
 
 # ============================================================
 # Transformer Block
