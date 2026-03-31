@@ -289,7 +289,7 @@ def main():
     parser.add_argument("--data_root", required=True)
     parser.add_argument("--out_dir", required=True)
     parser.add_argument("--sizes", type=int, nargs="+", default=[600])
-    parser.add_argument("--epsilon", type=float, default=0.4)
+    parser.add_argument("--epsilon", type=float, default=0.3)
 
     args = parser.parse_args()
 
