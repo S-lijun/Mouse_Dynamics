@@ -86,8 +86,8 @@ def compute_srp(seq, epsilon=0.3):
     # --------------------------------------------------
     # Step 5: clip
     # --------------------------------------------------
-    #dist_clipped = dist
-    dist_clipped = np.minimum(dist, epsilon)
+    dist_clipped = dist
+    #dist_clipped = np.minimum(dist, epsilon)
 
     # --------------------------------------------------
     # Step 6: SRP
@@ -224,7 +224,7 @@ def main():
     parser.add_argument("--data_root", required=True)
     parser.add_argument("--out_dir", required=True)
     parser.add_argument("--sizes", type=int, nargs="+", default=[300])
-    parser.add_argument("--epsilon", type=float, default=0.5)
+    parser.add_argument("--epsilon", type=float, default=0.4)
 
     args = parser.parse_args()
 
