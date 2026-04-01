@@ -177,12 +177,12 @@ def clean_balabit(df):
         "state": "state"
     })
 
-    df = df[df["state"] == "Move"].copy()
-
-    for c in ["x","y","time"]:
+    for c in ["x", "y", "time"]:
         df[c] = pd.to_numeric(df[c], errors="coerce")
 
-    return df.dropna(subset=["x","y","time"])
+    df = df.dropna(subset=["x", "y", "time"])
+
+    return df
 
 
 def clean_chaoshen(df):
@@ -193,8 +193,6 @@ def clean_chaoshen(df):
         "Timestamp":"time",
         "EventName":"event"
     })
-
-    df = df[df["event"] == "Move"].copy()
 
     for c in ["x","y","time"]:
         df[c] = pd.to_numeric(df[c], errors="coerce")
@@ -212,7 +210,7 @@ def clean_dfl(df):
         df = df.rename(columns={"timestamp":"time"})
 
     if "state" in df.columns:
-        df = df[df["state"].str.lower()=="move"]
+        df = df[df["state"].str.lower() == "move"]
 
     for c in ["x","y","time"]:
         df[c] = pd.to_numeric(df[c], errors="coerce")
