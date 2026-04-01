@@ -254,7 +254,10 @@ def process_dataset(dataset, data_root, out_dir, sizes, epsilon):
 
             for chunk_size in sizes:
 
-                stride = chunk_size // 4
+                if "train" in data_root.lower():
+                    stride = chunk_size // 4
+                else:
+                    stride = chunk_size
 
                 windows = [
                     events[i:i+chunk_size]
