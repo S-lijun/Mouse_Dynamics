@@ -71,8 +71,8 @@ class TensorMouseDataset(Dataset):
         lab_path = os.path.join(tensor_root, "labels.npy")
 
         num_users = 21
-        H = 224
-        W = 224
+        H = 150
+        W = 150
 
         raw_labels = np.memmap(lab_path, dtype=np.uint8, mode="r")
         N = raw_labels.size // num_users
@@ -183,7 +183,7 @@ if __name__ == "__main__":
         train_dataset,
         batch_size=256,
         shuffle=True,
-        num_workers=2,
+        num_workers=8,
         pin_memory=False,
         persistent_workers=True,
         prefetch_factor=4
@@ -193,7 +193,7 @@ if __name__ == "__main__":
         test_dataset,
         batch_size=256,
         shuffle=False,
-        num_workers=2,
+        num_workers=8,
         pin_memory=False,
         persistent_workers=True,
         prefetch_factor=4
@@ -203,7 +203,7 @@ if __name__ == "__main__":
     # Model
     # ==========================================
 
-    net = insiderThreatCNN(num_users=num_users, image_size=224).to(device)
+    net = insiderThreatCNN(num_users=num_users, image_size=150).to(device)
 
     trainer = MultiLabelTrainer(
         net=net,
@@ -218,9 +218,9 @@ if __name__ == "__main__":
 
     _, best_model, *_ = trainer.train(
         optim_name="adamw",
-        num_epochs=17,
+        num_epochs=20,
         learning_rate=0.0001,
-        step_size=5,
+        step_size=6,
         learning_rate_decay=0.1,
         verbose=True
     )

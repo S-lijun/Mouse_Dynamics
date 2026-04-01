@@ -67,7 +67,6 @@ def compute_srp(seq, epsilon=0.3):
     diff = coords_norm[:, None, :] - coords_norm[None, :, :]
     dist = np.sqrt(np.sum(diff**2, axis=2))   # ∈ [0, √2]
 
-    # 推荐：统一到 [0,1]（让 epsilon 有意义）
     dist = dist/ np.sqrt(2)
 
     M = dist.shape[0]
@@ -271,7 +270,7 @@ def process_dataset(dataset, data_root, out_dir, sizes, epsilon):
                         out_dir,
                         f"event{chunk_size}",
                         user,
-                        f"{session}-{i}.png" # save tensors
+                        f"{session}-{i}.png" 
                     )
 
                     draw_srp(seq, save_path, epsilon)
@@ -288,7 +287,7 @@ def main():
     parser.add_argument("--data_root", required=True)
     parser.add_argument("--out_dir", required=True)
     parser.add_argument("--sizes", type=int, nargs="+", default=[150])
-    parser.add_argument("--epsilon", type=float, default=0.4)
+    parser.add_argument("--epsilon", type=float, default=1)
 
     args = parser.parse_args()
 
