@@ -71,8 +71,8 @@ class TensorMouseDataset(Dataset):
         lab_path = os.path.join(tensor_root, "labels.npy")
 
         num_users = 21
-        H = 150
-        W = 150
+        H = 224
+        W = 224
 
         raw_labels = np.memmap(lab_path, dtype=np.uint8, mode="r")
         N = raw_labels.size // num_users
@@ -203,7 +203,7 @@ if __name__ == "__main__":
     # Model
     # ==========================================
 
-    net = insiderThreatCNN(num_users=num_users, image_size=150).to(device)
+    net = insiderThreatCNN(num_users=num_users, image_size=224).to(device)
 
     trainer = MultiLabelTrainer(
         net=net,
