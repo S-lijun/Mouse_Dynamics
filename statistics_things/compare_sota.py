@@ -16,13 +16,13 @@ def normalize_user(u, offset=0):
     """
     Normalize ANY format → 'userX'
 
-    支持:
+    support:
     - 'user7'
     - '7'
     - 7
 
     offset:
-        0  → 不变
+        0  → 
         +1 → ours 0 → user1
         -1 → ours 1 → user0
     """
@@ -102,8 +102,8 @@ def compare_sota_vs_ours(
     sota_csv_path,
     ours_n=4,
     sota_n=1,
-    ours_offset=0,   # 🔥 关键
-    sota_offset=0,   # 🔥 关键
+    ours_offset=0,  
+    sota_offset=0,   
     alpha=0.05,
     alternative="less",
     debug=True,
@@ -143,22 +143,6 @@ def compare_sota_vs_ours(
     vec_sota = np.array([eer_sota[u] for u in users])
 
     # ========================================================
-    # REMOVE IDENTICAL VALUES（Wilcoxon要求）
-    # ========================================================
-
-    diff = vec_ours - vec_sota
-    mask = diff != 0
-
-    vec_ours = vec_ours[mask]
-    vec_sota = vec_sota[mask]
-
-    if debug:
-        print("After removing ties:", len(vec_ours))
-
-    if len(vec_ours) < 3:
-        raise ValueError("Too many identical values (after filtering ties)")
-
-    # ========================================================
     # STATS
     # ========================================================
 
@@ -193,8 +177,3 @@ def pretty_print(res):
 
     print(f"\np-value: {res['p-value']:.6f}")
     print(f"Significant: {res['Significant']}")
-
-    if res["Ours Better"]:
-        print("\n Ours is better")
-    else:
-        print("\n SOTA is better")

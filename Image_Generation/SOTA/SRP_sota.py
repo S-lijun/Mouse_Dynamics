@@ -39,7 +39,7 @@ def compute_srp(seq, epsilon=0.3):
     coords = seq[:, :2].astype(np.float32)
 
     # --------------------------------------------------
-    # Step 1: 分开写 x, y 的 normalize（用统一 scale）
+    # x,y normalization
     # --------------------------------------------------
     x = coords[:, 0]
     y = coords[:, 1]
@@ -50,19 +50,19 @@ def compute_srp(seq, epsilon=0.3):
     x_range = max_x - min_x
     y_range = max_y - min_y
 
-    # 关键：统一 scale（取较大的 range）
+    # scale
     scale = max(x_range, y_range)
     if scale < 1e-8:
         scale = 1e-8
 
-    # 用同一个 scale 做 min-max
+    # find x_norm y_norm
     x_norm = (x - min_x) / scale
     y_norm = (y - min_y) / scale
 
     coords_norm = np.stack([x_norm, y_norm], axis=1)
 
     # --------------------------------------------------
-    # Step 2: distance
+    # Construct distance matrix
     # --------------------------------------------------
     diff = coords_norm[:, None, :] - coords_norm[None, :, :]
     dist = np.sqrt(np.sum(diff**2, axis=2))   # ∈ [0, √2]
@@ -72,23 +72,23 @@ def compute_srp(seq, epsilon=0.3):
     M = dist.shape[0]
 
     # --------------------------------------------------
-    # Step 3: avg distance
+    # avg distance
     # --------------------------------------------------
     avg = np.sum(dist, axis=1) / (M - 1)
 
     # --------------------------------------------------
-    # Step 4: recurrent points
+    # recurrent points
     # --------------------------------------------------
     recurrent = avg < epsilon
 
     # --------------------------------------------------
-    # Step 5: clip
+    # clip
     # --------------------------------------------------
     #dist_clipped = dist
     dist_clipped = np.minimum(dist, epsilon)
 
     # --------------------------------------------------
-    # Step 6: SRP
+    # SRP
     # --------------------------------------------------
     rp = np.where(
         recurrent[:, None] & recurrent[None, :],
@@ -256,7 +256,8 @@ def process_dataset(dataset, data_root, out_dir, sizes, epsilon):
             for chunk_size in sizes:
 
                 if "train" in data_root.lower():
-                    stride = chunk_size // 4
+                    #stride = chunk_size // 4
+                    stride = chunk_size 
                 else:
                     stride = chunk_size
 
