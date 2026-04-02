@@ -18,8 +18,8 @@ print("[ROOT]", ROOT)
 # Config
 # ============================================================
 
-BASE_CHUNK_SIZE = 150
-BASE_IMG_SIZE = 150
+BASE_CHUNK_SIZE = 300
+BASE_IMG_SIZE = 300
 
 
 # ============================================================
@@ -256,7 +256,7 @@ def process_dataset(dataset, data_root, out_dir, sizes, epsilon):
             for chunk_size in sizes:
 
                 if "train" in data_root.lower():
-                    #stride = chunk_size // 4
+                    stride = chunk_size // 4
                     stride = chunk_size 
                 else:
                     stride = chunk_size
@@ -287,7 +287,7 @@ def main():
     parser.add_argument("--dataset", required=True)
     parser.add_argument("--data_root", required=True)
     parser.add_argument("--out_dir", required=True)
-    parser.add_argument("--sizes", type=int, nargs="+", default=[150])
+    parser.add_argument("--sizes", type=int, nargs="+", default=[300])
     parser.add_argument("--epsilon", type=float, default=1)
 
     args = parser.parse_args()
