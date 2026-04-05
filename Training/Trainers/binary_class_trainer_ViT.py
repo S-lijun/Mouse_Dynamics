@@ -271,9 +271,11 @@ def calculate_eer(y_true, y_scores):
 
 class GHMBCE(nn.Module):
 
-    def __init__(self, delta=0.1):
+    def __init__(self, delta=0.1, pos_weight=1.0):
         super().__init__()
         self.delta = delta
+        pw = torch.as_tensor(pos_weight, dtype=torch.float32).reshape(())
+        self.register_buffer("pos_weight", pw)
 
     def forward(self, logits, targets):
         y = targets.view(-1).float()
@@ -291,8 +293,9 @@ class GHMBCE(nn.Module):
             GD = mask.sum(dim=1) / self.delta
             beta = n / (GD + 1e-12)
 
+        pw = self.pos_weight.to(device=logits.device, dtype=logits.dtype)
         per_elem = nn.functional.binary_cross_entropy_with_logits(
-            logits, y, reduction="none"
+            logits, y, reduction="none", pos_weight=pw
         )
         weighted = (beta * per_elem).mean()
         pure_mean = per_elem.mean()
@@ -317,7 +320,7 @@ class BinaryClassTrainer:
         self.net.to(self.device)
 
         self.pos_weight = torch.tensor([pos_weight], dtype=torch.float).to(self.device)
-
+        print(f"[BinaryClassTrainer] GHMBCE BCE pos_weight={pos_weight} (positive class loss scale)")
 
     def train(
         self,
@@ -329,8 +332,7 @@ class BinaryClassTrainer:
         verbose=True,
     ):
 
-        loss_function = GHMBCE()
-        
+        loss_function = GHMBCE(pos_weight=self.pos_weight.item())
 
         # ====================================================
         # Optimizer
