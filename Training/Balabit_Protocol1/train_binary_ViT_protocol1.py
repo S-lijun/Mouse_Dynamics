@@ -214,7 +214,7 @@ if __name__ == "__main__":
         )
 
         _, best_model, *_ = trainer.train(
-            optim_name="adam",
+            optim_name="adamw",
             num_epochs=100,
             learning_rate=0.0001,
             step_size=30,

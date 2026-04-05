@@ -339,7 +339,7 @@ class BinaryClassTrainer:
         # ====================================================
 
         if optim_name == "adam":
-            optimizer = optim.Adam(self.net.parameters(), lr=learning_rate)
+            optimizer = optim.Adam(self.net.parameters(), lr=learning_rate, weight_decay=0.0001)
 
         elif optim_name == "adamw":
             optimizer = optim.AdamW(self.net.parameters(), lr=learning_rate, weight_decay=0.01)
