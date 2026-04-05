@@ -22,7 +22,6 @@ print("[ROOT]", ROOT)
 BASE_CHUNK_SIZE = 300
 BASE_IMG_SIZE = 300
 
-# ⭐ 全局收集 ratio
 all_ratios = []
 
 # ============================================================
@@ -72,7 +71,7 @@ def compute_srp(seq, epsilon=0.3):
     # ---------------- recurrent ----------------
     recurrent = avg < epsilon
 
-    # ⭐ 计算 ratio
+    # ratio
     ratio = recurrent.mean()
 
     # ---------------- clip ----------------
@@ -93,7 +92,7 @@ def draw_srp(seq, save_path, epsilon):
 
     rp, ratio = compute_srp(seq, epsilon)
 
-    # ⭐ 收集 ratio
+    # ratio
     all_ratios.append(ratio)
 
     img = (rp / epsilon * 255).astype(np.uint8)

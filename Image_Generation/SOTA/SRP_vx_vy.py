@@ -188,7 +188,7 @@ def draw(seq, save_path, epsilon, chunk_size):
     cv2.imwrite(save_path, img)
 
 # ============================================================
-# CLEANING（统一 Move-only）
+# CLEANING（Move-only）
 # ============================================================
 
 def clean_balabit(df):

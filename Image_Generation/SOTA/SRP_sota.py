@@ -18,22 +18,17 @@ print("[ROOT]", ROOT)
 # Config
 # ============================================================
 
-BASE_CHUNK_SIZE = 150
-BASE_IMG_SIZE = 150
 
 
 # ============================================================
 # Dynamic Image Size
 # ============================================================
 
-def get_dynamic_image_size(chunk_size):
-    scale = math.sqrt(chunk_size / BASE_CHUNK_SIZE)
-    return int(round(BASE_IMG_SIZE * scale))
 
 # ============================================================
 # SRP (FINAL VERSION)
 # ============================================================
-
+'''
 def compute_srp(seq, epsilon=0.3):
 
     coords = seq[:, :2].astype(np.float32)
@@ -43,6 +38,7 @@ def compute_srp(seq, epsilon=0.3):
     # --------------------------------------------------
     x = coords[:, 0]
     y = coords[:, 1]
+
 
     min_x, max_x = x.min(), x.max()
     min_y, max_y = y.min(), y.max()
@@ -58,7 +54,7 @@ def compute_srp(seq, epsilon=0.3):
     # find x_norm y_norm
     x_norm = (x - min_x) / scale
     y_norm = (y - min_y) / scale
-
+    
     coords_norm = np.stack([x_norm, y_norm], axis=1)
 
     # --------------------------------------------------
@@ -67,10 +63,11 @@ def compute_srp(seq, epsilon=0.3):
     diff = coords_norm[:, None, :] - coords_norm[None, :, :]
     dist = np.sqrt(np.sum(diff**2, axis=2))   # ∈ [0, √2]
 
-    dist = dist/ np.sqrt(2)
+    dist = (dist - dist.min()) / (dist.max() - dist.min())
 
     M = dist.shape[0]
-
+    
+    
     # --------------------------------------------------
     # avg distance
     # --------------------------------------------------
@@ -95,9 +92,75 @@ def compute_srp(seq, epsilon=0.3):
         dist_clipped,
         epsilon
     ).astype(np.float32)
+    
     #print("recurrent ratio:", recurrent.mean())
+    
+
+    #rp = dist
 
     return rp
+'''
+def compute_srp(seq, epsilon=0.3):
+
+    coords = seq[:, :2].astype(np.float32)
+
+    # --------------------------------------------------
+    # x,y normalization
+    # --------------------------------------------------
+    x = coords[:, 0]
+    y = coords[:, 1]
+
+    
+    coords_norm = np.stack([x, y], axis=1)
+
+    # --------------------------------------------------
+    # Construct distance matrix
+    # --------------------------------------------------
+    diff = coords_norm[:, None, :] - coords_norm[None, :, :]
+    dist = np.sqrt(np.sum(diff**2, axis=2))  
+
+    dist = (dist - dist.min()) / (dist.max() - dist.min())
+
+
+    M = dist.shape[0]
+    #print(dist)
+    
+    
+    # --------------------------------------------------
+    # avg distance
+    # --------------------------------------------------
+
+    sum_dist = np.sum(dist, axis=1) - np.diag(dist)
+    avg = sum_dist / (M - 1)
+
+
+    # --------------------------------------------------
+    # recurrent points
+    # --------------------------------------------------
+    recurrent = avg < epsilon
+
+    # --------------------------------------------------
+    # clip
+    # --------------------------------------------------
+    #dist_clipped = dist
+    dist_clipped = np.minimum(dist, epsilon)
+
+    # --------------------------------------------------
+    # SRP
+    # --------------------------------------------------
+    rp = np.where(
+        recurrent[:, None] & recurrent[None, :],
+        dist_clipped,
+        epsilon
+    ).astype(np.float32)
+    
+    #print("recurrent ratio:", recurrent.mean())
+    
+
+    #rp = dist
+
+    return rp
+
 
 def draw_srp(seq, save_path, epsilon):
 
@@ -108,7 +171,7 @@ def draw_srp(seq, save_path, epsilon):
     #img = (rp * 255).astype(np.uint8)
     #print(img.shape)
 
-    img = (rp / epsilon  * 255).astype(np.uint8)
+    img = (rp / epsilon * 255).astype(np.uint8)
 
     img = img.astype(np.uint8)
 
@@ -143,9 +206,11 @@ def clean_balabit(df):
         "y": "y",
         "state": "state"
     })
+    df = df[df["state"] == "Move"].copy()
 
     for c in ["x", "y", "time"]:
         df[c] = pd.to_numeric(df[c], errors="coerce")
+
 
     df = df.dropna(subset=["x", "y", "time"])
 
@@ -287,7 +352,7 @@ def main():
     parser.add_argument("--dataset", required=True)
     parser.add_argument("--data_root", required=True)
     parser.add_argument("--out_dir", required=True)
-    parser.add_argument("--sizes", type=int, nargs="+", default=[150])
+    parser.add_argument("--sizes", type=int, nargs="+", default=[300])
     parser.add_argument("--epsilon", type=float, default=1)
 
     args = parser.parse_args()

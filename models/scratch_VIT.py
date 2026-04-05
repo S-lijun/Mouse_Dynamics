@@ -5,7 +5,7 @@ import math
 
 
 # ============================================================
-# Linear Patch Embedding (论文公式)
+# Linear Patch Embedding
 # ============================================================
 
 class PatchEmbed(nn.Module):
@@ -36,7 +36,7 @@ class PatchEmbed(nn.Module):
 
 
 # ============================================================
-# Efficient Attention (论文 Section III-E)
+# Efficient Attention 
 # ============================================================
 
 class EfficientAttention(nn.Module):
@@ -80,7 +80,7 @@ class EfficientAttention(nn.Module):
         q = F.softmax(q, dim=-1)   # over feature
         k = F.softmax(k, dim=-2)   # over tokens
 
-        # 👉 关键：scale 放这里
+    
         v = v / math.sqrt(self.head_dim)
 
         kv = torch.einsum("bhnd,bhne->bhde", k, v)   # (B,h,d,d)

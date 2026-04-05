@@ -299,7 +299,6 @@ class GHMBCE(nn.Module):
             # β_i
             beta = n / (GD + 1e-6)
 
-            # normalize（论文说 normalize n，但没说 mean normalize，这里保持稳定）
     
             beta = beta / beta.mean()
 
