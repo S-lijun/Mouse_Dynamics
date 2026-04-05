@@ -162,7 +162,7 @@ def process_dataset(dataset, data_root, out_dir, sizes, epsilon):
     print("\nDataset:", dataset)
     print("Users:", len(users))
 
-    # 🔥 Phase 1：global min/max
+    # Phase 1：global min/max
     gmin, gmax = compute_global_min_max(data_root, sizes[0])
 
     print("\n[Phase 2] Generating SRP...")
