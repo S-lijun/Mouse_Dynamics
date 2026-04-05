@@ -268,45 +268,77 @@ def calculate_eer(y_true, y_scores):
 # GHM BCE
 # ============================================================
 
-class GHMBCE(nn.Module):
 
-    def __init__(self, delta=0.1):
+def _per_sample_param_grad_l2_norm(model, inputs, targets):
+    """
+    g_i = || ∇_θ L_BCE,i ||_2 (L2 over all model parameters). Paper Sec. F.
+    One mini-backward per sample; does not build the full-batch graph.
+    """
+    model.train()
+    y = targets.view(-1).float()
+    b = y.shape[0]
+    dev = y.device
+    norms = []
+
+    for i in range(b):
+        model.zero_grad(set_to_none=True)
+        out = model(inputs[i : i + 1]).squeeze(1)
+        yi = y[i : i + 1].to(out.dtype)
+        li = nn.functional.binary_cross_entropy_with_logits(out, yi, reduction="mean")
+        li.backward()
+        sq = None
+        for p in model.parameters():
+            if p.grad is None:
+                continue
+            s = p.grad.detach().float().pow(2).sum()
+            sq = s if sq is None else sq + s
+        if sq is None:
+            norms.append(torch.zeros((), device=dev, dtype=torch.float32))
+        else:
+            norms.append(torch.sqrt(sq))
+
+    model.zero_grad(set_to_none=True)
+    return torch.stack(norms).to(device=dev, dtype=torch.float32)
+
+
+class GHMBCE(nn.Module):
+    """
+    g_from="param": g_i = ||∇_θ L_BCE,i||_2 (paper).
+    g_from="logit_abs": g_i = |σ(z_i)-y_i| (fast surrogate only).
+    """
+
+    def __init__(self, delta=0.1, g_from="param"):
         super().__init__()
         self.delta = delta
+        if g_from not in ("param", "logit_abs"):
+            raise ValueError('g_from must be "param" or "logit_abs"')
+        self.g_from = g_from
 
-    def forward(self, logits, targets):
+    def forward(self, model, inputs, targets):
+        y = targets.view(-1).float()
 
-        pred = torch.sigmoid(logits)
-        g = torch.abs(pred - targets)   # (B, ...)
+        if self.g_from == "param":
+            g = _per_sample_param_grad_l2_norm(model, inputs, y)
+            logits = model(inputs).squeeze(1)
+        else:
+            logits = model(inputs).squeeze(1)
+            g = torch.abs(torch.sigmoid(logits).detach() - y).float()
 
         n = g.numel()
+        g_flat = g.reshape(-1)
 
         with torch.no_grad():
-
-            g_flat = g.view(-1)
-
-            # pairwise |g_k - g_i|
             diff = torch.abs(g_flat.unsqueeze(0) - g_flat.unsqueeze(1))
+            mask = (diff <= self.delta).to(g_flat.dtype)
+            GD = mask.sum(dim=1) / self.delta
+            beta = n / (GD + 1e-12)
 
-            # δΔ(g_k, g_i)
-            mask = (diff <= self.delta).float()
-
-            # GD(g_i)
-            GD = mask.sum(dim=1) / self.delta   # (N,)
-
-            GD = GD.view_as(g)
-
-            # β_i
-            beta = n / (GD + 1e-6)
-
-    
-            beta = beta / beta.mean()
-
-        loss = nn.functional.binary_cross_entropy_with_logits(
-            logits, targets, reduction="none"
+        per_elem = nn.functional.binary_cross_entropy_with_logits(
+            logits, y, reduction="none"
         )
-
-        return (beta * loss).mean(), loss
+        weighted = (beta.view_as(per_elem) * per_elem).mean()
+        pure_mean = per_elem.mean()
+        return weighted, pure_mean, logits
 
 # ============================================================
 # Trainer
@@ -336,10 +368,11 @@ class BinaryClassTrainer:
         learning_rate=1e-4,
         step_size=5,
         learning_rate_decay=0.1,
-        verbose=True
+        verbose=True,
+        ghm_g_from="param",
     ):
 
-        loss_function = GHMBCE()
+        loss_function = GHMBCE(g_from=ghm_g_from)
         
 
         # ====================================================
@@ -402,17 +435,13 @@ class BinaryClassTrainer:
 
                 optimizer.zero_grad()
 
-                logits = self.net(X).squeeze(dim=1)
-
-                loss, pure_loss = loss_function(logits, y)
-              
+                loss, pure_loss, logits = loss_function(self.net, X, y)
 
                 loss.backward()
 
                 optimizer.step()
 
                 epoch_train_loss += loss.item()
-                
 
                 preds = (torch.sigmoid(logits) >= 0.5).float()
 
@@ -441,11 +470,11 @@ class BinaryClassTrainer:
                     y = y.to(self.device).float()
 
                     logits = self.net(X).squeeze(dim=1)
-
-                    loss, pure_loss = loss_function(logits, y)
-
-                    epoch_val_loss += loss.item()
-                   
+                    # Val: plain BCE (GHM weights need per-sample ∇θ; not used in paper for metrics)
+                    vloss = nn.functional.binary_cross_entropy_with_logits(
+                        logits, y.view(-1).float(), reduction="mean"
+                    )
+                    epoch_val_loss += vloss.item()
 
                     scores.extend(torch.sigmoid(logits).cpu().numpy())
                     labels.extend(y.cpu().numpy())
