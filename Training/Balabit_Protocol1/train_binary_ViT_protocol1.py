@@ -167,7 +167,7 @@ if __name__ == "__main__":
     test_root  = Path(project_root) / "Images" / testing_folder
 
     user_list = sorted([u for u in os.listdir(train_root) if os.path.isdir(train_root / u)])
-    user_list = user_list[::-1]
+    
     print("Detected users:", len(user_list))
 
     
