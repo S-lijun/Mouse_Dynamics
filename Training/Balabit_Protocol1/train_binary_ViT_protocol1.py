@@ -136,9 +136,9 @@ def collect_scores(model, loader, device):
 
             X = X.to(device)
 
-            logits = model(X)
+            logits = model(X).squeeze(-1)
 
-            scores.extend(torch.sigmoid(logits).cpu().numpy())
+            scores.extend(torch.sigmoid(logits).cpu().numpy().ravel().tolist())
             labels.extend(y.numpy())
             sessions.extend(s)
 
@@ -196,6 +196,11 @@ if __name__ == "__main__":
         train_dataset = BinaryMouseDataset(train_root, user, user_list, transform=transform)
         test_dataset  = BinaryMouseDataset(test_root, user, user_list, transform=transform)
 
+        n_pos = sum(1 for lb in train_dataset.labels if lb > 0.5)
+        n_neg = len(train_dataset) - n_pos
+        pos_weight = float(n_neg) / max(n_pos, 1)
+        print(f"[{user}] train samples: pos={n_pos}, neg={n_neg}, BCE pos_weight={pos_weight:.2f}")
+
         train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=16)
         test_loader  = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=16)
 
@@ -204,7 +209,8 @@ if __name__ == "__main__":
         trainer = BinaryClassTrainer(
             net=net,
             train_loader=train_loader,
-            val_loader=test_loader
+            val_loader=test_loader,
+            pos_weight=pos_weight,
         )
 
         _, best_model, *_ = trainer.train(
