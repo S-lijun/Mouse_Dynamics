@@ -265,64 +265,22 @@ def calculate_eer(y_true, y_scores):
 
 
 # ============================================================
-# GHM BCE
+# GHM BCE (fast: g_i = |σ(z_i) − y_i|, one forward per step)
 # ============================================================
 
 
-def _per_sample_param_grad_l2_norm(model, inputs, targets):
-    """
-    g_i = || ∇_θ L_BCE,i ||_2 (L2 over all model parameters). Paper Sec. F.
-    One mini-backward per sample; does not build the full-batch graph.
-    """
-    model.train()
-    y = targets.view(-1).float()
-    b = y.shape[0]
-    dev = y.device
-    norms = []
-
-    for i in range(b):
-        model.zero_grad(set_to_none=True)
-        out = model(inputs[i : i + 1]).squeeze(1)
-        yi = y[i : i + 1].to(out.dtype)
-        li = nn.functional.binary_cross_entropy_with_logits(out, yi, reduction="mean")
-        li.backward()
-        sq = None
-        for p in model.parameters():
-            if p.grad is None:
-                continue
-            s = p.grad.detach().float().pow(2).sum()
-            sq = s if sq is None else sq + s
-        if sq is None:
-            norms.append(torch.zeros((), device=dev, dtype=torch.float32))
-        else:
-            norms.append(torch.sqrt(sq))
-
-    model.zero_grad(set_to_none=True)
-    return torch.stack(norms).to(device=dev, dtype=torch.float32)
-
-
 class GHMBCE(nn.Module):
-    """
-    g_from="param": g_i = ||∇_θ L_BCE,i||_2 (paper).
-    g_from="logit_abs": g_i = |σ(z_i)-y_i| (fast surrogate only).
-    """
 
-    def __init__(self, delta=0.1, g_from="param"):
+    def __init__(self, delta=0.1):
         super().__init__()
         self.delta = delta
-        if g_from not in ("param", "logit_abs"):
-            raise ValueError('g_from must be "param" or "logit_abs"')
-        self.g_from = g_from
 
-    def forward(self, model, inputs, targets):
+    def forward(self, logits, targets):
         y = targets.view(-1).float()
+        logits = logits.view(-1)
 
-        if self.g_from == "param":
-            g = _per_sample_param_grad_l2_norm(model, inputs, y)
-            logits = model(inputs).squeeze(1)
-        else:
-            logits = model(inputs).squeeze(1)
-            g = torch.abs(torch.sigmoid(logits).detach() - y).float()
+        pred = torch.sigmoid(logits)
+        g = torch.abs(pred.detach() - y)
 
         n = g.numel()
         g_flat = g.reshape(-1)
@@ -336,9 +294,9 @@ class GHMBCE(nn.Module):
         per_elem = nn.functional.binary_cross_entropy_with_logits(
             logits, y, reduction="none"
         )
-        weighted = (beta.view_as(per_elem) * per_elem).mean()
+        weighted = (beta * per_elem).mean()
         pure_mean = per_elem.mean()
-        return weighted, pure_mean, logits
+        return weighted, pure_mean
 
 # ============================================================
 # Trainer
@@ -369,10 +327,9 @@ class BinaryClassTrainer:
         step_size=5,
         learning_rate_decay=0.1,
         verbose=True,
-        ghm_g_from="param",
     ):
 
-        loss_function = GHMBCE(g_from=ghm_g_from)
+        loss_function = GHMBCE()
         
 
         # ====================================================
@@ -435,7 +392,8 @@ class BinaryClassTrainer:
 
                 optimizer.zero_grad()
 
-                loss, pure_loss, logits = loss_function(self.net, X, y)
+                logits = self.net(X).squeeze(dim=1)
+                loss, _ = loss_function(logits, y)
 
                 loss.backward()
 
@@ -470,10 +428,7 @@ class BinaryClassTrainer:
                     y = y.to(self.device).float()
 
                     logits = self.net(X).squeeze(dim=1)
-                    # Val: plain BCE (GHM weights need per-sample ∇θ; not used in paper for metrics)
-                    vloss = nn.functional.binary_cross_entropy_with_logits(
-                        logits, y.view(-1).float(), reduction="mean"
-                    )
+                    vloss, _ = loss_function(logits, y)
                     epoch_val_loss += vloss.item()
 
                     scores.extend(torch.sigmoid(logits).cpu().numpy())
