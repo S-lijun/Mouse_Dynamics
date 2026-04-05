@@ -158,8 +158,8 @@ if __name__ == "__main__":
     #training_folder = input("Enter training folder: ").strip()
     #testing_folder = input("Enter testing folder: ").strip()
 
-    training_folder = "Balabit/SRP_sota/event300"
-    testing_folder = "Balabit/SRP_sota_protocol1/event300"
+    training_folder = "Balabit/SRP_sota_0.3/event300"
+    testing_folder = "Balabit/SRP_sota_0.3_protocol1/event300"
 
     img_size = 300
 
