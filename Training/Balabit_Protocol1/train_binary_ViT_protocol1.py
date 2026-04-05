@@ -155,11 +155,10 @@ if __name__ == "__main__":
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    #training_folder = input("Enter training folder: ").strip()
-    #testing_folder = input("Enter testing folder: ").strip()
+    training_folder = input("Enter training folder: ").strip()
+    testing_folder = input("Enter testing folder: ").strip()
 
-    training_folder = "Balabit/SRP_sota_0.3/event300"
-    testing_folder = "Balabit/SRP_sota_0.3_protocol1/event300"
+
 
     img_size = 300
 
