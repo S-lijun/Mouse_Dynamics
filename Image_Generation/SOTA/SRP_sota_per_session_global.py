@@ -74,7 +74,8 @@ def generate_windows(events, chunk_size, stride):
 
 def stride_for_split(chunk_size, data_root):
     if "train" in data_root.lower():
-        return chunk_size // 4
+        #return chunk_size // 4
+        return chunk_size
     return chunk_size
 
 
