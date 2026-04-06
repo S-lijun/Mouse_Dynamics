@@ -344,7 +344,15 @@ class BinaryClassTrainer:
         # ====================================================
 
         if optim_name == "adam":
-            optimizer = optim.Adam(self.net.parameters(), lr=learning_rate)
+            # Align with tf.keras.optimizers.Adam defaults: lr=0.001, beta1=0.9, beta2=0.999, eps=1e-7, no WD.
+            # PyTorch default eps is 1e-8; TF/Keras uses 1e-7.
+            optimizer = optim.Adam(
+                self.net.parameters(),
+                lr=learning_rate,
+                betas=(0.9, 0.999),
+                eps=1e-7,
+                weight_decay=0.0,
+            )
 
         elif optim_name == "adamw":
             optimizer = optim.AdamW(self.net.parameters(), lr=learning_rate, weight_decay=0.01)
