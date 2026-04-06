@@ -149,7 +149,8 @@ def collect_scores(model, loader, device):
 # ======================================================
 # True: 按类别逆频率采样，使每个 batch 里期望上正负更接近 1:1（仍带随机，非严格固定比例）。
 # 与 pos_weight 同时用可能略“过强调正类”，若 loss 炸或极不稳定可改 False 或把 pos_weight 改为 1.0 试消融。
-USE_BALANCED_TRAIN_SAMPLER = True
+USE_BALANCED_TRAIN_SAMPLER = False
+
 
 
 # ======================================================
