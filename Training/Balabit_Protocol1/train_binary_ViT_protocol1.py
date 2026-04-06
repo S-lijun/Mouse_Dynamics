@@ -233,7 +233,7 @@ if __name__ == "__main__":
 
         test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=16)
 
-        net = BinaryViT(img_size=img_size, patch_size=15, in_chans=1).to(device)
+        net = BinaryViT(img_size=img_size, patch_size=5, in_chans=1).to(device)
 
         trainer = BinaryClassTrainer(
             net=net,
