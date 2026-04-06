@@ -329,8 +329,13 @@ class BinaryClassTrainer:
         learning_rate=1e-4,
         step_size=5,
         learning_rate_decay=0.1,
+        lr_milestones=None,
         verbose=True,
     ):
+        """
+        lr_milestones: e.g. [60, 80] to match paper (multiply lr by gamma at those epochs).
+        If None, uses StepLR every step_size epochs.
+        """
 
         loss_function = GHMBCE(pos_weight=self.pos_weight.item())
 
@@ -339,7 +344,7 @@ class BinaryClassTrainer:
         # ====================================================
 
         if optim_name == "adam":
-            optimizer = optim.Adam(self.net.parameters(), lr=learning_rate, weight_decay=0.0001)
+            optimizer = optim.Adam(self.net.parameters(), lr=learning_rate, weight_decay=0.001)
 
         elif optim_name == "adamw":
             optimizer = optim.AdamW(self.net.parameters(), lr=learning_rate, weight_decay=0.01)
@@ -351,11 +356,18 @@ class BinaryClassTrainer:
             raise ValueError("Unsupported optimizer")
 
 
-        scheduler = torch.optim.lr_scheduler.StepLR(
-            optimizer,
-            step_size=step_size,
-            gamma=learning_rate_decay
-        )
+        if lr_milestones is not None:
+            scheduler = torch.optim.lr_scheduler.MultiStepLR(
+                optimizer,
+                milestones=list(lr_milestones),
+                gamma=learning_rate_decay,
+            )
+        else:
+            scheduler = torch.optim.lr_scheduler.StepLR(
+                optimizer,
+                step_size=step_size,
+                gamma=learning_rate_decay,
+            )
 
         # ====================================================
         # Early stopping
