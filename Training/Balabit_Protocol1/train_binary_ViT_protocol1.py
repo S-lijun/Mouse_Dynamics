@@ -246,7 +246,7 @@ if __name__ == "__main__":
         _, best_model, *_ = trainer.train(
             optim_name="adam",
             num_epochs=100,
-            learning_rate=0.0001,
+            learning_rate=0.001,
             lr_milestones=[60, 80],
             learning_rate_decay=0.1,
             verbose=True,
