@@ -320,7 +320,7 @@ class BinaryClassTrainer:
         self.net.to(self.device)
 
         self.pos_weight = torch.tensor([pos_weight], dtype=torch.float).to(self.device)
-        print(f"[BinaryClassTrainer] GHMBCE BCE pos_weight={pos_weight} (positive class loss scale)")
+        print(f"[BinaryClassTrainer] pos_weight={pos_weight} (for BCE positive class)")
 
     def train(
         self,
@@ -330,14 +330,30 @@ class BinaryClassTrainer:
         step_size=5,
         learning_rate_decay=0.1,
         lr_milestones=None,
+        loss_type="ghm",
         verbose=True,
     ):
         """
         lr_milestones: e.g. [60, 80] to match paper (multiply lr by gamma at those epochs).
         If None, uses StepLR every step_size epochs.
+        loss_type: "ghm" (paper-style density weighting) or "bce" (plain BCEWithLogits + pos_weight).
         """
 
-        loss_function = GHMBCE(pos_weight=self.pos_weight.item())
+        if loss_type == "ghm":
+            loss_function = GHMBCE(pos_weight=self.pos_weight.item())
+        elif loss_type == "bce":
+            bce = nn.BCEWithLogitsLoss(pos_weight=self.pos_weight)
+
+            def loss_function(logits, targets):
+                y = targets.view(-1).float()
+                z = logits.view(-1)
+                loss = bce(z, y)
+                return loss, loss
+
+        else:
+            raise ValueError('loss_type must be "ghm" or "bce"')
+
+        print(f"[BinaryClassTrainer] loss_type={loss_type}")
 
         # ====================================================
         # Optimizer

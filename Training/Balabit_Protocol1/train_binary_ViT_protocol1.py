@@ -151,6 +151,9 @@ def collect_scores(model, loader, device):
 # 与 pos_weight 同时用可能略“过强调正类”，若 loss 炸或极不稳定可改 False 或把 pos_weight 改为 1.0 试消融。
 USE_BALANCED_TRAIN_SAMPLER = False
 
+# "bce" = plain BCEWithLogits + pos_weight (same signal as typical CNN training).
+# "ghm" = density-weighted loss from paper; if ViT EER is far worse than MultiCNN on same images, try "bce".
+VIT_LOSS_TYPE = "bce"
 
 
 # ======================================================
@@ -250,6 +253,7 @@ if __name__ == "__main__":
             learning_rate=0.0001,
             lr_milestones=[60, 80],
             learning_rate_decay=0.1,
+            loss_type=VIT_LOSS_TYPE,
             verbose=True,
         )
 
