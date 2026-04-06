@@ -155,6 +155,9 @@ USE_BALANCED_TRAIN_SAMPLER = False
 # "ghm" = density-weighted loss from paper; if ViT EER is far worse than MultiCNN on same images, try "bce".
 VIT_LOSS_TYPE = "bce"
 
+# Dropout in ViT blocks (attention + MLP). 0.0 = off (paper-style); try 0.1–0.2 if train/val gap is large.
+VIT_DROPOUT = 0.1
+
 
 # ======================================================
 # Main
@@ -237,7 +240,9 @@ if __name__ == "__main__":
 
         test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=16)
 
-        net = BinaryViT(img_size=img_size, patch_size=15, in_chans=1).to(device)
+        net = BinaryViT(
+            img_size=img_size, patch_size=15, in_chans=1, dropout=VIT_DROPOUT
+        ).to(device)
 
         trainer = BinaryClassTrainer(
             net=net,
@@ -248,9 +253,9 @@ if __name__ == "__main__":
 
         # Paper: Adam lr=0.001; decay ×0.1 at epochs 60 and 80 only (not every 30 epochs).
         _, best_model, *_ = trainer.train(
-            optim_name="adamw",
+            optim_name="adam",
             num_epochs=100,
-            learning_rate=0.0001,
+            learning_rate=0.001,
             lr_milestones=[60, 80],
             learning_rate_decay=0.1,
             loss_type=VIT_LOSS_TYPE,

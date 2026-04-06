@@ -97,27 +97,30 @@ class EfficientAttention(nn.Module):
 
 class TransformerBlock(nn.Module):
 
-    def __init__(self, dim=225, num_heads=3, mlp_ratio=512/225):
+    def __init__(self, dim=225, num_heads=3, mlp_ratio=512/225, dropout=0.0):
 
         super().__init__()
 
         self.norm1 = nn.LayerNorm(dim)
         self.attn = EfficientAttention(dim,num_heads = num_heads)
+        self.drop_attn = nn.Dropout(dropout)
 
         self.norm2 = nn.LayerNorm(dim)
 
         hidden = int(dim * mlp_ratio)
 
         self.mlp = nn.Sequential(
-            nn.Linear(dim,hidden),
+            nn.Linear(dim, hidden),
             nn.GELU(),
-            nn.Linear(hidden,dim)
+            nn.Dropout(dropout),
+            nn.Linear(hidden, dim),
         )
+        self.drop_mlp = nn.Dropout(dropout)
 
-    def forward(self,x):
+    def forward(self, x):
 
-        x = x + self.attn(self.norm1(x))
-        x = x + self.mlp(self.norm2(x))
+        x = x + self.drop_attn(self.attn(self.norm1(x)))
+        x = x + self.drop_mlp(self.mlp(self.norm2(x)))
 
         return x
 
@@ -136,14 +139,19 @@ class BinaryViT(nn.Module):
                  embed_dim=225,
                  depth=3,
                  num_heads=3,
-                 mlp_ratio=512/225):
+                 mlp_ratio=512/225,
+                 dropout=0.0):
+        """
+        dropout: applied on attention output and inside MLP (after GELU). Use e.g. 0.1 to reduce overfitting.
+        Default 0.0 matches a no-dropout setup (paper does not state dropout).
+        """
 
         super().__init__()
 
         self.patch_embed = PatchEmbed(img_size,patch_size,in_chans,embed_dim)
 
         self.blocks = nn.ModuleList([
-            TransformerBlock(embed_dim,num_heads, mlp_ratio=mlp_ratio)
+            TransformerBlock(embed_dim, num_heads, mlp_ratio=mlp_ratio, dropout=dropout)
             for _ in range(depth)
         ])
 
