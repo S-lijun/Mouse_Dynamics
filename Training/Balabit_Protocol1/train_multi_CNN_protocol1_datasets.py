@@ -188,7 +188,6 @@ def run_single_experiment(dataset_cfg):
     # ================= Transform =================
 
     transform = transforms.Compose([
-        transforms.Resize((224, 224)),
         transforms.ToTensor()
     ])
 
@@ -199,12 +198,12 @@ def run_single_experiment(dataset_cfg):
 
     # ================= Loader =================
 
-    train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=2)
-    test_loader  = DataLoader(test_dataset, batch_size=128, shuffle=False, num_workers=2)
+    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=4)
+    test_loader  = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=4)
 
     # ================= Model =================
 
-    net = insiderThreatCNN(num_users=num_users, image_size=224).to(device)
+    net = insiderThreatCNN(num_users=num_users, image_size=150).to(device)
 
     trainer = MultiLabelTrainer(
         net=net,
@@ -308,19 +307,19 @@ if __name__ == "__main__":
 
     DATASETS = [
         {
-            "name": "ARP_velocity",
-            "train": "Balabit/ARP_velocity/event150",
-            "test": "Balabit/ARP_velocity_protocol1/event150"
+            "name": "SRP_sota1",
+            "train": "Balabit/1/SRP_sota/event150",
+            "test": "Balabit/1/SRP_sota_protocol1/event150"
         },
         {
-            "name": "ARP_ax_ay",
-            "train": "Balabit/ARP_ax_ay/event150",
-            "test": "Balabit/ARP_ax_ay_protocol1/event150"
+            "name": "SRP_sota0.3",
+            "train": "Balabit/0.3/SRP_sota/event150",
+            "test": "Balabit/0.3/SRP_sota_protocol1/event150"
         },
         {
-            "name": "ARP_acceleration",
-            "train": "Balabit/ARP_acceleration/event150",
-            "test": "Balabit/ARP_acceleration_protocol1/event150"
+            "name": "SRP_sota0.2",
+            "train": "Balabit/0.2/SRP_sota/event150",
+            "test": "Balabit/0.2/SRP_sota_protocol1/event150"
         }
     ] 
 
