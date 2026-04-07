@@ -20,21 +20,6 @@ def compare_models(model1, model2):
     return all(torch.equal(p1, p2) for p1, p2 in zip(model1.state_dict().values(), model2.state_dict().values()))
 
 # ------------------ EER calculation ------------------ #
-'''
-def calculate_eer(y_true, y_scores):
-    fpr, tpr, thresholds = roc_curve(y_true, y_scores)
-    auc = roc_auc_score(y_true, y_scores)
-
-    try:
-        eer = brentq(lambda x: 1. - x - interp1d(fpr, tpr)(x), 0., 1.)
-        eer_threshold = thresholds[np.nanargmin(np.absolute((1 - tpr) - fpr))]
-    except (ValueError, RuntimeError):
-        eer, eer_threshold = 0.5, 0.5
-
-    eer = min(eer, 1.0 - eer)
-    auc = max(auc, 1.0 - auc)
-    return eer, auc, eer_threshold
-'''
 
 def calculate_eer(y_true, y_scores):
 
