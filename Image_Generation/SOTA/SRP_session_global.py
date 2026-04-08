@@ -130,12 +130,13 @@ def compute_srp(seq, epsilon, gmin, gmax):
     sum_dist = np.sum(dist, axis=1) - np.diag(dist)
     avg = sum_dist / (M - 1)
 
-    recurrent = avg < epsilon
+    recurrent = avg <= epsilon
 
     dist_clipped = np.minimum(dist, epsilon)
+    #dist_clipped = dist
 
     rp = np.where(
-        recurrent[:, None] & recurrent[None, :],
+        recurrent[:, None] | recurrent[None, :],
         dist_clipped,
         epsilon
     ).astype(np.float32)
@@ -146,7 +147,7 @@ def draw_srp(seq, save_path, epsilon, gmin, gmax):
 
     rp = compute_srp(seq, epsilon, gmin, gmax)
 
-    img = (rp / epsilon * 255).astype(np.uint8)
+    img = (rp * 255).astype(np.uint8)
 
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     cv2.imwrite(save_path, img)
