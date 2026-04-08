@@ -258,7 +258,6 @@ if __name__ == "__main__":
             learning_rate=0.001,
             lr_milestones=[60, 80],
             learning_rate_decay=0.1,
-            loss_type=VIT_LOSS_TYPE,
             verbose=True,
         )
 
