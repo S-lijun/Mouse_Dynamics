@@ -121,7 +121,7 @@ def compute_srp(seq, epsilon, gmin, gmax):
     diff = coords[:, None, :] - coords[None, :, :]
     dist = np.sqrt(np.sum(diff**2, axis=2))
 
-    # 🔥 GLOBAL normalization
+    # GLOBAL normalization
     dist = (dist - gmin) / (gmax - gmin + 1e-8)
 
     M = dist.shape[0]

@@ -109,19 +109,22 @@ def compute_session_min_max(events, chunk_size, data_root):
 
 
 def clean_balabit(df):
+
     df = df.rename(columns={
         "client timestamp": "time",
         "x": "x",
         "y": "y",
         "state": "state"
     })
-    
+
+    df = df[df["state"] == "Move"].copy()
+
     for c in ["x", "y", "time"]:
         df[c] = pd.to_numeric(df[c], errors="coerce")
-    
-    df = df.dropna(subset=["x", "y", "time"])
-    return df
 
+    df = df[(df["x"] < 1e4) & (df["y"] < 1e4)]
+
+    return df.dropna(subset=["x", "y", "time"])
 
 def clean_chaoshen(df):
     df = df.rename(columns={
