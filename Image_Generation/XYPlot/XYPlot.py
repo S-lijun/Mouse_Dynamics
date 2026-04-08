@@ -18,8 +18,8 @@ print("[ROOT]", ROOT)
 # Global Drawing Config
 # ============================================================
 
-BASE_EVENT = 150
-BASE_IMG_SIZE = 224
+BASE_EVENT = 300
+BASE_IMG_SIZE = 300
 BASE_LINEWIDTH = 1
 BASE_MARKERSIZE = 1
 
@@ -275,7 +275,7 @@ def main():
     parser.add_argument("--sizes",
                         type=int,
                         nargs="+",
-                        default=[150])
+                        default=[300])
 
     args = parser.parse_args()
 
