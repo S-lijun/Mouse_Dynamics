@@ -38,7 +38,7 @@ def compute_srp(seq, epsilon, gmin, gmax):
     sum_dist = np.sum(dist, axis=1) - np.diag(dist)
     avg = sum_dist / (M - 1)
 
-    recurrent = avg < epsilon
+    recurrent = avg <= epsilon
 
     dist_clipped = np.minimum(dist, epsilon)
 
@@ -115,10 +115,10 @@ def clean_balabit(df):
         "y": "y",
         "state": "state"
     })
-    df = df[df["state"] == "Move"].copy()
+    
     for c in ["x", "y", "time"]:
         df[c] = pd.to_numeric(df[c], errors="coerce")
-    df = df[(df["x"] < 1e4) & (df["y"] < 1e4)]
+    
     df = df.dropna(subset=["x", "y", "time"])
     return df
 
