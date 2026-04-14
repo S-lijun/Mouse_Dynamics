@@ -332,7 +332,7 @@ class BinaryClassTrainer:
         learning_rate_decay=0.1,
         lr_milestones=None,
         loss_type="ghm",
-        ghm_delta=0.01,
+        ghm_delta=0.1,
         verbose=True,
     ):
         """
