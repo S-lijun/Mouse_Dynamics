@@ -271,7 +271,7 @@ def calculate_eer(y_true, y_scores):
 
 class GHMBCE(nn.Module):
 
-    def __init__(self, delta=0.1, pos_weight=1.0):
+    def __init__(self, delta=0.8, pos_weight=1.0):
         super().__init__()
         self.delta = delta
         pw = torch.as_tensor(pos_weight, dtype=torch.float32).reshape(())
