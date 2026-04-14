@@ -265,17 +265,19 @@ def calculate_eer(y_true, y_scores):
 
 
 # ============================================================
-# GHM BCE (fast: g_i = |σ(z_i) − y_i|, one forward per step)
+# GHM-C (paper Eq. 18–21): L_GHM = (1/n) Σ_i β_i L_BCE(ŷ_i, y_i)
+#   g_i = |∂L_BCE/∂z_i| = |σ(z_i) − y_i| for binary CE with sigmoid
+#   GD(g) = (1/Δ) Σ_k δ_Δ(g_k, g),  δ_Δ(g_k,g)=1 iff |g_k−g|≤Δ
+#   β_i = n / GD(g_i)
+# L_BCE 为式 (17) 标准 CE，不含 class pos_weight（与 BCE 分支区分）
 # ============================================================
 
 
 class GHMBCE(nn.Module):
 
-    def __init__(self, delta=0.8, pos_weight=1.0):
+    def __init__(self, delta=0.1):
         super().__init__()
-        self.delta = delta
-        pw = torch.as_tensor(pos_weight, dtype=torch.float32).reshape(())
-        self.register_buffer("pos_weight", pw)
+        self.delta = float(delta)
 
     def forward(self, logits, targets):
         y = targets.view(-1).float()
@@ -293,9 +295,8 @@ class GHMBCE(nn.Module):
             GD = mask.sum(dim=1) / self.delta
             beta = n / (GD + 1e-12)
 
-        pw = self.pos_weight.to(device=logits.device, dtype=logits.dtype)
         per_elem = nn.functional.binary_cross_entropy_with_logits(
-            logits, y, reduction="none", pos_weight=pw
+            logits, y, reduction="none"
         )
         weighted = (beta * per_elem).mean()
         pure_mean = per_elem.mean()
@@ -331,16 +332,18 @@ class BinaryClassTrainer:
         learning_rate_decay=0.1,
         lr_milestones=None,
         loss_type="ghm",
+        ghm_delta=0.1,
         verbose=True,
     ):
         """
         lr_milestones: e.g. [60, 80] to match paper (multiply lr by gamma at those epochs).
         If None, uses StepLR every step_size epochs.
-        loss_type: "ghm" (paper-style density weighting) or "bce" (plain BCEWithLogits + pos_weight).
+        loss_type: "ghm" (paper Eq. 18–21, L_BCE 无 pos_weight) or "bce" (BCEWithLogits + pos_weight).
+        ghm_delta: 论文中的 Δ（梯度密度带宽）；默认 0.1 与常见 10-bin 尺度同量级，可按实验节调整。
         """
 
         if loss_type == "ghm":
-            loss_function = GHMBCE(pos_weight=self.pos_weight.item())
+            loss_function = GHMBCE(delta=ghm_delta)
         elif loss_type == "bce":
             bce = nn.BCEWithLogitsLoss(pos_weight=self.pos_weight)
 
@@ -353,7 +356,10 @@ class BinaryClassTrainer:
         else:
             raise ValueError('loss_type must be "ghm" or "bce"')
 
-        print(f"[BinaryClassTrainer] loss_type={loss_type}")
+        if loss_type == "ghm":
+            print(f"[BinaryClassTrainer] loss_type={loss_type}, ghm_delta (Δ)={ghm_delta}")
+        else:
+            print(f"[BinaryClassTrainer] loss_type={loss_type}")
 
         # ====================================================
         # Optimizer
