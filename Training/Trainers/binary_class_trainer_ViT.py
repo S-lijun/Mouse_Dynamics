@@ -275,7 +275,7 @@ def calculate_eer(y_true, y_scores):
 
 class GHMBCE(nn.Module):
 
-    def __init__(self, delta=0.1):
+    def __init__(self, delta=0.01):
         super().__init__()
         self.delta = float(delta)
 
