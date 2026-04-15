@@ -181,7 +181,8 @@ if __name__ == "__main__":
     test_root  = Path(project_root) / "Images" / testing_folder
 
     user_list = sorted([u for u in os.listdir(train_root) if os.path.isdir(train_root / u)])
-    user_list = user_list[::-1]
+
+
     print("Detected users:", len(user_list))
 
     
@@ -253,9 +254,9 @@ if __name__ == "__main__":
 
         # Paper: Adam lr=0.001; decay ×0.1 at epochs 60 and 80 only (not every 30 epochs).
         _, best_model, *_ = trainer.train(
-            optim_name="adamw",
+            optim_name="adam",
             num_epochs=100,
-            learning_rate=0.0001,
+            learning_rate=0.001,
             lr_milestones=[60, 80],
             learning_rate_decay=0.1,
             loss_type="ghm",
