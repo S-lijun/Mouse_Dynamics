@@ -235,10 +235,10 @@ if __name__ == "__main__":
             print(f"[{user}] train: WeightedRandomSampler (balanced-ish batches)")
         else:
             train_loader = DataLoader(
-                train_dataset, batch_size=64, shuffle=False, num_workers=16
+                train_dataset, batch_size=64, shuffle=True, num_workers=16
             )
 
-        test_loader = DataLoader(test_dataset, batch_size=64, shuffle=True, num_workers=16)
+        test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=16)
 
         net = BinaryViT(
             img_size=img_size, patch_size=15, in_chans=1, dropout=VIT_DROPOUT
