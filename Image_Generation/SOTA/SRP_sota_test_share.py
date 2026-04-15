@@ -21,7 +21,7 @@ def clean_balabit(df, gmin_x, gmax_x, gmin_y, gmax_y):
         "state": "state"
     })
 
-    df = df[(df["x"] < 65535) & (df["y"] < 65535)]
+    df = df[(df["x"] < 65536) & (df["y"] < 65536)]
     df = df.drop_duplicates()
 
     x_range = max(gmax_x - gmin_x, 1e-8)
@@ -82,7 +82,7 @@ def compute_global_min_max(data_root):
 
             df = pd.read_csv(path)
             # Disregard extreme outliers (logger bug, 16 bit INTMAX)
-            df = df[(df["x"] < 65535) & (df["y"] < 65535)]
+            df = df[(df["x"] < 65536) & (df["y"] < 65536)]
             if df.empty:
                 continue
 
