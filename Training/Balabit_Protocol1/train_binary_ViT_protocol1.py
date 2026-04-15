@@ -235,13 +235,13 @@ if __name__ == "__main__":
             print(f"[{user}] train: WeightedRandomSampler (balanced-ish batches)")
         else:
             train_loader = DataLoader(
-                train_dataset, batch_size=64, shuffle=True, num_workers=16
+                train_dataset, batch_size=64, shuffle=False, num_workers=16
             )
 
         test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=16)
 
         net = BinaryViT(
-            img_size=img_size, patch_size=5, in_chans=1, dropout=VIT_DROPOUT
+            img_size=img_size, patch_size=15, in_chans=1, dropout=VIT_DROPOUT
         ).to(device)
 
         trainer = BinaryClassTrainer(
@@ -253,9 +253,9 @@ if __name__ == "__main__":
 
         # Paper: Adam lr=0.001; decay ×0.1 at epochs 60 and 80 only (not every 30 epochs).
         _, best_model, *_ = trainer.train(
-            optim_name="adamw",
+            optim_name="adam",
             num_epochs=100,
-            learning_rate=0.0001,
+            learning_rate=0.001,
             lr_milestones=[60, 80],
             learning_rate_decay=0.1,
             verbose=True,
