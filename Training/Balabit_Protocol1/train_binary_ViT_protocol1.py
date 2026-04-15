@@ -181,7 +181,7 @@ if __name__ == "__main__":
     test_root  = Path(project_root) / "Images" / testing_folder
 
     user_list = sorted([u for u in os.listdir(train_root) if os.path.isdir(train_root / u)])
-    
+    user_list = user_list[::-1]
     print("Detected users:", len(user_list))
 
     
@@ -229,16 +229,16 @@ if __name__ == "__main__":
                 train_dataset,
                 batch_size=64,
                 sampler=sampler,
-                shuffle=False,
+                shuffle=True,
                 num_workers=16,
             )
             print(f"[{user}] train: WeightedRandomSampler (balanced-ish batches)")
         else:
             train_loader = DataLoader(
-                train_dataset, batch_size=128, shuffle=True, num_workers=16
+                train_dataset, batch_size=64, shuffle=True, num_workers=16
             )
 
-        test_loader = DataLoader(test_dataset, batch_size=128, shuffle=False, num_workers=16)
+        test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=16)
 
         net = BinaryViT(
             img_size=img_size, patch_size=15, in_chans=1, dropout=VIT_DROPOUT
@@ -258,6 +258,7 @@ if __name__ == "__main__":
             learning_rate=0.0001,
             lr_milestones=[60, 80],
             learning_rate_decay=0.1,
+            loss_type="ghm",
             verbose=True,
         )
 

@@ -21,7 +21,7 @@ def clean_balabit(df, gmin_x, gmax_x, gmin_y, gmax_y):
         "state": "state"
     })
 
-    df = df[(df["x"] < 65536) & (df["y"] < 65536)]
+    df = df[(df["x"] < 65535) & (df["y"] < 65535)]
     df = df.drop_duplicates()
     
     x_range = gmax_x - gmin_x
@@ -88,7 +88,7 @@ def compute_global_min_max(data_root, chunk_size):
             df = pd.read_csv(path)
 
             # Disregard extreme outliers (logger bug, 16 bit INTMAX)
-            df = df[(df["x"] < 65536) & (df["y"] < 65536)]
+            df = df[(df["x"] < 65535) & (df["y"] < 65535)]
 
             sess_min_x = np.min(df['x'])
             sess_max_x = np.max(df['x'])
@@ -126,11 +126,11 @@ def compute_srp(seq, epsilon):
 
     # recurrent points mask
     recurrent = avg_dist < epsilon
-    print(recurrent)
+    #print(recurrent)
     
     # keep distances only if BOTH points are recurrent
     mask = recurrent[:, None] & recurrent[None, :]
-    print(mask)
+    #print(mask)
     
     # recurrence matrix
     rp = np.where(mask, dist, epsilon)

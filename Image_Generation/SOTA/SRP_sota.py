@@ -5,348 +5,165 @@ import argparse
 import pandas as pd
 import numpy as np
 import cv2
-import math
-
-# ============================================================
-# ROOT
-# ============================================================
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-print("[ROOT]", ROOT)
-
-# ============================================================
-# Config
-# ============================================================
 
 
-
-# ============================================================
-# Dynamic Image Size
-# ============================================================
-
-
-# ============================================================
-# SRP (FINAL VERSION)
-# ============================================================
 '''
-def compute_srp(seq, epsilon=0.3):
-
-    coords = seq[:, :2].astype(np.float32)
-
-    # --------------------------------------------------
-    # x,y normalization
-    # --------------------------------------------------
-    x = coords[:, 0]
-    y = coords[:, 1]
-
-
-    min_x, max_x = x.min(), x.max()
-    min_y, max_y = y.min(), y.max()
-
-    x_range = max_x - min_x
-    y_range = max_y - min_y
-
-    # scale
-    scale = max(x_range, y_range)
-    if scale < 1e-8:
-        scale = 1e-8
-
-    # find x_norm y_norm
-    x_norm = (x - min_x) / scale
-    y_norm = (y - min_y) / scale
-    
-    coords_norm = np.stack([x_norm, y_norm], axis=1)
-
-    # --------------------------------------------------
-    # Construct distance matrix
-    # --------------------------------------------------
-    diff = coords_norm[:, None, :] - coords_norm[None, :, :]
-    dist = np.sqrt(np.sum(diff**2, axis=2))   # ∈ [0, √2]
-
-    dist = (dist - dist.min()) / (dist.max() - dist.min())
-
-    M = dist.shape[0]
-    
-    
-    # --------------------------------------------------
-    # avg distance
-    # --------------------------------------------------
-    avg = np.sum(dist, axis=1) / (M - 1)
-
-    # --------------------------------------------------
-    # recurrent points
-    # --------------------------------------------------
-    recurrent = avg < epsilon
-
-    # --------------------------------------------------
-    # clip
-    # --------------------------------------------------
-    #dist_clipped = dist
-    dist_clipped = np.minimum(dist, epsilon)
-
-    # --------------------------------------------------
-    # SRP
-    # --------------------------------------------------
-    rp = np.where(
-        recurrent[:, None] & recurrent[None, :],
-        dist_clipped,
-        epsilon
-    ).astype(np.float32)
-    
-    #print("recurrent ratio:", recurrent.mean())
-    
-
-    #rp = dist
-
-    return rp
+Clean up Balabit dataset
 '''
-def compute_srp(seq, epsilon=0.3):
-
-    coords = seq[:, :2].astype(np.float32)
-
-    # --------------------------------------------------
-    # x,y normalization
-    # --------------------------------------------------
-    x = coords[:, 0]
-    y = coords[:, 1]
-
-    
-    coords_norm = np.stack([x, y], axis=1)
-
-    # --------------------------------------------------
-    # Construct distance matrix
-    # --------------------------------------------------
-    diff = coords_norm[:, None, :] - coords_norm[None, :, :]
-    dist = np.sqrt(np.sum(diff**2, axis=2))  
-
-    dist = (dist - dist.min()) / (dist.max() - dist.min())
-
-
-    M = dist.shape[0]
-    #print(dist)
-    
-    
-    # --------------------------------------------------
-    # avg distance
-    # --------------------------------------------------
-
-    sum_dist = np.sum(dist, axis=1) - np.diag(dist)
-    avg = sum_dist / (M - 1)
-
-
-    # --------------------------------------------------
-    # recurrent points
-    # --------------------------------------------------
-    recurrent = avg < epsilon
-
-    # --------------------------------------------------
-    # clip
-    # --------------------------------------------------
-    #dist_clipped = dist
-    dist_clipped = np.minimum(dist, epsilon)
-
-    # --------------------------------------------------
-    # SRP
-    # --------------------------------------------------
-    rp = np.where(
-        recurrent[:, None] & recurrent[None, :],
-        dist_clipped,
-        epsilon
-    ).astype(np.float32)
-    
-    #print("recurrent ratio:", recurrent.mean())
-    
-
-    #rp = dist
-
-    return rp
-
-
-def draw_srp(seq, save_path, epsilon):
-
-    rp = compute_srp(seq, epsilon)
-
-    # --------------------------------------------------
-    # --------------------------------------------------
-    #img = (rp * 255).astype(np.uint8)
-    #print(img.shape)
-
-    img = (rp / epsilon * 255).astype(np.uint8)
-
-    img = img.astype(np.uint8)
-
-    os.makedirs(os.path.dirname(save_path), exist_ok=True)
-    cv2.imwrite(save_path, img)
-
-# ============================================================
-# Sliding Window
-# ============================================================
-
-def generate_windows(events, chunk_size, stride):
-
-    windows = []
-
-    if len(events) < chunk_size:
-        return windows
-
-    for start in range(0, len(events) - chunk_size + 1, stride):
-        windows.append(events[start:start + chunk_size])
-
-    return windows
-
-# ============================================================
-# Cleaning
-# ============================================================
-
 def clean_balabit(df):
-
     df = df.rename(columns={
         "client timestamp": "time",
         "x": "x",
         "y": "y",
         "state": "state"
     })
+
+    # Disregard extreme outliers (logger bug, 16 bit INTMAX)
+    df = df[(df["x"] < 65535) & (df["y"] < 65535)]
+    df = df.drop_duplicates()
     df = df[df["state"] == "Move"].copy()
 
     for c in ["x", "y", "time"]:
         df[c] = pd.to_numeric(df[c], errors="coerce")
 
-
-    df = df.dropna(subset=["x", "y", "time"])
-
-    return df
+    return df.dropna(subset=["x", "y", "time"])
 
 
-def clean_chaoshen(df):
+'''
+Generate train/test windows
+'''
+def generate_windows(events, chunk_size, data_root):
+    if len(events) < chunk_size:
+        return []
 
-    df = df.rename(columns={
-        "X":"x",
-        "Y":"y",
-        "Timestamp":"time",
-        "EventName":"event"
-    })
+    # If the folder contains train, stride = M // 4
+    if "train" in data_root.lower():
+        stride = chunk_size // 4
+    else:
+        stride = chunk_size
 
-    for c in ["x","y","time"]:
-        df[c] = pd.to_numeric(df[c], errors="coerce")
+    windows = []
+    for i in range(0, len(events) - chunk_size + 1, stride):
+        windows.append(events[i:i + chunk_size])
 
-    return df.dropna(subset=["x","y","time"])
-
-
-def clean_dfl(df):
-
-    df.columns = [c.strip().lower() for c in df.columns]
-
-    if "client timestamp" in df.columns:
-        df = df.rename(columns={"client timestamp":"time"})
-    elif "timestamp" in df.columns:
-        df = df.rename(columns={"timestamp":"time"})
-
-    if "state" in df.columns:
-        df = df[df["state"].str.lower() == "move"]
-
-    for c in ["x","y","time"]:
-        df[c] = pd.to_numeric(df[c], errors="coerce")
-
-    return df.dropna(subset=["x","y","time"])
+    return windows
 
 
-# ============================================================
-# Session Detection
-# ============================================================
+'''
+Generate SRP
+Normalization follows the author reply:
+for each chunk (length M), x and y are min-max normalized to [0, 1] independently.
+'''
+def compute_srp(seq, epsilon):
+    coords = seq[:, :2].astype(np.float32)
 
-def get_session_files(dataset, user_dir):
+    x = coords[:, 0]
+    y = coords[:, 1]
 
-    files = os.listdir(user_dir)
+    min_x, max_x = x.min(), x.max()
+    min_y, max_y = y.min(), y.max()
 
-    sessions = []
+    x_range = max(max_x - min_x, 1e-8)
+    y_range = max(max_y - min_y, 1e-8)
 
-    for f in files:
+    scale = max(x_range, y_range)
+    if scale < 1e-8:
+        scale = 1e-8
 
-        path = os.path.join(user_dir, f)
+    x_norm = (x - min_x) / scale
+    y_norm = (y - min_y) / scale
 
-        if os.path.isfile(path):
-            sessions.append(f)
+    coords_norm = np.stack([x_norm, y_norm], axis=1)
 
-    return sorted(sessions)
+    # pairwise Euclidean distances
+    diff = coords_norm[:, None, :] - coords_norm[None, :, :]
+    dist = np.sqrt(np.sum(diff ** 2, axis=2))
 
-# ============================================================
-# Process Dataset
-# ============================================================
+    m = dist.shape[0]
 
+    # average distance of each point to all other points
+    avg_dist = (np.sum(dist, axis=1) - np.diag(dist)) / (m - 1)
+
+    # recurrent points mask
+    recurrent = avg_dist < epsilon
+
+    # keep distances only if BOTH points are recurrent
+    mask = recurrent[:, None] & recurrent[None, :]
+
+    # recurrence matrix
+    rp = np.where(mask, dist, epsilon)
+
+    return rp
+
+
+'''
+Save SRP (largest values to 255, smallest to 0)
+'''
+def draw_srp(seq, save_path, epsilon):
+    rp = compute_srp(seq, epsilon)
+
+    # normalize based on actual values
+    rp_min = rp.min()
+    rp_max = rp.max()
+    denom = max(rp_max - rp_min, 1e-8)
+
+    img = ((rp - rp_min) / denom * 255).astype(np.uint8)
+
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    cv2.imwrite(save_path, img)
+
+
+'''
+Convert dataset into windows and SRP images
+'''
 def process_dataset(dataset, data_root, out_dir, sizes, epsilon):
-
     users = sorted(os.listdir(data_root))
 
     print("\nDataset:", dataset)
     print("Users:", len(users))
+    print("\n[Phase] Generating SRP...")
 
     for user in users:
-
         user_dir = os.path.join(data_root, user)
-
         if not os.path.isdir(user_dir):
             continue
-    
+
         print("\n------------------------------")
         print("\nUser:", user)
 
-        session_files = get_session_files(dataset, user_dir)
-        print("Sessions found:", len(session_files))
-
-        for file in session_files:
+        for file in os.listdir(user_dir):
+            path = os.path.join(user_dir, file)
+            if not os.path.isfile(path):
+                continue
 
             session = os.path.splitext(file)[0]
-            path = os.path.join(user_dir, file)
-
-            print("   Session:", session)
-
-            df = pd.read_csv(
-                path,
-                sep=",",
-                engine="python",
-                header=0
-            )
+            df = pd.read_csv(path)
 
             if dataset == "balabit":
                 df = clean_balabit(df)
 
-            elif dataset == "chaoshen":
-                df = clean_chaoshen(df)
-
-            elif dataset == "dfl":
-                df = clean_dfl(df)
-
             events = df[["x", "y", "time"]].values.astype(np.float32)
 
             for chunk_size in sizes:
+                windows = generate_windows(events, chunk_size, data_root)
 
-                if "train" in data_root.lower():
-                    stride = chunk_size // 4
-                    #stride = chunk_size 
-                else:
-                    stride = chunk_size
-
-                windows = generate_windows(events, chunk_size, stride)
-
-                print(f"      chunk={chunk_size}, stride={stride}, windows={len(windows)}")
+                print(f"  Session {session} | chunk={chunk_size} -> {len(windows)} windows")
 
                 for i, seq in enumerate(windows):
-
                     save_path = os.path.join(
                         out_dir,
                         f"event{chunk_size}",
                         user,
-                        f"{session}-{i}.png" 
+                        f"{session}-{i}.png"
                     )
 
                     draw_srp(seq, save_path, epsilon)
 
-# ============================================================
-# CLI
-# ============================================================
 
+'''Main'''
 def main():
-
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--dataset", required=True)
@@ -368,7 +185,8 @@ def main():
         args.epsilon
     )
 
-    print("\nSRP generation finished.")
+    print("\nDone.")
+
 
 if __name__ == "__main__":
     main()
