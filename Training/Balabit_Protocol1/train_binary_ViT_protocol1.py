@@ -235,6 +235,7 @@ if __name__ == "__main__":
             lr_milestones=[60, 80],
             learning_rate_decay=0.1,
             loss_type="ghm",
+            ghm_delta=10,
             verbose=True,
         )
 
