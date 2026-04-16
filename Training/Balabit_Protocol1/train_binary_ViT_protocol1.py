@@ -4,7 +4,7 @@ from collections import defaultdict
 from PIL import Image
 
 import torch
-from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
+from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 import numpy as np
 
@@ -144,13 +144,6 @@ def collect_scores(model, loader, device):
 
     return np.array(scores), np.array(labels), np.array(sessions)
 
-# ======================================================
-# Training sampling
-# ======================================================
-# True: 按类别逆频率采样，使每个 batch 里期望上正负更接近 1:1（仍带随机，非严格固定比例）。
-# 与 pos_weight 同时用可能略“过强调正类”，若 loss 炸或极不稳定可改 False 或把 pos_weight 改为 1.0 试消融。
-USE_BALANCED_TRAIN_SAMPLER = False
-
 # "bce" = plain BCEWithLogits + pos_weight (same signal as typical CNN training).
 # "ghm" = density-weighted loss from paper; if ViT EER is far worse than MultiCNN on same images, try "bce".
 VIT_LOSS_TYPE = "bce"
@@ -217,27 +210,9 @@ if __name__ == "__main__":
         pos_weight = float(n_neg) / max(n_pos, 1)
         print(f"[{user}] train samples: pos={n_pos}, neg={n_neg}, BCE pos_weight={pos_weight:.2f}")
 
-        if USE_BALANCED_TRAIN_SAMPLER:
-            w_pos = 1.0 / max(n_pos, 1)
-            w_neg = 1.0 / max(n_neg, 1)
-            sample_weights = [w_pos if lb > 0.5 else w_neg for lb in train_dataset.labels]
-            sampler = WeightedRandomSampler(
-                weights=sample_weights,
-                num_samples=len(train_dataset),
-                replacement=True,
-            )
-            train_loader = DataLoader(
-                train_dataset,
-                batch_size=64,
-                sampler=sampler,
-                shuffle=True,
-                num_workers=16,
-            )
-            print(f"[{user}] train: WeightedRandomSampler (balanced-ish batches)")
-        else:
-            train_loader = DataLoader(
-                train_dataset, batch_size=64, shuffle=True, num_workers=16
-            )
+        train_loader = DataLoader(
+            train_dataset, batch_size=64, shuffle=True, num_workers=16
+        )
 
         test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=16)
 
