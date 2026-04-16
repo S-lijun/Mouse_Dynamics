@@ -51,7 +51,7 @@ def calculate_eer(y_true, y_scores):
 
 class GHMBCE(nn.Module):
 
-    def __init__(self, delta=0.05):
+    def __init__(self, delta=0.1):
         super().__init__()
         self.delta = float(delta)
 
@@ -72,7 +72,7 @@ class GHMBCE(nn.Module):
             beta = n / (GD + 1e-12)
 
         per_elem = nn.functional.binary_cross_entropy_with_logits(
-            logits, y, reduction = "none"
+            logits, y, reduction = "none", pos_weight = self.pos_weight
         )
         weighted = (beta * per_elem).mean()
         pure_mean = per_elem.mean()
