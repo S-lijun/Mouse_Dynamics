@@ -167,7 +167,6 @@ if __name__ == "__main__":
     testing_folder = input("Enter testing folder: ").strip()
 
 
-
     img_size = 600
 
     train_root = Path(project_root) / "Images" / training_folder
