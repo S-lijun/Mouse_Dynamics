@@ -54,7 +54,7 @@ class GHMBCE(nn.Module):
     def __init__(self, delta=0.1, pos_weight=10):
         super().__init__()
         self.delta = float(delta)
-        self.pos_weight = float(pos_weight)
+        self.pos_weight = pos_weight
 
     def forward(self, logits, targets):
         y = targets.view(-1).float()
@@ -76,7 +76,7 @@ class GHMBCE(nn.Module):
             beta = n / (GD + 1e-12)
 
         per_elem = nn.functional.binary_cross_entropy_with_logits(
-            logits, y, reduction = "none", pos_weight = pos_weight
+            logits, y, reduction = "sum",
         )
         weighted = (beta * per_elem).mean()
         pure_mean = per_elem.mean()
