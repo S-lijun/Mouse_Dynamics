@@ -76,7 +76,7 @@ class GHMBCE(nn.Module):
             beta = n / (GD + 1e-12)
 
         per_elem = nn.functional.binary_cross_entropy_with_logits(
-            logits, y, reduction = "sum",
+            logits, y, reduction = "none",
         )
         weighted = (beta * per_elem).mean()
         pure_mean = per_elem.mean()
