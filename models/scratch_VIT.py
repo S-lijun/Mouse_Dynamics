@@ -39,56 +39,98 @@ class PatchEmbed(nn.Module):
 # Efficient Attention 
 # ============================================================
 
+# class EfficientAttention(nn.Module):
+#
+#     def __init__(self, dim, num_heads=3, qkv_bias = True):
+#
+#         super().__init__()
+#
+#         self.num_heads = num_heads
+#         self.head_dim = dim // num_heads
+#
+#         self.q = nn.Linear(dim, dim, bias = qkv_bias)
+#         self.k = nn.Linear(dim, dim, bias = qkv_bias)
+#         self.v = nn.Linear(dim, dim, bias = qkv_bias)
+#
+#         self.proj = nn.Linear(dim, dim)
+#
+#     def forward(self, x):
+#
+#         B,N,C = x.shape
+#
+#         q = self.q(x).reshape(B,N,self.num_heads,self.head_dim).permute(0,2,1,3)
+#         k = self.k(x).reshape(B,N,self.num_heads,self.head_dim).permute(0,2,1,3)
+#         v = self.v(x).reshape(B,N,self.num_heads,self.head_dim).permute(0,2,1,3)
+#         # -----------------------------
+#         # Efficient Attention (paper)
+#         # -----------------------------
+#         q = F.softmax(q, dim=-1)   # over feature
+#         k = F.softmax(k, dim=-2)   # over tokens
+#
+#         v = v / math.sqrt(self.head_dim)
+#
+#         kv = torch.einsum("bhnd,bhne->bhde", k, v)   # (B,h,d,d)
+#
+#         out = torch.einsum("bhnd,bhde->bhne", q, kv)
+#
+#         out = out.permute(0,2,1,3).reshape(B, N, C)
+#
+#         return self.proj(out)
+
+
 class EfficientAttention(nn.Module):
 
-    def __init__(self, dim, num_heads=3, qkv_bias = True):
-
+    def __init__(self, dim, num_heads=3, qkv_bias=True):
         super().__init__()
+        assert dim % num_heads == 0, "dim must be divisible by num_heads"
 
         self.num_heads = num_heads
         self.head_dim = dim // num_heads
 
-        self.q = nn.Linear(dim, dim, bias = qkv_bias)
-        self.k = nn.Linear(dim, dim, bias = qkv_bias)
-        self.v = nn.Linear(dim, dim, bias = qkv_bias)
+        # Split into heads first, then apply per-head Q/K/V linear layers.
+        self.q_heads = nn.ModuleList([
+            nn.Linear(self.head_dim, self.head_dim, bias=qkv_bias)
+            for _ in range(num_heads)
+        ])
+        self.k_heads = nn.ModuleList([
+            nn.Linear(self.head_dim, self.head_dim, bias=qkv_bias)
+            for _ in range(num_heads)
+        ])
+        self.v_heads = nn.ModuleList([
+            nn.Linear(self.head_dim, self.head_dim, bias=qkv_bias)
+            for _ in range(num_heads)
+        ])
 
         self.proj = nn.Linear(dim, dim)
 
     def forward(self, x):
+        B, N, C = x.shape
 
-        B,N,C = x.shape
+        # [B, N, C] -> [B, h, N, d]
+        x_heads = x.reshape(B, N, self.num_heads, self.head_dim).permute(0, 2, 1, 3)
 
-        q = self.q(x).reshape(B,N,self.num_heads,self.head_dim).permute(0,2,1,3)
-        k = self.k(x).reshape(B,N,self.num_heads,self.head_dim).permute(0,2,1,3)
-        v = self.v(x).reshape(B,N,self.num_heads,self.head_dim).permute(0,2,1,3)
-        '''
-        q = F.softmax(q, dim=-1)
-        k = F.softmax(k, dim=-2)
+        q_list = []
+        k_list = []
+        v_list = []
+        for i in range(self.num_heads):
+            head_x = x_heads[:, i, :, :]  # [B, N, d]
+            q_list.append(self.q_heads[i](head_x))
+            k_list.append(self.k_heads[i](head_x))
+            v_list.append(self.v_heads[i](head_x))
 
-        kv = torch.einsum("bhnd,bhne->bhde",k,v)
-        kv = kv / math.sqrt(self.head_dim)
+        q = torch.stack(q_list, dim=1)  # [B, h, N, d]
+        k = torch.stack(k_list, dim=1)  # [B, h, N, d]
+        v = torch.stack(v_list, dim=1)  # [B, h, N, d]
 
-        out = torch.einsum("bhnd,bhde->bhne",q,kv)
-
-        out = out.permute(0,2,1,3).reshape(B,N,C)
-
-        return self.proj(out)
-        '''
-        # -----------------------------
         # Efficient Attention (paper)
-        # -----------------------------
-        q = F.softmax(q, dim=-1)   # over feature
-        k = F.softmax(k, dim=-2)   # over tokens
+        q = F.softmax(q, dim=-1)  # over feature
+        k = F.softmax(k, dim=-2)  # over tokens
 
-    
         v = v / math.sqrt(self.head_dim)
+        kv = torch.einsum("bhnd,bhne->bhde", k, v)   # [B, h, d, d]
+        out = torch.einsum("bhnd,bhde->bhne", q, kv)  # [B, h, N, d]
 
-        kv = torch.einsum("bhnd,bhne->bhde", k, v)   # (B,h,d,d)
-
-        out = torch.einsum("bhnd,bhde->bhne", q, kv)
-
-        out = out.permute(0,2,1,3).reshape(B, N, C)
-
+        out = out.permute(0, 2, 1, 3).reshape(B, N, C)
         return self.proj(out)
 
 # ============================================================
