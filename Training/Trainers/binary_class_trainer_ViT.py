@@ -51,9 +51,10 @@ def calculate_eer(y_true, y_scores):
 
 class GHMBCE(nn.Module):
 
-    def __init__(self, delta=0.1):
+    def __init__(self, delta=0.1, pos_weight=10):
         super().__init__()
         self.delta = float(delta)
+        self.pos_weight = torch.tensor([pos_weight], dtype=torch.float).to(self.device)
 
     def forward(self, logits, targets):
         y = targets.view(-1).float()
