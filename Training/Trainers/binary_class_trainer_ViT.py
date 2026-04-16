@@ -54,11 +54,14 @@ class GHMBCE(nn.Module):
     def __init__(self, delta=0.1, pos_weight=10):
         super().__init__()
         self.delta = float(delta)
-        self.pos_weight = torch.tensor([pos_weight], dtype=torch.float)
+        self.pos_weight = float(pos_weight)
 
     def forward(self, logits, targets):
         y = targets.view(-1).float()
         logits = logits.view(-1)
+        pos_weight = torch.tensor(
+            [self.pos_weight], dtype=logits.dtype, device=logits.device
+        )
 
         pred = torch.sigmoid(logits)
         g = torch.abs(pred.detach() - y)
@@ -73,7 +76,7 @@ class GHMBCE(nn.Module):
             beta = n / (GD + 1e-12)
 
         per_elem = nn.functional.binary_cross_entropy_with_logits(
-            logits, y, reduction = "none", pos_weight = self.pos_weight
+            logits, y, reduction = "none", pos_weight = pos_weight
         )
         weighted = (beta * per_elem).mean()
         pure_mean = per_elem.mean()
@@ -119,7 +122,10 @@ class BinaryClassTrainer:
         """
 
         if loss_type == "ghm":
-            loss_function = GHMBCE(delta=ghm_delta)
+            loss_function = GHMBCE(
+                delta=ghm_delta,
+                pos_weight=float(self.pos_weight.item()),
+            )
         elif loss_type == "bce":
             bce = nn.BCEWithLogitsLoss(pos_weight=self.pos_weight)
 
