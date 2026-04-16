@@ -168,7 +168,7 @@ if __name__ == "__main__":
 
 
 
-    img_size = 300
+    img_size = 600
 
     train_root = Path(project_root) / "Images" / training_folder
     test_root  = Path(project_root) / "Images" / testing_folder
