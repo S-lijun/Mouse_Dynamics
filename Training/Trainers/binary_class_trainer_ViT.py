@@ -51,7 +51,7 @@ def calculate_eer(y_true, y_scores):
 
 class GHMBCE(nn.Module):
 
-    def __init__(self, delta=0.1):
+    def __init__(self, delta=10):
         super().__init__()
         self.delta = float(delta)
 
@@ -72,7 +72,7 @@ class GHMBCE(nn.Module):
             beta = n / (GD + 1e-12)
 
         per_elem = nn.functional.binary_cross_entropy_with_logits(
-            logits, y, reduction = "mean"
+            logits, y, reduction = "none"
         )
         weighted = (beta * per_elem).mean()
         pure_mean = per_elem.mean()
@@ -114,7 +114,7 @@ class BinaryClassTrainer:
         """
         lr_milestones: e.g. [60, 80] to match paper (multiply lr by gamma at those epochs).
         If None, uses StepLR every step_size epochs.
-        loss_type: "ghm" (paper Eq. 18–21, L_BCE 无 pos_weight) or "bce" (BCEWithLogits + pos_weight).
+        loss_type: "ghm" (paper Eq. 18–21, L_BCE no pos_weight) or "bce" (BCEWithLogits + pos_weight).
         """
 
         if loss_type == "ghm":

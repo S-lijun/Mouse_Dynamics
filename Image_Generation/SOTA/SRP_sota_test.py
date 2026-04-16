@@ -126,11 +126,11 @@ def compute_srp(seq, epsilon):
 
     # recurrent points mask
     recurrent = avg_dist < epsilon
-    print(recurrent)
+    #print(recurrent)
     
     # keep distances only if BOTH points are recurrent
     mask = recurrent[:, None] & recurrent[None, :]
-    print(mask)
+    #print(mask)
     
     # recurrence matrix
     rp = np.where(mask, dist, epsilon)
