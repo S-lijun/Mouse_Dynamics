@@ -82,7 +82,7 @@ class TensorMouseDataset(Dataset):
             img_path,
             dtype=np.uint8,
             mode="r",
-            shape=(N, 1, H, W)
+            shape=(N, 3, H, W)
         )
 
         self.images = raw_images
@@ -206,7 +206,7 @@ if __name__ == "__main__":
     # Model
     # ==========================================
 
-    net = insiderThreatCNN(num_users=num_users, image_size=150).to(device)
+    net = insiderThreatCNN(num_users=num_users, image_size=600, in_chans=1).to(device)
 
     trainer = MultiLabelTrainer(
         net=net,
