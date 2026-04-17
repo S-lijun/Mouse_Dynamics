@@ -186,7 +186,7 @@ if __name__ == "__main__":
         train_dataset,
         batch_size=256,
         shuffle=True,
-        num_workers=8,
+        num_workers=4,
         pin_memory=True,
         persistent_workers=True,
         prefetch_factor=4
@@ -196,7 +196,7 @@ if __name__ == "__main__":
         test_dataset,
         batch_size=256,
         shuffle=False,
-        num_workers=8,
+        num_workers=4,
         pin_memory=True,
         persistent_workers=True,
         prefetch_factor=4
