@@ -184,7 +184,7 @@ if __name__ == "__main__":
 
     train_loader = DataLoader(
         train_dataset,
-        batch_size=128,
+        batch_size=64,
         shuffle=True,
         num_workers=4,
         pin_memory=True,
@@ -194,7 +194,7 @@ if __name__ == "__main__":
 
     test_loader = DataLoader(
         test_dataset,
-        batch_size=128,
+        batch_size=64,
         shuffle=False,
         num_workers=4,
         pin_memory=True,
