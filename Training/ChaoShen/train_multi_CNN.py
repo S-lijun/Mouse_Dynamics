@@ -206,7 +206,7 @@ if __name__ == "__main__":
     # Model
     # ==========================================
 
-    net = insiderThreatCNN(num_users=num_users, image_size=600, in_chans=1).to(device)
+    net = insiderThreatCNN(num_users=num_users, image_size=600).to(device)
 
     trainer = MultiLabelTrainer(
         net=net,
