@@ -39,45 +39,46 @@ class PatchEmbed(nn.Module):
 # Efficient Attention 
 # ============================================================
 
-# class EfficientAttention(nn.Module):
-#
-#     def __init__(self, dim, num_heads=3, qkv_bias = True):
-#
-#         super().__init__()
-#
-#         self.num_heads = num_heads
-#         self.head_dim = dim // num_heads
-#
-#         self.q = nn.Linear(dim, dim, bias = qkv_bias)
-#         self.k = nn.Linear(dim, dim, bias = qkv_bias)
-#         self.v = nn.Linear(dim, dim, bias = qkv_bias)
-#
-#         self.proj = nn.Linear(dim, dim)
-#
-#     def forward(self, x):
-#
-#         B,N,C = x.shape
-#
-#         q = self.q(x).reshape(B,N,self.num_heads,self.head_dim).permute(0,2,1,3)
-#         k = self.k(x).reshape(B,N,self.num_heads,self.head_dim).permute(0,2,1,3)
-#         v = self.v(x).reshape(B,N,self.num_heads,self.head_dim).permute(0,2,1,3)
-#         # -----------------------------
-#         # Efficient Attention (paper)
-#         # -----------------------------
-#         q = F.softmax(q, dim=-1)   # over feature
-#         k = F.softmax(k, dim=-2)   # over tokens
-#
-#         v = v / math.sqrt(self.head_dim)
-#
-#         kv = torch.einsum("bhnd,bhne->bhde", k, v)   # (B,h,d,d)
-#
-#         out = torch.einsum("bhnd,bhde->bhne", q, kv)
-#
-#         out = out.permute(0,2,1,3).reshape(B, N, C)
-#
-#         return self.proj(out)
+class EfficientAttention(nn.Module):
 
+    def __init__(self, dim, num_heads=3, qkv_bias = True):
 
+        super().__init__()
+
+        self.num_heads = num_heads
+        self.head_dim = dim // num_heads
+
+        self.q = nn.Linear(dim, dim, bias = qkv_bias)
+        self.k = nn.Linear(dim, dim, bias = qkv_bias)
+        self.v = nn.Linear(dim, dim, bias = qkv_bias)
+
+        self.proj = nn.Linear(dim, dim)
+
+    def forward(self, x):
+
+        B,N,C = x.shape
+
+        q = self.q(x).reshape(B,N,self.num_heads,self.head_dim).permute(0,2,1,3)
+        k = self.k(x).reshape(B,N,self.num_heads,self.head_dim).permute(0,2,1,3)
+        v = self.v(x).reshape(B,N,self.num_heads,self.head_dim).permute(0,2,1,3)
+        # -----------------------------
+        # Efficient Attention (paper)
+        # -----------------------------
+        q = F.softmax(q, dim=-1)   # over feature
+        k = F.softmax(k, dim=-2)   # over tokens
+
+        # Explicit K^T V and Q(K^T V) with matmul.
+        # k: [B, h, N, d], v: [B, h, N, d]
+        k_t = k.transpose(-2, -1)                    # [B, h, d, N]
+        kv = torch.matmul(k_t, v)                    # [B, h, d, d]
+        kv = kv / math.sqrt(self.head_dim)           # scale before multiplying Q
+        out = torch.matmul(q, kv)                    # [B, h, N, d]
+
+        out = out.permute(0,2,1,3).reshape(B, N, C)
+
+        return self.proj(out)
+
+'''
 class EfficientAttention(nn.Module):
 
     def __init__(self, dim, num_heads=3, qkv_bias=True):
@@ -132,7 +133,7 @@ class EfficientAttention(nn.Module):
 
         out = out.permute(0, 2, 1, 3).reshape(B, N, C)
         return self.proj(out)
-
+'''
 # ============================================================
 # Transformer Block
 # ============================================================
@@ -210,7 +211,7 @@ class BinaryViT(nn.Module):
         for blk in self.blocks:
             x = blk(x)
 
-        x = self.norm(x)
+        #x = self.norm(x)
 
         # MAX-AGGR-2
         x = x.max(dim=1)[0]
