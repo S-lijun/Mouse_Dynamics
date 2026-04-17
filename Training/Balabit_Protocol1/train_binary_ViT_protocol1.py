@@ -216,7 +216,7 @@ if __name__ == "__main__":
         test_loader = DataLoader(test_dataset, batch_size=64, shuffle=True, num_workers=16)
 
         net = BinaryViT(
-            img_size=img_size, patch_size=15, in_chans=1, dropout=VIT_DROPOUT
+            img_size=img_size, patch_size=15, in_chans=1, dropout=VIT_DROPOUT, depth=6
         ).to(device)
 
         trainer = BinaryClassTrainer(
