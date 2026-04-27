@@ -214,7 +214,7 @@ if __name__ == "__main__":
 
         test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=12)
 
-        net = PretrainedViT_B16().to(device)
+        net = PretrainedViT_B16(image_size=img_size, in_channels=1).to(device)
 
         trainer = BinaryClassTrainer(
             net=net,
