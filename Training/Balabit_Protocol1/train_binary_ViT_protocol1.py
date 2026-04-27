@@ -45,8 +45,9 @@ sys.stdout = TeeLogger(log_path)
 # Imports
 # ======================================================
 
-from models.scratch_VIT import BinaryViT
+#from models.scratch_VIT import BinaryViT
 #from models.scratch_ViT_ import BinaryViT
+from models.pretrained_VIT_B16 import PretrainedViT_B16
 from Training.Trainers.binary_class_trainer_ViT import BinaryClassTrainer
 from Training.Score_Fusion.Score_Fusion_Binary import (
     binary_score_fusion
@@ -209,15 +210,11 @@ if __name__ == "__main__":
         pos_weight = float(n_neg) / max(n_pos, 1)
         print(f"[{user}] train samples: pos={n_pos}, neg={n_neg}, BCE pos_weight={pos_weight:.2f}")
 
-        train_loader = DataLoader(
-            train_dataset, batch_size=64, shuffle=True, num_workers=12
-        )
+        train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=12)
 
-        test_loader = DataLoader(test_dataset, batch_size=64, shuffle=True, num_workers=12)
+        test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=12)
 
-        net = BinaryViT(
-            img_size=img_size, patch_size=15, in_chans=1, dropout=VIT_DROPOUT, depth=3
-        ).to(device)
+        net = PretrainedViT_B16().to(device)
 
         trainer = BinaryClassTrainer(
             net=net,
