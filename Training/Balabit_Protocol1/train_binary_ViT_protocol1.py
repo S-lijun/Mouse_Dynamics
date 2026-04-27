@@ -228,9 +228,9 @@ if __name__ == "__main__":
 
         # Paper: Adam lr=0.001; decay ×0.1 at epochs 60 and 80 only (not every 30 epochs).
         _, best_model, *_ = trainer.train(
-            optim_name="adam",
+            optim_name="adamw",
             num_epochs=100,
-            learning_rate=0.001,
+            learning_rate=0.0001,
             lr_milestones=[60, 80],
             learning_rate_decay=0.1,
             loss_type="ghm",
