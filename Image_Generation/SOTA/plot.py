@@ -1,264 +1,168 @@
-# -*- coding: utf-8 -*-
-
 import os
 import argparse
-import pandas as pd
+
 import numpy as np
-import cv2
-import math
+import pandas as pd
 import matplotlib.pyplot as plt
 
-# ============================================================
-# ROOT
-# ============================================================
-
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-print("[ROOT]", ROOT)
-
-# ============================================================
-# Config
-# ============================================================
-
-BASE_CHUNK_SIZE = 300
-BASE_IMG_SIZE = 300
-
-all_ratios = []
-
-# ============================================================
-# Dynamic Image Size
-# ============================================================
-
-def get_dynamic_image_size(chunk_size):
-    scale = math.sqrt(chunk_size / BASE_CHUNK_SIZE)
-    return int(round(BASE_IMG_SIZE * scale))
-
-# ============================================================
-# SRP
-# ============================================================
-
-def compute_srp(seq, epsilon=0.3):
-
-    coords = seq[:, :2].astype(np.float32)
-
-    x = coords[:, 0]
-    y = coords[:, 1]
-
-    min_x, max_x = x.min(), x.max()
-    min_y, max_y = y.min(), y.max()
-
-    x_range = max_x - min_x
-    y_range = max_y - min_y
-
-    scale = max(x_range, y_range)
-    if scale < 1e-8:
-        scale = 1e-8
-
-    x_norm = (x - min_x) / scale
-    y_norm = (y - min_y) / scale
-
-    coords_norm = np.stack([x_norm, y_norm], axis=1)
-
-    # ---------------- distance ----------------
-    diff = coords_norm[:, None, :] - coords_norm[None, :, :]
-    dist = np.sqrt(np.sum(diff**2, axis=2))
-    dist = dist / np.sqrt(2)
-
-    M = dist.shape[0]
-
-    # ---------------- avg ----------------
-    avg = np.sum(dist, axis=1) / (M - 1 + 1e-8)
-
-    # ---------------- recurrent ----------------
-    recurrent = avg < epsilon
-
-    # ratio
-    ratio = recurrent.mean()
-
-    # ---------------- clip ----------------
-    dist_clipped = np.minimum(dist, epsilon)
-
-    rp = np.where(
-        recurrent[:, None] & recurrent[None, :],
-        dist_clipped,
-        epsilon
-    ).astype(np.float32)
-
-    return rp, ratio
-
-
-def draw_srp(seq, save_path, epsilon):
-
-    global all_ratios
-
-    rp, ratio = compute_srp(seq, epsilon)
-
-    # ratio
-    all_ratios.append(ratio)
-
-    img = (rp / epsilon * 255).astype(np.uint8)
-
-    os.makedirs(os.path.dirname(save_path), exist_ok=True)
-    cv2.imwrite(save_path, img)
-
-
-# ============================================================
-# Sliding Window
-# ============================================================
-
-def generate_windows(events, chunk_size, stride):
-
-    windows = []
-
-    if len(events) < chunk_size:
-        return windows
-
-    for start in range(0, len(events) - chunk_size + 1, stride):
-        windows.append(events[start:start + chunk_size])
-
-    return windows
-
-
-# ============================================================
-# Cleaning
-# ============================================================
+def resolve_path(path_arg):
+    if os.path.isabs(path_arg):
+        return os.path.abspath(path_arg)
+    cwd_candidate = os.path.abspath(path_arg)
+    if os.path.exists(cwd_candidate):
+        return cwd_candidate
+    return os.path.abspath(os.path.join(ROOT, path_arg))
 
 def clean_balabit(df):
-
     df = df.rename(columns={
         "client timestamp": "time",
         "x": "x",
         "y": "y",
-        "state": "state"
+        "state": "state",
     })
-
+    df = df[(df["x"] < 65536) & (df["y"] < 65536)]
+    df = df[df["state"] == "Move"].copy()
     for c in ["x", "y", "time"]:
         df[c] = pd.to_numeric(df[c], errors="coerce")
-
-    df = df.dropna(subset=["x", "y", "time"])
-
-    return df
+    return df.dropna(subset=["x", "y", "time"])
 
 
-# ============================================================
-# Process Dataset
-# ============================================================
+def compute_srp_local(seq, epsilon):
+    coords = seq[:, :2].astype(np.float32)
+    x = coords[:, 0]
+    y = coords[:, 1]
 
-def process_dataset(dataset, data_root, out_dir, sizes, epsilon):
+    x_norm = (x - x.min()) / max(x.max() - x.min(), 1e-8)
+    y_norm = (y - y.min()) / max(y.max() - y.min(), 1e-8)
+    coords_norm = np.stack([x_norm, y_norm], axis=1)
 
+    diff = coords_norm[:, None, :] - coords_norm[None, :, :]
+    dist = np.sqrt(np.sum(diff ** 2, axis=2))
+
+    m = dist.shape[0]
+    avg_dist = (np.sum(dist, axis=1) - np.diag(dist)) / max(m - 1, 1)
+    recurrent = avg_dist < epsilon
+    mask = recurrent[:, None] & recurrent[None, :]
+    rp = np.where(mask, dist, epsilon)
+    return rp, recurrent
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--data_root", required=True, help="Root folder containing user/session CSVs")
+    parser.add_argument("--chunk_size", type=int, default=300)
+    parser.add_argument("--epsilon", type=float, default=0.3)
+    parser.add_argument("--dataset", default="balabit")
+    parser.add_argument("--out_png", required=True, help="Output path for distribution figure")
+    parser.add_argument("--out_bar_png", required=True, help="Output path for recurrence True/False bar chart")
+    args = parser.parse_args()
+
+    data_root = resolve_path(args.data_root)
+    out_png = resolve_path(args.out_png)
+    out_bar_png = resolve_path(args.out_bar_png)
+
+    if not os.path.isdir(data_root):
+        raise FileNotFoundError(f"data_root not found: {data_root}")
+
+    all_values = []
+    recurrent_true_total = 0
+    recurrent_false_total = 0
     users = sorted(os.listdir(data_root))
-
-    print("\nDataset:", dataset)
+    total_sessions = 0
+    total_windows = 0
 
     for user in users:
-
         user_dir = os.path.join(data_root, user)
-
         if not os.path.isdir(user_dir):
             continue
 
-        print("\nUser:", user)
-
-        for file in sorted(os.listdir(user_dir)):
-
-            session = os.path.splitext(file)[0]
+        for file in os.listdir(user_dir):
             path = os.path.join(user_dir, file)
-
-            print("   Session:", session)
+            if not os.path.isfile(path):
+                continue
+            total_sessions += 1
 
             df = pd.read_csv(path)
-            df = clean_balabit(df)
+            if args.dataset.lower() == "balabit":
+                df = clean_balabit(df)
+            else:
+                for c in ["x", "y", "time"]:
+                    if c in df.columns:
+                        df[c] = pd.to_numeric(df[c], errors="coerce")
+                df = df.dropna(subset=["x", "y", "time"])
 
             events = df[["x", "y", "time"]].values.astype(np.float32)
+            if len(events) < args.chunk_size:
+                continue
 
-            for chunk_size in sizes:
+            for i in range(0, len(events) - args.chunk_size + 1, args.chunk_size):
+                seq = events[i:i + args.chunk_size]
+                rp, recurrent = compute_srp_local(seq, args.epsilon)
+                tri_i, tri_j = np.triu_indices(rp.shape[0], k=1)
+                all_values.append(rp[tri_i, tri_j])
+                recurrent_true_total += int(np.sum(recurrent))
+                recurrent_false_total += int(recurrent.size - np.sum(recurrent))
+                total_windows += 1
 
-                if "train" in data_root.lower():
-                    stride = chunk_size // 4
-                else:
-                    stride = chunk_size
+    if not all_values:
+        raise ValueError("No valid windows found. Check data_root/chunk_size.")
 
-                windows = generate_windows(events, chunk_size, stride)
+    rp_values = np.concatenate(all_values, axis=0)
 
-                print(f"      chunk={chunk_size}, stride={stride}, windows={len(windows)}")
+    below = int(np.sum(rp_values < args.epsilon))
+    above_or_equal = int(np.sum(rp_values >= args.epsilon))
+    total = int(rp_values.size)
 
-                for i, seq in enumerate(windows):
+    print(f"users scanned: {len([u for u in users if os.path.isdir(os.path.join(data_root, u))])}")
+    print(f"sessions scanned: {total_sessions}")
+    print(f"windows used: {total_windows}")
+    print(f"threshold (epsilon): {args.epsilon}")
+    print(f"total pair values: {total}")
+    print(f"count < threshold: {below}")
+    print(f"count >= threshold: {above_or_equal}")
+    print(f"ratio < threshold: {below / max(total, 1):.6f}")
+    print(f"ratio >= threshold: {above_or_equal / max(total, 1):.6f}")
+    rec_total = recurrent_true_total + recurrent_false_total
+    print(f"recurrent=True count: {recurrent_true_total}")
+    print(f"recurrent=False count: {recurrent_false_total}")
+    print(f"recurrent=True ratio: {recurrent_true_total / max(rec_total, 1):.6f}")
+    print(f"recurrent=False ratio: {recurrent_false_total / max(rec_total, 1):.6f}")
 
-                    save_path = os.path.join(
-                        out_dir,
-                        f"event{chunk_size}",
-                        user,
-                        f"{session}-{i}.png"
-                    )
-
-                    draw_srp(seq, save_path, epsilon)
-
-
-# ============================================================
-# Plot ratio distribution
-# ============================================================
-
-def analyze_ratios(out_dir):
-
-    ratios = np.array(all_ratios)
-
-    print("\n==============================")
-    print("[Recurrence Ratio Stats]")
-    print("Count:", len(ratios))
-    print("Mean :", ratios.mean())
-    print("Std  :", ratios.std())
-    print("Min  :", ratios.min())
-    print("Max  :", ratios.max())
-    print("==============================")
-
-    # 保存 raw
-    np.save(os.path.join(out_dir, "recurrence_ratios.npy"), ratios)
-
-    # ⭐ 画 histogram
-    plt.figure()
-    plt.hist(ratios, bins=50)
-    plt.title("Recurrence Ratio Distribution")
-    plt.xlabel("Ratio")
+    plt.figure(figsize=(10, 5))
+    plt.hist(rp_values, bins=80, color="steelblue", alpha=0.85, edgecolor="none")
+    plt.axvline(args.epsilon, color="crimson", linestyle="--", linewidth=2, label=f"threshold={args.epsilon}")
+    plt.title("RP value distribution (upper triangle, diagonal excluded)")
+    plt.xlabel("RP value")
     plt.ylabel("Count")
-    plt.grid()
+    plt.legend()
+    plt.tight_layout()
 
-    save_path = os.path.join(out_dir, "recurrence_ratio_distribution.png")
-    plt.savefig(save_path)
-    plt.show()
+    os.makedirs(os.path.dirname(out_png), exist_ok=True)
+    plt.savefig(out_png, dpi=150)
+    print(f"saved histogram: {out_png}")
 
-    print("\nSaved plot to:", save_path)
+    plt.figure(figsize=(6, 5))
+    labels = ["True (recurrence)", "False (not recurrence)"]
+    counts = [recurrent_true_total, recurrent_false_total]
+    colors = ["#2e7d32", "#c62828"]
+    bars = plt.bar(labels, counts, color=colors)
+    plt.title("Recurrence point count")
+    plt.ylabel("Count")
+    plt.tight_layout()
+    for bar, value in zip(bars, counts):
+        plt.text(
+            bar.get_x() + bar.get_width() / 2.0,
+            value,
+            f"{value}",
+            ha="center",
+            va="bottom",
+            fontsize=10,
+        )
 
-
-# ============================================================
-# CLI
-# ============================================================
-
-def main():
-
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument("--dataset", required=True)
-    parser.add_argument("--data_root", required=True)
-    parser.add_argument("--out_dir", required=True)
-    parser.add_argument("--sizes", type=int, nargs="+", default=[300])
-    parser.add_argument("--epsilon", type=float, default=0.3)
-
-    args = parser.parse_args()
-
-    data_root = os.path.join(ROOT, args.data_root)
-    out_dir = os.path.join(ROOT, args.out_dir)
-
-    process_dataset(
-        args.dataset,
-        data_root,
-        out_dir,
-        args.sizes,
-        args.epsilon
-    )
-
-    # ⭐ 最关键：分析 ratio
-    analyze_ratios(out_dir)
-
-    print("\nSRP generation finished.")
+    os.makedirs(os.path.dirname(out_bar_png), exist_ok=True)
+    plt.savefig(out_bar_png, dpi=150)
+    print(f"saved recurrence bar chart: {out_bar_png}")
 
 
 if __name__ == "__main__":

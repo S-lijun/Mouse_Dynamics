@@ -12,7 +12,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 '''
 Clean up Balabit dataset
 '''
-def clean_balabit(df, gmin_x, gmax_x, gmin_y, gmax_y):
+def clean_balabit(df):
     
     df = df.rename(columns={
         "client timestamp": "time",
@@ -23,66 +23,13 @@ def clean_balabit(df, gmin_x, gmax_x, gmin_y, gmax_y):
 
     df = df[(df["x"] < 65536) & (df["y"] < 65536)]
     df = df.drop_duplicates()
-    
-    x_range = gmax_x - gmin_x
-    y_range = gmax_y - gmin_y
 
     df = df[df["state"] == "Move"].copy()
 
     for c in ["x", "y", "time"]:
         df[c] = pd.to_numeric(df[c], errors="coerce")
 
-    df['x'] = (df['x'] - gmin_x) / x_range
-    df['y'] = (df['y'] - gmin_y) / y_range
-
     return df.dropna(subset=["x", "y", "time"])
-
-def compute_global_min_max(data_root, chunk_size):
-
-    global_min_x = float("inf")
-    global_max_x = float("-inf")
-    global_min_y = float("inf")
-    global_max_y = float("-inf")
-
-    users = sorted(os.listdir(data_root))
-
-    print("\n[Phase 1] Computing global min/max...")
-
-    for user in users:
-
-        user_dir = os.path.join(data_root, user)
-        if not os.path.isdir(user_dir):
-            continue
-
-        for file in os.listdir(user_dir):
-
-            path = os.path.join(user_dir, file)
-            if not os.path.isfile(path):
-                continue
-
-            df = pd.read_csv(path)
-
-            # Disregard extreme outliers (logger bug, 16 bit INTMAX)
-            df = df[(df["x"] < 65536) & (df["y"] < 65536)]
-
-            sess_min_x = np.min(df['x'])
-            sess_max_x = np.max(df['x'])
-
-            sess_min_y = np.min(df['y'])
-            sess_max_y = np.max(df['y'])
-
-            if sess_min_x < global_min_x:
-                global_min_x = sess_min_x
-            if sess_max_x > global_max_x:
-                global_max_x = sess_max_x
-
-            if sess_min_y < global_min_y:
-                global_min_y = sess_min_y
-            if sess_max_y < global_max_y:
-                global_max_y = sess_max_y
-
-    
-    return global_min_x, global_max_x, global_min_y, global_max_y
 
 
 
@@ -171,8 +118,7 @@ def process_dataset(dataset, data_root, out_dir, sizes, epsilon):
 
     print("\nDataset:", dataset)
     print("Users:", len(users))
-    print("\n[Phase] Generating SRP...")
-    gmin_x, gmax_x, gmin_y, gmax_y = compute_global_min_max(data_root, sizes[0])
+    print("\n[Phase] Generating SRP (local normalization per sequence)...")
 
     for user in users:
         user_dir = os.path.join(data_root, user)
@@ -191,7 +137,7 @@ def process_dataset(dataset, data_root, out_dir, sizes, epsilon):
             df = pd.read_csv(path)
 
             if dataset == "balabit":
-                df = clean_balabit(df, gmin_x, gmax_x, gmin_y, gmax_y)
+                df = clean_balabit(df)
 
             events = df[["x", "y", "time"]].values.astype(np.float32)
 
@@ -218,7 +164,7 @@ def main():
     parser.add_argument("--dataset", required=True)
     parser.add_argument("--data_root", required=True)
     parser.add_argument("--out_dir", required=True)
-    parser.add_argument("--sizes", type=int, nargs="+", default=[600])
+    parser.add_argument("--sizes", type=int, nargs="+", default=[300])
     parser.add_argument("--epsilon", type=float, default=0.3)
 
     args = parser.parse_args()
