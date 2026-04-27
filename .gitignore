@@ -28,6 +28,7 @@ ImagesTensors/*
 
 # Ignore all content inside Images but keep the folder
 Images/*
+Image_Generation_Output/*
 !Images/.gitkeep
 
 # Ignore all content in error_logs 
