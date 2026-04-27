@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import math
+import torch.nn.functional as F
 from torchvision.models import vit_b_16, ViT_B_16_Weights
 
 # Swish activation
@@ -13,15 +14,17 @@ class PretrainedViT_B16(nn.Module):
     def __init__(self, image_size: int = 224, in_channels: int = 1):
         super(PretrainedViT_B16, self).__init__()
 
-        if image_size % 16 != 0:
-            raise ValueError(f"image_size must be divisible by 16 for ViT-B/16, got {image_size}")
         if in_channels not in (1, 3):
             raise ValueError(f"in_channels must be 1 or 3, got {in_channels}")
+
+        self.requested_image_size = image_size
+        self.patch_size = 16
+        self.model_image_size = int(math.ceil(image_size / self.patch_size) * self.patch_size)
 
         # Build model with target image size, then load pretrained weights.
         # For non-224 sizes, interpolate positional embeddings.
         weights = ViT_B_16_Weights.IMAGENET1K_V1
-        self.base = vit_b_16(weights=None, image_size=image_size)
+        self.base = vit_b_16(weights=None, image_size=self.model_image_size)
 
         if in_channels == 1:
             old_conv = self.base.conv_proj
@@ -42,8 +45,8 @@ class PretrainedViT_B16(nn.Module):
         )
         state_dict = self._resize_positional_embedding_if_needed(
             state_dict=state_dict,
-            target_image_size=image_size,
-            patch_size=16,
+            target_image_size=self.model_image_size,
+            patch_size=self.patch_size,
             pos_embed_key="encoder.pos_embedding",
         )
         self.base.load_state_dict(state_dict, strict=True)
@@ -121,6 +124,15 @@ class PretrainedViT_B16(nn.Module):
         return state_dict
 
     def forward(self, x):
+        # Keep original content unchanged; only pad border to satisfy ViT patch grid.
+        _, _, h, w = x.shape
+        target_h = int(math.ceil(h / self.patch_size) * self.patch_size)
+        target_w = int(math.ceil(w / self.patch_size) * self.patch_size)
+        if target_h != h or target_w != w:
+            pad_h = target_h - h
+            pad_w = target_w - w
+            x = F.pad(x, (0, pad_w, 0, pad_h), mode="constant", value=0.0)
+
         x = self.base(x)        # ViT backbone features
         x = self.extra_fc(x)    # custom classifier
         return x
