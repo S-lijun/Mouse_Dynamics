@@ -146,7 +146,7 @@ if __name__ == "__main__":
     print(f"[INFO] Training folder: {training_folder}")
     print(f"[INFO] Testing folder : {testing_folder}")
     
-    img_size = 300
+    img_size = 448
     C_pos, C_neg = 60, 60
     
     train_root = Path(project_root) / "Images" / training_folder
@@ -214,7 +214,7 @@ if __name__ == "__main__":
     out_dir.mkdir(parents=True, exist_ok=True)
 
     print("\n===== Protocol 1 Score Fusion Curve =====")
-    for n in range(1, 11):
+    for n in range(1, 16):
        
         res = multilabel_score_fusion(scores, labels, session_ids, user_ids, n)
         
