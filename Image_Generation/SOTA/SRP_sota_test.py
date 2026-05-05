@@ -2,6 +2,7 @@
 
 import os
 import argparse
+from matplotlib import rc_params_from_file
 import pandas as pd
 import numpy as np
 import cv2
@@ -21,7 +22,7 @@ def clean_balabit(df, gmin_x, gmax_x, gmin_y, gmax_y):
         "state": "state"
     })
 
-    df = df[(df["x"] < 65536) & (df["y"] < 65536)]
+    df = df[(df["x"] < 65535) & (df["y"] < 65535)]
     df = df.drop_duplicates()
     
     x_range = gmax_x - gmin_x
@@ -88,7 +89,7 @@ def compute_global_min_max(data_root, chunk_size):
             df = pd.read_csv(path)
 
             # Disregard extreme outliers (logger bug, 16 bit INTMAX)
-            df = df[(df["x"] < 65536) & (df["y"] < 65536)]
+            df = df[(df["x"] < 65535) & (df["y"] < 65535)]
 
             sess_min_x = np.min(df['x'])
             sess_max_x = np.max(df['x'])
@@ -134,6 +135,8 @@ def compute_srp(seq, epsilon):
     
     # recurrence matrix
     rp = np.where(mask, dist, epsilon)
+
+    rp = np.minimum(rp, epsilon)
     
     return rp
 
@@ -219,7 +222,7 @@ def main():
     parser.add_argument("--dataset", required=True)
     parser.add_argument("--data_root", required=True)
     parser.add_argument("--out_dir", required=True)
-    parser.add_argument("--sizes", type=int, nargs="+", default=[600])
+    parser.add_argument("--sizes", type=int, nargs="+", default=[300])
     parser.add_argument("--epsilon", type=float, default=0.3)
 
     args = parser.parse_args()
