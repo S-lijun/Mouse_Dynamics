@@ -20,7 +20,7 @@ print("[ROOT]", ROOT)
 
 TIME_THRESHOLD = 1.0   # seconds（与 XYPlot 一致）
 TARGET_SIZE = 224      # 输出方形边长（与 SOTA/SRP_pair 常用尺寸一致时可改）
-DEFAULT_EPSILON = 0.3  # 与 SOTA/SRP_pair.py 默认一致
+DEFAULT_EPSILON = 1.0  # 与 SOTA/SRP_pair.py 默认一致
 
 
 # ============================================================
