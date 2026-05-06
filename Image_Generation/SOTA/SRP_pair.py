@@ -47,7 +47,8 @@ def generate_windows(events, chunk_size, data_root):
         return []
 
     if "train" in data_root.lower():
-        stride = max(1, chunk_size // 4)
+        #stride = max(1, chunk_size // 4)
+        stride = chunk_size
     else:
         stride = chunk_size
 
@@ -180,8 +181,8 @@ def main():
     parser.add_argument("--dataset", required=True)
     parser.add_argument("--data_root", required=True)
     parser.add_argument("--out_dir", required=True)
-    parser.add_argument("--sizes", type=int, nargs="+", default=[150])
-    parser.add_argument("--epsilon", type=float, default=0.3)
+    parser.add_argument("--sizes", type=int, nargs="+", default=[60])
+    parser.add_argument("--epsilon", type=float, default=1.0)
     args = parser.parse_args()
 
     data_root = resolve_path(args.data_root)

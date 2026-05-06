@@ -19,8 +19,9 @@ print("[ROOT]", ROOT)
 # ============================================================
 
 TIME_THRESHOLD = 1.0   # seconds
-TARGET_SIZE = 224      
-DEFAULT_EPSILON = 1.0  
+DEFAULT_EPSILON = 1.0
+
+# SRP 存盘为 N×N（N = 序列点数）；不在此 resize，由训练脚本 transforms 统一为 224/448。
 
 
 # ============================================================
@@ -140,13 +141,6 @@ def draw_srp(seq, save_path, epsilon):
     denom = max(rp_max - rp_min, 1e-8)
 
     img = ((rp - rp_min) / denom * 255).astype(np.uint8)
-
-    if img.shape[0] != TARGET_SIZE or img.shape[1] != TARGET_SIZE:
-        img = cv2.resize(
-            img,
-            (TARGET_SIZE, TARGET_SIZE),
-            interpolation=cv2.INTER_NEAREST,
-        )
 
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     cv2.imwrite(save_path, img)
