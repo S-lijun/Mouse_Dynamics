@@ -19,7 +19,7 @@ print("[ROOT]", ROOT)
 # ============================================================
 
 BASE_EVENT = 60
-BASE_IMG_SIZE = 448
+BASE_IMG_SIZE = 224
 BASE_LINEWIDTH = 1
 BASE_MARKERSIZE = 1
 
