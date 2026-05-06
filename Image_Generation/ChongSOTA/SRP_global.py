@@ -22,6 +22,7 @@ GLOBAL_MAX_Y = 1079.0
 
 def process_dataset(dataset, data_root, out_dir, epsilon):
     users = sorted(os.listdir(data_root))
+    sequence_lengths = []
 
     print("\nDataset:", dataset)
     print("Users:", len(users))
@@ -63,6 +64,7 @@ def process_dataset(dataset, data_root, out_dir, epsilon):
             min_length = GLOBAL_MAX_X
             sequences = merge_sequences(sequences, min_length)
             print("      After merge:", len(sequences))
+            sequence_lengths.extend([len(seq) for seq in sequences])
 
             for i, seq in enumerate(sequences):
                 save_path = os.path.join(
@@ -76,6 +78,17 @@ def process_dataset(dataset, data_root, out_dir, epsilon):
                     dtype=np.float32,
                 )
                 draw_srp(seq_array, save_path, epsilon)
+
+    print("\n========== Sequence Length Stats (After Merge) ==========")
+    if len(sequence_lengths) == 0:
+        print("No valid sequence generated.")
+    else:
+        lengths = np.array(sequence_lengths, dtype=np.float64)
+        print("Total sequences:", len(lengths))
+        print("min:", int(np.min(lengths)))
+        print("median:", float(np.median(lengths)))
+        print("average:", float(np.mean(lengths)))
+        print("max:", int(np.max(lengths)))
 
 
 def main():
