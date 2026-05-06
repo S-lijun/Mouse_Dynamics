@@ -146,7 +146,7 @@ if __name__ == "__main__":
     print(f"[INFO] Training folder: {training_folder}")
     print(f"[INFO] Testing folder : {testing_folder}")
     
-    img_size = 224
+    img_size = 448
     C_pos, C_neg = 60, 60
     
     train_root = Path(project_root) / "Images" / training_folder
@@ -167,8 +167,8 @@ if __name__ == "__main__":
     test_dataset  = Protocol1MouseDataset(test_root, user_list, transform)
 
    
-    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=8)
-    test_loader  = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=8)
+    train_loader = DataLoader(train_dataset, batch_size=20, shuffle=True, num_workers=8)
+    test_loader  = DataLoader(test_dataset, batch_size=20, shuffle=False, num_workers=8)
 
     print(f"[INFO] Train samples: {len(train_dataset)} | Test samples: {len(test_dataset)}")
 
@@ -187,10 +187,10 @@ if __name__ == "__main__":
 
     print("\n========== Training Execution ==========")
     _, best_model, *_ = trainer.train(
-        optim_name="adamw",
-        num_epochs=25,
+        optim_name="sgd",
+        num_epochs=30,
         learning_rate=0.0001,
-        step_size=7,
+        step_size=15,
         learning_rate_decay=0.1,
         verbose=True
     )

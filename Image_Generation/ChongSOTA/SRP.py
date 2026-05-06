@@ -99,18 +99,12 @@ def merge_sequences(sequences, min_length):
 
 
 # ============================================================
-# Pair-wise SRP（与 SOTA/SRP_pair.py 相同：逐轴局部归一化 + epsilon 截断）
+# Pair-wise SRP（与 SOTA/SRP_pair.py 对齐：seq 直接按 ndarray[:, :2] 处理）
 # ============================================================
-
-def _seq_to_xy_array(seq):
-    """与 XYPlot.draw_sequence 一致：seq 为 {'x','y',...} 字典列表；也支持 (n,2+) 的 ndarray。"""
-    if isinstance(seq, np.ndarray):
-        return np.asarray(seq[:, :2], dtype=np.float64)
-    return np.array([[float(e["x"]), float(e["y"])] for e in seq], dtype=np.float64)
 
 
 def compute_srp_pair(seq, epsilon):
-    coords = _seq_to_xy_array(seq).astype(np.float32)
+    coords = seq[:, :2].astype(np.float32)
 
     x = coords[:, 0]
     y = coords[:, 1]
@@ -299,7 +293,11 @@ def process_dataset(dataset, data_root, out_dir, epsilon):
                     f"{session}-{i}.png"
                 )
 
-                draw_srp(seq, save_path, epsilon)
+                seq_array = np.array(
+                    [[float(e["x"]), float(e["y"]), float(e["time"])] for e in seq],
+                    dtype=np.float32,
+                )
+                draw_srp(seq_array, save_path, epsilon)
 
 
 # ============================================================
