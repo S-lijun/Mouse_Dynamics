@@ -188,9 +188,9 @@ if __name__ == "__main__":
     print("\n========== Training Execution ==========")
     _, best_model, *_ = trainer.train(
         optim_name="adamw",
-        num_epochs=25,
-        learning_rate=0.001,
-        step_size=7,
+        num_epochs=22,
+        learning_rate=0.0001,
+        step_size=6,
         learning_rate_decay=0.1,
         verbose=True
     )
