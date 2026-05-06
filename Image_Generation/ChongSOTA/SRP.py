@@ -18,9 +18,9 @@ print("[ROOT]", ROOT)
 # Parameters
 # ============================================================
 
-TIME_THRESHOLD = 1.0   # seconds（与 XYPlot 一致）
-TARGET_SIZE = 448      # 输出方形边长（与 SOTA/SRP_pair 常用尺寸一致时可改）
-DEFAULT_EPSILON = 1.0  # 与 SOTA/SRP_pair.py 默认一致
+TIME_THRESHOLD = 1.0   # seconds
+TARGET_SIZE = 224      
+DEFAULT_EPSILON = 1.0  
 
 
 # ============================================================
@@ -130,7 +130,6 @@ def compute_srp_pair(seq, epsilon):
 
 
 def draw_srp(seq, save_path, epsilon):
-    """与 SOTA/SRP_pair.draw_srp 一致：RP 最小值映射 0、最大映射 255；再缩放到 TARGET_SIZE。"""
     if len(seq) < 2:
         return
 
