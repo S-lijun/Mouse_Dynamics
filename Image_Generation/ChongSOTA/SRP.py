@@ -18,8 +18,9 @@ print("[ROOT]", ROOT)
 # Parameters
 # ============================================================
 
-TIME_THRESHOLD = 1.0   # seconds
-TARGET_SIZE = 224      # final image size
+TIME_THRESHOLD = 1.0   # seconds（与 XYPlot 一致）
+TARGET_SIZE = 224      # 输出方形边长（与 SOTA/SRP_pair 常用尺寸一致时可改）
+DEFAULT_EPSILON = 0.3  # 与 SOTA/SRP_pair.py 默认一致
 
 
 # ============================================================
@@ -97,7 +98,7 @@ def merge_sequences(sequences, min_length):
 
 
 # ============================================================
-# Draw Sequence (NEW)
+# Pair-wise SRP（与 SOTA/SRP_pair.py 相同：逐轴局部归一化 + epsilon 截断）
 # ============================================================
 
 def _seq_to_xy_array(seq):
@@ -107,43 +108,48 @@ def _seq_to_xy_array(seq):
     return np.array([[float(e["x"]), float(e["y"])] for e in seq], dtype=np.float64)
 
 
-def compute_rp(seq, percentile=95):
+def compute_srp_pair(seq, epsilon):
+    coords = _seq_to_xy_array(seq).astype(np.float32)
 
-    coords = _seq_to_xy_array(seq)
+    x = coords[:, 0]
+    y = coords[:, 1]
 
-    diff = coords[:, None, :] - coords[None, :, :]
+    x_min, x_max = np.min(x), np.max(x)
+    y_min, y_max = np.min(y), np.max(y)
+
+    x_norm = (x - x_min) / max(x_max - x_min, 1e-8)
+    y_norm = (y - y_min) / max(y_max - y_min, 1e-8)
+
+    coords_norm = np.stack([x_norm, y_norm], axis=1)
+
+    diff = coords_norm[:, None, :] - coords_norm[None, :, :]
     dist = np.sqrt(np.sum(diff ** 2, axis=2))
 
-    eps = np.percentile(dist, percentile)
-
-    rec = np.where(dist <= eps, dist, eps).astype(np.float32)
-
-    if rec.max() > rec.min():
-        rec = (rec - rec.min()) / (rec.max() - rec.min())
-
-    return rec
+    rp = np.minimum(dist, epsilon)
+    return rp
 
 
-def draw_rp(seq, save_path, percentile = 95):
-
+def draw_srp(seq, save_path, epsilon):
+    """与 SOTA/SRP_pair.draw_srp 一致：RP 最小值映射 0、最大映射 255；再缩放到 TARGET_SIZE。"""
     if len(seq) < 2:
         return
 
-    rp = compute_rp(seq, percentile)
+    rp = compute_srp_pair(seq, epsilon)
 
-    img_size = TARGET_SIZE
+    rp_min = rp.min()
+    rp_max = rp.max()
+    denom = max(rp_max - rp_min, 1e-8)
 
-    img = (rp * 255).astype(np.uint8)
+    img = ((rp - rp_min) / denom * 255).astype(np.uint8)
 
-    if img.shape[0] != img_size:
-        img = cv2.resize(img, (img_size, img_size),
-                         interpolation=cv2.INTER_NEAREST)
-
-    #img = 255 - img
-    #img = np.flipud(img)
+    if img.shape[0] != TARGET_SIZE or img.shape[1] != TARGET_SIZE:
+        img = cv2.resize(
+            img,
+            (TARGET_SIZE, TARGET_SIZE),
+            interpolation=cv2.INTER_NEAREST,
+        )
 
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
-
     cv2.imwrite(save_path, img)
 
 
@@ -210,7 +216,7 @@ def clean_dfl(df):
 # Dataset Processing (MODIFIED)
 # ============================================================
 
-def process_dataset(dataset, data_root, out_dir):
+def process_dataset(dataset, data_root, out_dir, epsilon):
 
     users = sorted(os.listdir(data_root))
 
@@ -296,7 +302,7 @@ def process_dataset(dataset, data_root, out_dir):
                     f"{session}-{i}.png"
                 )
 
-                draw_rp(seq, save_path)
+                draw_srp(seq, save_path, epsilon)
 
 
 # ============================================================
@@ -317,6 +323,13 @@ def main():
     parser.add_argument("--out_dir",
                         required=True)
 
+    parser.add_argument(
+        "--epsilon",
+        type=float,
+        default=DEFAULT_EPSILON,
+        help="pair-wise",
+    )
+
     args = parser.parse_args()
 
     data_root = os.path.join(ROOT, args.data_root)
@@ -325,7 +338,8 @@ def main():
     process_dataset(
         args.dataset,
         data_root,
-        out_dir
+        out_dir,
+        args.epsilon,
     )
 
     print("\nTimeDiff image generation finished.")
