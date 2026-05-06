@@ -167,8 +167,8 @@ if __name__ == "__main__":
     test_dataset  = Protocol1MouseDataset(test_root, user_list, transform)
 
    
-    train_loader = DataLoader(train_dataset, batch_size=20, shuffle=True, num_workers=4)
-    test_loader  = DataLoader(test_dataset, batch_size=20, shuffle=False, num_workers=4)
+    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=4)
+    test_loader  = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=4)
 
     print(f"[INFO] Train samples: {len(train_dataset)} | Test samples: {len(test_dataset)}")
 
@@ -187,11 +187,11 @@ if __name__ == "__main__":
 
     print("\n========== Training Execution ==========")
     _, best_model, *_ = trainer.train(
-        optim_name="sgd",
-        num_epochs=30,
-        learning_rate=0.0001,
-        step_size=15,
-        learning_rate_decay=0.96,
+        optim_name="adamw",
+        num_epochs=25,
+        learning_rate=0.001,
+        step_size=7,
+        learning_rate_decay=0.1,
         verbose=True
     )
 
