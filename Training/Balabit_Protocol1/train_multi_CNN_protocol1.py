@@ -146,7 +146,7 @@ if __name__ == "__main__":
     print(f"[INFO] Training folder: {training_folder}")
     print(f"[INFO] Testing folder : {testing_folder}")
     
-    img_size = 448
+    img_size = 224
     C_pos, C_neg = 60, 60
     
     train_root = Path(project_root) / "Images" / training_folder
