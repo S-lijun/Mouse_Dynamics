@@ -118,8 +118,12 @@ def compute_srp_pair(seq, epsilon):
     x_min, x_max = np.min(x), np.max(x)
     y_min, y_max = np.min(y), np.max(y)
 
-    x_norm = (x - x_min) / max(x_max - x_min, 1e-8)
-    y_norm = (y - y_min) / max(y_max - y_min, 1e-8)
+    scale = max(x_max - x_min, y_max - y_min)
+    if scale < 1e-8:
+        scale = 1e-8
+
+    x_norm = (x - x_min) / scale
+    y_norm = (y - y_min) / scale
 
     coords_norm = np.stack([x_norm, y_norm], axis=1)
 
