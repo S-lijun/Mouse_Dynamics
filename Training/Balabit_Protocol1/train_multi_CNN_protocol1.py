@@ -158,6 +158,7 @@ if __name__ == "__main__":
     print(f"[INFO] Detected {num_users} users.")
 
     transform = transforms.Compose([
+        transforms.Resize((img_size, img_size)),
         transforms.ToTensor()
     ])
 
