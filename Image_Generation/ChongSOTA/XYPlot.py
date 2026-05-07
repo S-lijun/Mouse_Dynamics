@@ -22,7 +22,7 @@ TIME_THRESHOLD = 1.0   # seconds
 TARGET_SIZE = 448      # final image size
 INNER_PADDING = 5      # pixels, keep small white margins around trajectory
 
-# Balabit 1920×1080：与 XYPlot_global 一致，作为全局坐标系（论文 [0,1]×[0,α]，α=H/W）
+# Balabit 1920×1080：全局画布与 merge 阈值（与 XYPlot_global 一致）
 GLOBAL_MAX_X = 1919.0
 GLOBAL_MAX_Y = 1079.0
 
@@ -104,6 +104,95 @@ def merge_sequences(sequences, min_length):
 # ============================================================
 # Draw Sequence (NEW)
 # ============================================================
+'''
+def draw_sequence(seq, save_path, norm_width, norm_height):
+
+    if len(seq) < 2:
+        return
+
+    Wg = max(float(norm_width), 1.0)
+    Hg = max(float(norm_height), 1.0)
+    Wc = int(Wg) + 1
+    Hc = int(Hg) + 1
+
+    xs = np.array([float(e["x"]) for e in seq], dtype=np.float64)
+    ys = np.array([float(e["y"]) for e in seq], dtype=np.float64)
+
+    xmin, xmax = float(xs.min()), float(xs.max())
+    ymin, ymax = float(ys.min()), float(ys.max())
+    x_range = max(xmax - xmin, 1e-6)
+    y_range = max(ymax - ymin, 1e-6)
+
+    if x_range >= y_range:
+        xn = (xs - xmin) / x_range
+        yn = (ys - ymin) / x_range
+        S = Wc * (x_range / Wg)
+        px = xn * S
+        py = yn * S
+    else:
+        yn = (ys - ymin) / y_range
+        xn = (xs - xmin) / y_range
+        S = Hc * (y_range / Hg)
+        px = xn * S
+        py = yn * S
+
+    x_pix = np.clip(np.rint(px), 0, Wc - 1).astype(np.int32)
+    y_pix = np.clip(np.rint(py), 0, Hc - 1).astype(np.int32)
+
+    canvas = np.ones((Hc, Wc, 3), dtype=np.uint8) * 255
+
+    prev = None
+
+    for x_i, y_i in zip(x_pix, y_pix):
+
+        if prev is not None:
+
+            cv2.line(
+                canvas,
+                prev,
+                (int(x_i), int(y_i)),
+                (0, 0, 0),
+                1,
+                lineType=cv2.LINE_AA,
+            )
+
+        prev = (int(x_i), int(y_i))
+
+    # ========================================================
+    # Resize with aspect ratio → 448 正方形（padding 最后做）
+    # ========================================================
+
+    h, w = canvas.shape[:2]
+    effective_size = max(1, TARGET_SIZE - 2 * INNER_PADDING)
+    scale = effective_size / max(w, h)
+
+    new_w = int(w * scale)
+    new_h = int(h * scale)
+
+    resized = cv2.resize(canvas, (new_w, new_h), interpolation=cv2.INTER_AREA)
+
+    pad_top = (TARGET_SIZE - new_h) // 2
+    pad_bottom = TARGET_SIZE - new_h - pad_top
+
+    pad_left = (TARGET_SIZE - new_w) // 2
+    pad_right = TARGET_SIZE - new_w - pad_left
+
+    final = cv2.copyMakeBorder(
+        resized,
+        pad_top,
+        pad_bottom,
+        pad_left,
+        pad_right,
+        cv2.BORDER_CONSTANT,
+        value=(255, 255, 255),
+    )
+
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+    cv2.imwrite(save_path, final)
+
+'''
+
 
 def draw_sequence(seq, save_path, norm_width, norm_height):
 
@@ -113,10 +202,6 @@ def draw_sequence(seq, save_path, norm_width, norm_height):
     xs = np.array([float(e["x"]) for e in seq], dtype=np.float64)
     ys = np.array([float(e["y"]) for e in seq], dtype=np.float64)
 
-    # ========================================================
-    # Global frame (per paper): x' = x/W, y' = y/W → [0,1]×[0,α], α = H/W
-    # 再映射回固定分辨率画布像素 (与全局 W×H 一致)
-    # ========================================================
     W = max(float(norm_width), 1.0)
     H = max(float(norm_height), 1.0)
     canvas_w = int(W) + 1
@@ -125,9 +210,9 @@ def draw_sequence(seq, save_path, norm_width, norm_height):
     canvas = np.ones((canvas_h, canvas_w, 3), dtype=np.uint8) * 255
 
     xn = xs / W
-    yn = ys / W
+    yn = ys / H
     x_pix = np.clip(np.rint(xn * W), 0, canvas_w - 1).astype(np.int32)
-    y_pix = np.clip(np.rint(yn * W), 0, canvas_h - 1).astype(np.int32)
+    y_pix = np.clip(np.rint(yn * H), 0, canvas_h - 1).astype(np.int32)
 
     prev = None
 
@@ -163,7 +248,7 @@ def draw_sequence(seq, save_path, norm_width, norm_height):
     #resized = cv2.cvtColor(bw, cv2.COLOR_GRAY2BGR)
     #resized = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
 
-    darken = 0 
+    darken = 100
     gray = np.where(gray < 255, np.clip(gray - darken, 0, 255), 255).astype(np.uint8)
     resized = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
 
@@ -190,7 +275,6 @@ def draw_sequence(seq, save_path, norm_width, norm_height):
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
     cv2.imwrite(save_path, final)
-
 
 # ============================================================
 # Cleaning (unchanged)
