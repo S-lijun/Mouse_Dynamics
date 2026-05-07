@@ -7,6 +7,8 @@ import numpy as np
 
 from XYPlot import (
     ROOT,
+    GLOBAL_MAX_X,
+    GLOBAL_MAX_Y,
     split_by_time,
     merge_sequences,
     clean_balabit,
@@ -14,9 +16,6 @@ from XYPlot import (
     clean_dfl,
     draw_sequence,
 )
-
-GLOBAL_MAX_X = 1919.0
-GLOBAL_MAX_Y = 1079.0
 
 
 def process_dataset(dataset, data_root, out_dir):

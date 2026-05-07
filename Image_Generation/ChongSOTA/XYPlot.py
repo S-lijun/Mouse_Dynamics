@@ -22,6 +22,10 @@ TIME_THRESHOLD = 1.0   # seconds
 TARGET_SIZE = 448      # final image size
 INNER_PADDING = 5      # pixels, keep small white margins around trajectory
 
+# Balabit 1920×1080：与 XYPlot_global 一致，作为全局坐标系（论文 [0,1]×[0,α]，α=H/W）
+GLOBAL_MAX_X = 1919.0
+GLOBAL_MAX_Y = 1079.0
+
 
 # ============================================================
 # Trajectory Length
@@ -101,45 +105,46 @@ def merge_sequences(sequences, min_length):
 # Draw Sequence (NEW)
 # ============================================================
 
-def draw_sequence(seq, save_path, session_width, session_height):
+def draw_sequence(seq, save_path, norm_width, norm_height):
 
     if len(seq) < 2:
         return
 
-    xs = np.array([float(e["x"]) for e in seq])
-    ys = np.array([float(e["y"]) for e in seq])
+    xs = np.array([float(e["x"]) for e in seq], dtype=np.float64)
+    ys = np.array([float(e["y"]) for e in seq], dtype=np.float64)
 
     # ========================================================
-    # Per-session resolution (shared by all sequences in session)
+    # Global frame (per paper): x' = x/W, y' = y/W → [0,1]×[0,α], α = H/W
+    # 再映射回固定分辨率画布像素 (与全局 W×H 一致)
     # ========================================================
-    width = max(float(session_width), 1.0)
-    height = max(float(session_height), 1.0)
+    W = max(float(norm_width), 1.0)
+    H = max(float(norm_height), 1.0)
+    canvas_w = int(W) + 1
+    canvas_h = int(H) + 1
 
-    canvas = np.ones((int(height)+1, int(width)+1, 3), dtype=np.uint8) * 255
+    canvas = np.ones((canvas_h, canvas_w, 3), dtype=np.uint8) * 255
 
-    # ========================================================
-    # Draw raw trajectory (NO normalization)
-    # ========================================================
+    xn = xs / W
+    yn = ys / W
+    x_pix = np.clip(np.rint(xn * W), 0, canvas_w - 1).astype(np.int32)
+    y_pix = np.clip(np.rint(yn * W), 0, canvas_h - 1).astype(np.int32)
 
     prev = None
 
-    for x, y in zip(xs, ys):
-
-        x_i = int(x)
-        y_i = int(y)
+    for x_i, y_i in zip(x_pix, y_pix):
 
         if prev is not None:
 
             cv2.line(
                 canvas,
                 prev,
-                (x_i, y_i),
-                (0,0,0),
+                (int(x_i), int(y_i)),
+                (0, 0, 0),
                 1,
-                lineType=cv2.LINE_AA
+                lineType=cv2.LINE_AA,
             )
 
-        prev = (x_i, y_i)
+        prev = (int(x_i), int(y_i))
 
     # ========================================================
     # Resize with aspect ratio
@@ -158,7 +163,7 @@ def draw_sequence(seq, save_path, session_width, session_height):
     #resized = cv2.cvtColor(bw, cv2.COLOR_GRAY2BGR)
     #resized = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
 
-    darken = 100 
+    darken = 0 
     gray = np.where(gray < 255, np.clip(gray - darken, 0, 255), 255).astype(np.uint8)
     resized = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
 
@@ -256,6 +261,7 @@ def process_dataset(dataset, data_root, out_dir):
 
     print("\nDataset:", dataset)
     print("Users:", len(users))
+    print("Global norm W×H (min_length & draw):", GLOBAL_MAX_X, GLOBAL_MAX_Y)
 
     for user in users:
 
@@ -336,7 +342,7 @@ def process_dataset(dataset, data_root, out_dir):
                     f"{session}-{i}.png"
                 )
 
-                draw_sequence(seq, save_path, session_width, session_height)
+                draw_sequence(seq, save_path, GLOBAL_MAX_X, GLOBAL_MAX_Y)
 
 
 # ============================================================
