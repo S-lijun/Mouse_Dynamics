@@ -22,7 +22,7 @@ TIME_THRESHOLD = 1.0   # seconds
 TARGET_SIZE = 448      # final image size
 INNER_PADDING = 5      # pixels, keep small white margins around trajectory
 
-# Balabit 1920×1080：全局画布与 merge 阈值（与 XYPlot_global 一致）
+# Balabit 1920×1080
 GLOBAL_MAX_X = 1919.0
 GLOBAL_MAX_Y = 1079.0
 
@@ -157,10 +157,6 @@ def draw_sequence(seq, save_path, norm_width, norm_height):
             )
 
         prev = (int(x_i), int(y_i))
-
-    # ========================================================
-    # Resize with aspect ratio → 448 正方形（padding 最后做）
-    # ========================================================
 
     h, w = canvas.shape[:2]
     effective_size = max(1, TARGET_SIZE - 2 * INNER_PADDING)

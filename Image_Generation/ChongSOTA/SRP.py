@@ -99,7 +99,7 @@ def merge_sequences(sequences, min_length):
 
 
 # ============================================================
-# Pair-wise SRP（与 SOTA/SRP_pair.py 对齐：seq 直接按 ndarray[:, :2] 处理）
+# Pair-wise SRP（
 # ============================================================
 
 
