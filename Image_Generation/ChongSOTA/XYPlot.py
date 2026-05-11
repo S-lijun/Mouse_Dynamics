@@ -104,90 +104,6 @@ def merge_sequences(sequences, min_length):
 # ============================================================
 # Draw Sequence (NEW)
 # ============================================================
-'''
-def draw_sequence(seq, save_path, norm_width, norm_height):
-
-    if len(seq) < 2:
-        return
-
-    Wg = max(float(norm_width), 1.0)
-    Hg = max(float(norm_height), 1.0)
-    Wc = int(Wg) + 1
-    Hc = int(Hg) + 1
-
-    xs = np.array([float(e["x"]) for e in seq], dtype=np.float64)
-    ys = np.array([float(e["y"]) for e in seq], dtype=np.float64)
-
-    xmin, xmax = float(xs.min()), float(xs.max())
-    ymin, ymax = float(ys.min()), float(ys.max())
-    x_range = max(xmax - xmin, 1e-6)
-    y_range = max(ymax - ymin, 1e-6)
-
-    if x_range >= y_range:
-        xn = (xs - xmin) / x_range
-        yn = (ys - ymin) / x_range
-        S = Wc * (x_range / Wg)
-        px = xn * S
-        py = yn * S
-    else:
-        yn = (ys - ymin) / y_range
-        xn = (xs - xmin) / y_range
-        S = Hc * (y_range / Hg)
-        px = xn * S
-        py = yn * S
-
-    x_pix = np.clip(np.rint(px), 0, Wc - 1).astype(np.int32)
-    y_pix = np.clip(np.rint(py), 0, Hc - 1).astype(np.int32)
-
-    canvas = np.ones((Hc, Wc, 3), dtype=np.uint8) * 255
-
-    prev = None
-
-    for x_i, y_i in zip(x_pix, y_pix):
-
-        if prev is not None:
-
-            cv2.line(
-                canvas,
-                prev,
-                (int(x_i), int(y_i)),
-                (0, 0, 0),
-                1,
-                lineType=cv2.LINE_AA,
-            )
-
-        prev = (int(x_i), int(y_i))
-
-    h, w = canvas.shape[:2]
-    effective_size = max(1, TARGET_SIZE - 2 * INNER_PADDING)
-    scale = effective_size / max(w, h)
-
-    new_w = int(w * scale)
-    new_h = int(h * scale)
-
-    resized = cv2.resize(canvas, (new_w, new_h), interpolation=cv2.INTER_AREA)
-
-    pad_top = (TARGET_SIZE - new_h) // 2
-    pad_bottom = TARGET_SIZE - new_h - pad_top
-
-    pad_left = (TARGET_SIZE - new_w) // 2
-    pad_right = TARGET_SIZE - new_w - pad_left
-
-    final = cv2.copyMakeBorder(
-        resized,
-        pad_top,
-        pad_bottom,
-        pad_left,
-        pad_right,
-        cv2.BORDER_CONSTANT,
-        value=(255, 255, 255),
-    )
-
-    os.makedirs(os.path.dirname(save_path), exist_ok=True)
-
-    cv2.imwrite(save_path, final)
-
-'''
 
 
 def draw_sequence(seq, save_path, norm_width, norm_height):
@@ -200,15 +116,16 @@ def draw_sequence(seq, save_path, norm_width, norm_height):
 
     W = max(float(norm_width), 1.0)
     H = max(float(norm_height), 1.0)
+    # x、y 同一尺度：均除以 norm_width，归一化 y ∈ [0, a]，a = H/W < 1（常见屏宽>高）
+    a = H / W
     canvas_w = int(W) + 1
-    canvas_h = int(H) + 1
+    span = float(canvas_w - 1)
+    canvas_h = int(np.ceil(a * span)) + 1
 
     canvas = np.ones((canvas_h, canvas_w, 3), dtype=np.uint8) * 255
 
-    xn = xs / W
-    yn = ys / H
-    x_pix = np.clip(np.rint(xn * W), 0, canvas_w - 1).astype(np.int32)
-    y_pix = np.clip(np.rint(yn * H), 0, canvas_h - 1).astype(np.int32)
+    x_pix = np.clip(np.rint(xs / W * span), 0, canvas_w - 1).astype(np.int32)
+    y_pix = np.clip(np.rint(ys / W * span), 0, canvas_h - 1).astype(np.int32)
 
     prev = None
 

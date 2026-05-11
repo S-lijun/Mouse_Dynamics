@@ -20,9 +20,15 @@ print("[ROOT]", ROOT)
 TARGET_SIZE = 448      # final image size
 INNER_PADDING = 5      # pixels, keep small white margins around trajectory
 
-# Balabit 1920×1080：全局画布与 merge 阈值（与 XYPlot_global 一致）
+# Balabit 1920×1080
 GLOBAL_MAX_X = 1919.0
 GLOBAL_MAX_Y = 1079.0
+
+DEFAULT_TRAINING_ROOT = {
+    "balabit": "Data/Balabit-dataset/training_files",
+    "chaoshen": "Data/ChaoShen/training_files",
+    "dfl": "Data/DFL-dataset_raw/training_files",
+}
 
 
 # ============================================================
@@ -52,15 +58,15 @@ def draw_sequence(seq, save_path, norm_width, norm_height):
 
     W = max(float(norm_width), 1.0)
     H = max(float(norm_height), 1.0)
+    a = H / W
     canvas_w = int(W) + 1
-    canvas_h = int(H) + 1
+    span = float(canvas_w - 1)
+    canvas_h = int(np.ceil(a * span)) + 1
 
     canvas = np.ones((canvas_h, canvas_w, 3), dtype=np.uint8) * 255
 
-    xn = xs / W
-    yn = ys / H
-    x_pix = np.clip(np.rint(xn * W), 0, canvas_w - 1).astype(np.int32)
-    y_pix = np.clip(np.rint(yn * H), 0, canvas_h - 1).astype(np.int32)
+    x_pix = np.clip(np.rint(xs / W * span), 0, canvas_w - 1).astype(np.int32)
+    y_pix = np.clip(np.rint(ys / W * span), 0, canvas_h - 1).astype(np.int32)
 
     prev = None
 
@@ -184,16 +190,65 @@ def clean_dfl(df):
 
 
 # ============================================================
-# Dataset Processing (MODIFIED)
+# Per-user bounds from training split
 # ============================================================
 
-def process_dataset(dataset, data_root, out_dir, chunk_size):
+def _clean_df(dataset, df):
+    if dataset == "balabit":
+        return clean_balabit(df)
+    if dataset == "chaoshen":
+        return clean_chaoshen(df)
+    if dataset == "dfl":
+        return clean_dfl(df)
+    raise ValueError(dataset)
+
+
+def build_user_max_xy_from_training(dataset, training_root):
+    user_max_xy = {}
+    users = sorted(os.listdir(training_root))
+
+    for user in users:
+        user_dir = os.path.join(training_root, user)
+        if not os.path.isdir(user_dir):
+            continue
+
+        max_x = 0.0
+        max_y = 0.0
+        saw_points = False
+
+        for name in sorted(os.listdir(user_dir)):
+            path = os.path.join(user_dir, name)
+            if not os.path.isfile(path):
+                continue
+
+            df = pd.read_csv(path)
+            df = _clean_df(dataset, df)
+            if len(df) == 0:
+                continue
+
+            max_x = max(max_x, float(df["x"].max()))
+            max_y = max(max_y, float(df["y"].max()))
+            saw_points = True
+
+        if saw_points:
+            user_max_xy[user] = (max_x, max_y)
+        else:
+            user_max_xy[user] = (GLOBAL_MAX_X, GLOBAL_MAX_Y)
+
+    return user_max_xy
+
+
+# ============================================================
+# Dataset Processing
+# ============================================================
+
+def process_dataset(dataset, data_root, out_dir, chunk_size, user_max_xy):
 
     users = sorted(os.listdir(data_root))
 
     print("\nDataset:", dataset)
     print("Users:", len(users))
-    print("Global norm W×H (draw):", GLOBAL_MAX_X, GLOBAL_MAX_Y)
+    print("Per-user max bounds loaded for", len(user_max_xy), "users (from training_root).")
     print("Chunk size:", chunk_size)
 
     for user in users:
@@ -203,8 +258,17 @@ def process_dataset(dataset, data_root, out_dir, chunk_size):
         if not os.path.isdir(user_dir):
             continue
 
+        if user in user_max_xy:
+            norm_x, norm_y = user_max_xy[user]
+        else:
+            norm_x, norm_y = GLOBAL_MAX_X, GLOBAL_MAX_Y
+            print(
+                "\n[WARN] User", user, "not in training scan; using GLOBAL_MAX_X/Y:",
+                norm_x, norm_y,
+            )
+
         print("\n------------------------------")
-        print("User:", user)
+        print("User:", user, "| norm W×H (from training):", norm_x, norm_y)
 
         session_files = sorted(os.listdir(user_dir))
 
@@ -221,12 +285,7 @@ def process_dataset(dataset, data_root, out_dir, chunk_size):
 
             df = pd.read_csv(path)
 
-            if dataset == "balabit":
-                df = clean_balabit(df)
-            elif dataset == "chaoshen":
-                df = clean_chaoshen(df)
-            elif dataset == "dfl":
-                df = clean_dfl(df)
+            df = _clean_df(dataset, df)
 
             events = df.to_dict("records")
 
@@ -254,7 +313,7 @@ def process_dataset(dataset, data_root, out_dir, chunk_size):
                     f"{session}-{i}.png"
                 )
 
-                draw_sequence(seq, save_path, GLOBAL_MAX_X, GLOBAL_MAX_Y)
+                draw_sequence(seq, save_path, norm_x, norm_y)
 
 
 # ============================================================
@@ -272,6 +331,12 @@ def main():
     parser.add_argument("--data_root",
                         required=True)
 
+    parser.add_argument(
+        "--training_root",
+        default=None,
+        help="Relative to ROOT; default follows --dataset training_files.",
+    )
+
     parser.add_argument("--out_dir",
                         required=True)
 
@@ -282,14 +347,19 @@ def main():
 
     args = parser.parse_args()
 
+    training_rel = args.training_root or DEFAULT_TRAINING_ROOT[args.dataset]
+    training_root = os.path.join(ROOT, training_rel)
+    print("[training_root]", training_rel)
     data_root = os.path.join(ROOT, args.data_root)
     out_dir = os.path.join(ROOT, args.out_dir)
+    user_max_xy = build_user_max_xy_from_training(args.dataset, training_root)
 
     process_dataset(
         args.dataset,
         data_root,
         out_dir,
-        args.sizes
+        args.sizes,
+        user_max_xy,
     )
 
     print("\nChunk image generation finished.")
