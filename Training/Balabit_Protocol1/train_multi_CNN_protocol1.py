@@ -190,8 +190,8 @@ if __name__ == "__main__":
         optim_name="sgd",
         num_epochs=25,
         learning_rate=0.0001,
-        step_size=10,
-        learning_rate_decay=0.1,
+        step_size=16,
+        learning_rate_decay=0.96,
         verbose=True
     )
 
@@ -249,7 +249,7 @@ if __name__ == "__main__":
         json.dump(result, f, indent=2)
     with open(out_dir / f"P1_per_user_results.json", "w") as f:
         json.dump(semantic_user_curve, f, indent=2)
-    
+
     print(f"\n[INFO] Results saved to: {out_dir}")
     gc.collect()
     torch.cuda.empty_cache()
