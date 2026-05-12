@@ -6,6 +6,8 @@ import pandas as pd
 import numpy as np
 import cv2
 import math
+from PIL import Image
+from torchvision import transforms
 
 # ============================================================
 # ROOT
@@ -21,7 +23,7 @@ print("[ROOT]", ROOT)
 TIME_THRESHOLD = 1.0   # seconds
 DEFAULT_EPSILON = 1.0
 
-# SRP 存盘为 N×N（N = 序列点数）；不在此 resize，由训练脚本 transforms 统一为 224/448。
+# SRP 先为 N×N（N = 序列点数）；可选在存盘前用 torchvision.transforms.Resize((s,s)) 与训练里 Resize 一致，输出仍为 uint8 PNG。
 
 
 # ============================================================
@@ -128,7 +130,19 @@ def compute_srp_pair(seq, epsilon):
     return rp
 
 
-def draw_srp(seq, save_path, epsilon):
+_resize_tfms = {}
+
+
+def _resize_transform(side: int):
+    """仅 transforms.Resize((s,s))，与训练脚本里 Resize 一致；不写盘、不 ToTensor。"""
+    s = int(side)
+    if s not in _resize_tfms:
+        _resize_tfms[s] = transforms.Resize((s, s))
+    return _resize_tfms[s]
+
+
+def draw_srp(seq, save_path, epsilon, output_size=0):
+    """output_size: 若 > 0，将灰度 SRP 用 transforms.Resize 为 output_size×output_size 再保存；0 表示保持 N×N。"""
     if len(seq) < 2:
         return
 
@@ -139,6 +153,12 @@ def draw_srp(seq, save_path, epsilon):
     denom = max(rp_max - rp_min, 1e-8)
 
     img = ((rp - rp_min) / denom * 255).astype(np.uint8)
+
+    if output_size and int(output_size) > 0:
+        s = int(output_size)
+        pil = Image.fromarray(img, mode="L")
+        out_pil = _resize_transform(s)(pil)
+        img = np.asarray(out_pil, dtype=np.uint8)
 
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     cv2.imwrite(save_path, img)
@@ -207,7 +227,7 @@ def clean_dfl(df):
 # Dataset Processing (MODIFIED)
 # ============================================================
 
-def process_dataset(dataset, data_root, out_dir, epsilon):
+def process_dataset(dataset, data_root, out_dir, epsilon, output_size=0):
 
     users = sorted(os.listdir(data_root))
     sequence_lengths = []
@@ -299,7 +319,7 @@ def process_dataset(dataset, data_root, out_dir, epsilon):
                     [[float(e["x"]), float(e["y"]), float(e["time"])] for e in seq],
                     dtype=np.float32,
                 )
-                draw_srp(seq_array, save_path, epsilon)
+                draw_srp(seq_array, save_path, epsilon, output_size)
 
     print("\n========== Sequence Length Stats (After Merge) ==========")
     if len(sequence_lengths) == 0:
@@ -338,6 +358,13 @@ def main():
         help="pair-wise",
     )
 
+    parser.add_argument(
+        "--output_size",
+        type=int,
+        default=448,
+        help="若 > 0，用 transforms.Resize 将每张 SRP 存为 output_size×output_size PNG；0 表示保持原始 N×N。",
+    )
+
     args = parser.parse_args()
 
     data_root = os.path.join(ROOT, args.data_root)
@@ -348,6 +375,7 @@ def main():
         data_root,
         out_dir,
         args.epsilon,
+        args.output_size,
     )
 
     print("\nTimeDiff image generation finished.")

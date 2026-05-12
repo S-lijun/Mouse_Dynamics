@@ -20,7 +20,7 @@ GLOBAL_MAX_X = 1919.0
 GLOBAL_MAX_Y = 1079.0
 
 
-def process_dataset(dataset, data_root, out_dir, epsilon):
+def process_dataset(dataset, data_root, out_dir, epsilon, output_size=0):
     users = sorted(os.listdir(data_root))
     sequence_lengths = []
 
@@ -77,7 +77,7 @@ def process_dataset(dataset, data_root, out_dir, epsilon):
                     [[float(e["x"]), float(e["y"]), float(e["time"])] for e in seq],
                     dtype=np.float32,
                 )
-                draw_srp(seq_array, save_path, epsilon)
+                draw_srp(seq_array, save_path, epsilon, output_size)
 
     print("\n========== Sequence Length Stats (After Merge) ==========")
     if len(sequence_lengths) == 0:
@@ -97,12 +97,18 @@ def main():
     parser.add_argument("--data_root", required=True)
     parser.add_argument("--out_dir", required=True)
     parser.add_argument("--epsilon", type=float, default=DEFAULT_EPSILON)
+    parser.add_argument(
+        "--output_size",
+        type=int,
+        default=448,
+        help="若 > 0，用 transforms.Resize 将每张 SRP 存为 output_size×output_size PNG；0 表示保持原始 N×N。",
+    )
     args = parser.parse_args()
 
     data_root = os.path.join(ROOT, args.data_root)
     out_dir = os.path.join(ROOT, args.out_dir)
 
-    process_dataset(args.dataset, data_root, out_dir, args.epsilon)
+    process_dataset(args.dataset, data_root, out_dir, args.epsilon, args.output_size)
     print("\nGlobal SRP image generation finished.")
 
 

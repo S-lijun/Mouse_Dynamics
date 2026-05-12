@@ -78,7 +78,7 @@ def build_user_max_xy_from_training(dataset, training_root):
     return user_max_xy
 
 
-def process_dataset(dataset, data_root, out_dir, epsilon, user_max_xy):
+def process_dataset(dataset, data_root, out_dir, epsilon, user_max_xy, output_size=0):
     users = sorted(os.listdir(data_root))
     sequence_lengths = []
 
@@ -140,7 +140,7 @@ def process_dataset(dataset, data_root, out_dir, epsilon, user_max_xy):
                     [[float(e["x"]), float(e["y"]), float(e["time"])] for e in seq],
                     dtype=np.float32,
                 )
-                draw_srp(seq_array, save_path, epsilon)
+                draw_srp(seq_array, save_path, epsilon, output_size)
 
     print("\n========== Sequence Length Stats (After Merge) ==========")
     if len(sequence_lengths) == 0:
@@ -169,6 +169,12 @@ def main():
     )
     parser.add_argument("--out_dir", required=True)
     parser.add_argument("--epsilon", type=float, default=DEFAULT_EPSILON)
+    parser.add_argument(
+        "--output_size",
+        type=int,
+        default=448,
+        help="若 > 0，用 transforms.Resize 将每张 SRP 存为 output_size×output_size PNG；0 表示保持原始 N×N。",
+    )
     args = parser.parse_args()
 
     training_rel = args.training_root or DEFAULT_TRAINING_ROOT[args.dataset]
@@ -183,7 +189,9 @@ def main():
     for u in sorted(user_max_xy.keys()):
         print("  ", u, "->", user_max_xy[u])
 
-    process_dataset(args.dataset, data_root, out_dir, args.epsilon, user_max_xy)
+    process_dataset(
+        args.dataset, data_root, out_dir, args.epsilon, user_max_xy, args.output_size
+    )
     print("\nPer-user SRP image generation finished.")
 
 

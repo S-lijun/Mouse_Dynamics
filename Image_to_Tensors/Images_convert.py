@@ -68,9 +68,9 @@ def convert_dataset(image_root, out_root):
 
     os.makedirs(out_root, exist_ok=True)
 
-    H = 600
-    W = 600
-
+    H = 448
+    W = 448
+    
     images = np.memmap(
         os.path.join(out_root, "images.npy"),
         dtype=np.uint8,

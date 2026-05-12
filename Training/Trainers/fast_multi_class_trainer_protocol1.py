@@ -117,7 +117,7 @@ class MultiLabelTrainerCNN:
             optimizer = optim.AdamW(self.net.parameters(), lr=learning_rate)
 
         elif optim_name.lower() == 'sgd':
-            optimizer = optim.SGD(self.net.parameters(), lr=learning_rate, momentum=0.9)
+            optimizer = optim.SGD(self.net.parameters(), lr=learning_rate, momentum=0.9, weight_decay=0.0002)
 
         else:
             raise ValueError(f"Unsupported optimizer: {optim_name}")
