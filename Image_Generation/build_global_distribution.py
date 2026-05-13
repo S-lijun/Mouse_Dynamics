@@ -30,10 +30,12 @@ def clean_balabit(df):
         "state":"state"
     })
 
-    df = df[df["state"]=="Move"]
+    df = df[df["state"] == "Move"]
+    df = df[(df["x"] < 65535) & (df["y"] < 65535)]
+    df = df.drop_duplicates()
 
     for c in ["x","y","time"]:
-        df[c] = pd.to_numeric(df[c],errors="coerce")
+        df[c] = pd.to_numeric(df[c], errors="coerce")
 
     return df.dropna(subset=["x","y","time"])
 
