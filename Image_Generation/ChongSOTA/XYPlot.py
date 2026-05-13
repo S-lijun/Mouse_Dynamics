@@ -159,11 +159,11 @@ def draw_sequence(seq, save_path, norm_width, norm_height):
     gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
     #bw = np.where(gray == 255, 255, 0).astype(np.uint8)
     #resized = cv2.cvtColor(bw, cv2.COLOR_GRAY2BGR)
-    #resized = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
-
-    darken = 100
-    gray = np.where(gray < 255, np.clip(gray - darken, 0, 255), 255).astype(np.uint8)
     resized = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+
+    #darken = 100
+    #gray = np.where(gray < 255, np.clip(gray - darken, 0, 255), 255).astype(np.uint8)
+    #resized = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
 
     # ========================================================
     # Center Padding
