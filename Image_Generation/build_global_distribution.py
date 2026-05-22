@@ -221,6 +221,95 @@ def compute_axay(xs, ys, ts):
 
 
 # ------------------------------------------------
+# curvature (geometric, vx/vy + ax/ay from prev/next neighbors)
+# ------------------------------------------------
+
+def compute_curvature(xs, ys, ts):
+    """
+    Geometric curvature at each point using neighbors i-1 and i+1.
+
+    For interior i: segment velocities v_prev (i-1->i), v_next (i->i+1);
+    central velocity/acceleration; kappa = |vx*ay - vy*ax| / (vx^2 + vy^2)^(3/2).
+    Endpoints padded from nearest interior value (same length as input).
+    """
+    T = len(xs)
+
+    if T < 3:
+        return np.array([])
+
+    kappa = np.zeros(T)
+    eps = 1e-8
+
+    for i in range(1, T - 1):
+        dt_prev = max(ts[i] - ts[i - 1], eps)
+        dt_next = max(ts[i + 1] - ts[i], eps)
+        dt_c = max(ts[i + 1] - ts[i - 1], eps)
+
+        vx_prev = (xs[i] - xs[i - 1]) / dt_prev
+        vy_prev = (ys[i] - ys[i - 1]) / dt_prev
+        vx_next = (xs[i + 1] - xs[i]) / dt_next
+        vy_next = (ys[i + 1] - ys[i]) / dt_next
+
+        vx = 0.5 * (vx_prev + vx_next)
+        vy = 0.5 * (vy_prev + vy_next)
+        ax = (vx_next - vx_prev) / dt_c
+        ay = (vy_next - vy_prev) / dt_c
+
+        speed_sq = vx * vx + vy * vy
+        if speed_sq < eps:
+            kappa[i] = 0.0
+        else:
+            kappa[i] = abs(vx * ay - vy * ax) / (speed_sq ** 1.5 + eps)
+
+    kappa[0] = kappa[1]
+    kappa[-1] = kappa[-2]
+
+    kappa = kappa[np.isfinite(kappa)]
+
+    return kappa
+
+
+# ------------------------------------------------
+# angular velocity (|d theta / dt|, theta = atan2(vy, vx))
+# ------------------------------------------------
+
+def compute_angular_velocity(xs, ys, ts):
+    """
+    Angular speed |omega| from heading theta = atan2(vy, vx).
+
+    vx/vy from compute_vxvy; theta unwrapped; omega[i] = |theta[i+1]-theta[i]|/dt.
+    Low-speed points (|v|^2 < eps) set to 0. Endpoints padded like curvature.
+    """
+    T = len(xs)
+
+    if T < 2:
+        return np.array([])
+
+    vx, vy = compute_vxvy(xs, ys, ts)
+    eps = 1e-8
+    speed_sq = vx * vx + vy * vy
+
+    theta = np.arctan2(vy, vx)
+    if speed_sq[1] >= eps:
+        theta[0] = theta[1]
+    else:
+        theta[0] = 0.0
+
+    theta = np.unwrap(theta)
+
+    dt = np.maximum(np.diff(ts), eps)
+    omega = np.zeros(T)
+    omega[:-1] = np.abs(np.diff(theta)) / dt
+    omega[-1] = omega[-2]
+
+    omega[speed_sq < eps] = 0.0
+
+    omega = omega[np.isfinite(omega)]
+
+    return omega
+
+
+# ------------------------------------------------
 # timediff node
 # ------------------------------------------------
 
@@ -356,6 +445,19 @@ def build_distribution(dataset,feature,training_root):
                 if len(ay) > 0:
                     all_vy.append(ay)
 
+            elif feature=="curvature":
+
+                kappa = compute_curvature(xs, ys, ts)
+
+                if len(kappa) > 0:
+                    all_values.append(kappa)
+
+            elif feature=="angular_velocity":
+
+                omega = compute_angular_velocity(xs, ys, ts)
+
+                if len(omega) > 0:
+                    all_values.append(omega)
 
             elif feature=="timediff_node":
 
@@ -414,6 +516,8 @@ def main():
             "velocity_pair",
             "acceleration",
             "axay",
+            "curvature",
+            "angular_velocity",
             "timediff_node",
             "timediff_pair"
         ])

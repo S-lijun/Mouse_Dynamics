@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Chunk-wise SRP with vx/vy temporal encoding (vertical stripes).
+Chunk-wise vx/vy temporal encoding (vertical stripes only).
 
-Per chunk (same windowing as SRP_chunk.py):
-  R = pair-wise distance on locally normalized x,y (compute_srp_pair), min-max -> [0, 1]
+Per chunk (same windowing as SRP_chunk_vxvy.py):
+  R = constant 0.5 (maps to 127/255 when saved)
   G = vx via global signed CDF + vertical stripe (np.tile along rows)
   B = vy via global signed CDF + vertical stripe
 
@@ -23,6 +23,8 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
 
 GLOBAL_VX_CDF = None
 GLOBAL_VY_CDF = None
+
+R_CHANNEL_VALUE = 0.5
 
 
 def resolve_path(path_arg):
@@ -119,35 +121,9 @@ def generate_windows(events, chunk_size, data_root):
     return windows
 
 
-def compute_srp_pair(seq, epsilon):
-    """Pair-wise SRP with per-sequence local normalization (SRP_chunk)."""
-    coords = seq[:, :2].astype(np.float32)
-
-    x = coords[:, 0]
-    y = coords[:, 1]
-
-    x_min, x_max = np.min(x), np.max(x)
-    y_min, y_max = np.min(y), np.max(y)
-
-    scale = max(x_max - x_min, y_max - y_min)
-    if scale < 1e-8:
-        scale = 1e-8
-
-    x_norm = (x - x_min) / scale
-    y_norm = (y - y_min) / scale
-
-    coords_norm = np.stack([x_norm, y_norm], axis=1)
-
-    diff = coords_norm[:, None, :] - coords_norm[None, :, :]
-    dist = np.sqrt(np.sum(diff ** 2, axis=2))
-
-    rp = np.minimum(dist, epsilon)
-    return rp
-
-
-def compute_srp_chunk_vxvy(seq, epsilon):
+def compute_vxvy_image(seq):
     """
-    R = normalized pair-wise distance matrix
+    R = constant 0.5
     G = vx vertical stripes
     B = vy vertical stripes
     Returns float32 H×W×3 in [0, 1], channels RGB (R, G, B).
@@ -155,12 +131,6 @@ def compute_srp_chunk_vxvy(seq, epsilon):
     T = len(seq)
     if T < 2:
         return None
-
-    rp = compute_srp_pair(seq, epsilon)
-    rp_min = rp.min()
-    rp_max = rp.max()
-    denom = max(rp_max - rp_min, 1e-8)
-    r_channel = ((rp - rp_min) / denom).astype(np.float32)
 
     xs = seq[:, 0]
     ys = seq[:, 1]
@@ -183,14 +153,11 @@ def compute_srp_chunk_vxvy(seq, epsilon):
         right=1,
     )
 
-    stripe_x = np.tile(vx_norm[None, :], (T, 1))
-    stripe_y = np.tile(vy_norm[None, :], (T, 1))
+    stripe_x = np.tile(vx_norm[None, :], (T, 1)).astype(np.float32)
+    stripe_y = np.tile(vy_norm[None, :], (T, 1)).astype(np.float32)
+    r_channel = np.full((T, T), R_CHANNEL_VALUE, dtype=np.float32)
 
-    g_channel = stripe_x.astype(np.float32)
-    b_channel = stripe_y.astype(np.float32)
-
-    # RGB layout for PIL; cv2.imwrite converts to BGR in draw_srp_chunk_vxvy
-    img = np.stack([r_channel, g_channel, b_channel], axis=-1)
+    img = np.stack([r_channel, stripe_x, stripe_y], axis=-1)
     return np.clip(img, 0, 1)
 
 
@@ -204,11 +171,11 @@ def _resize_transform(side: int):
     return _resize_tfms[s]
 
 
-def draw_srp_chunk_vxvy(seq, save_path, epsilon, output_size=0):
+def draw_vxvy(seq, save_path, output_size=0):
     if len(seq) < 2:
         return
 
-    img = compute_srp_chunk_vxvy(seq, epsilon)
+    img = compute_vxvy_image(seq)
     if img is None:
         return
 
@@ -226,12 +193,12 @@ def draw_srp_chunk_vxvy(seq, save_path, epsilon, output_size=0):
     cv2.imwrite(save_path, img_bgr)
 
 
-def process_dataset(dataset, data_root, out_dir, sizes, epsilon, output_size=0):
+def process_dataset(dataset, data_root, out_dir, sizes, output_size=0):
     users = sorted(os.listdir(data_root))
 
     print("\nDataset:", dataset)
     print("Users:", len(users))
-    print("\n[Phase] Generating pair-wise SRP + vx/vy stripes...")
+    print("\n[Phase] Generating vx/vy vertical stripes (R=0.5, G=vx, B=vy)...")
 
     for user in users:
         user_dir = os.path.join(data_root, user)
@@ -270,7 +237,7 @@ def process_dataset(dataset, data_root, out_dir, sizes, epsilon, output_size=0):
                         user,
                         f"{session}-{i}.png",
                     )
-                    draw_srp_chunk_vxvy(seq, save_path, epsilon, output_size)
+                    draw_vxvy(seq, save_path, output_size)
 
 
 def main():
@@ -278,15 +245,17 @@ def main():
     global GLOBAL_VY_CDF
 
     parser = argparse.ArgumentParser(
-        description="Chunk SRP (pair-wise R) + vx/vy vertical stripes (G/B).",
+        description="Chunk vx/vy vertical stripes (R=0.5, G=vx, B=vy).",
     )
     parser.add_argument("--dataset", required=True)
     parser.add_argument("--data_root", required=True)
-    parser.add_argument("--velocity_dist", required=True,
-                        help="npz with vx, vy arrays (e.g. vx_vy_distribution_raw.npz)")
+    parser.add_argument(
+        "--velocity_dist",
+        required=True,
+        help="npz with vx, vy arrays (e.g. vx_vy_distribution_raw.npz)",
+    )
     parser.add_argument("--out_dir", required=True)
     parser.add_argument("--sizes", type=int, nargs="+", default=[120])
-    parser.add_argument("--epsilon", type=float, default=0.3)
     parser.add_argument(
         "--output_size",
         type=int,
@@ -296,7 +265,7 @@ def main():
     parser.add_argument(
         "--v_percentile",
         type=float,
-        default=97.5,
+        default=100,
         help="Signed CDF clip percentile for vx/vy (same as SRP_vx_vy).",
     )
     args = parser.parse_args()
@@ -318,7 +287,6 @@ def main():
         data_root=data_root,
         out_dir=out_dir,
         sizes=args.sizes,
-        epsilon=args.epsilon,
         output_size=args.output_size,
     )
 

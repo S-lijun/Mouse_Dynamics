@@ -1,13 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-Chunk-wise SRP with vx/vy temporal encoding (vertical stripes).
+Chunk-wise geometric-curvature temporal encoding (vertical stripes only).
 
-Per chunk (same windowing as SRP_chunk.py):
-  R = pair-wise distance on locally normalized x,y (compute_srp_pair), min-max -> [0, 1]
-  G = vx via global signed CDF + vertical stripe (np.tile along rows)
-  B = vy via global signed CDF + vertical stripe
+Per chunk (same windowing as Velocity.py / SRP_chunk_velocity.py):
+  R = G = B = curvature kappa via global CDF + vertical stripe (np.tile along rows)
 
-vx/vy pipeline follows RecurrencePlot/SRP_vx_vy.py.
+Curvature from build_global_distribution.compute_curvature (prev/next neighbors).
 """
 
 import os
@@ -21,8 +19,7 @@ from scipy.stats import rankdata
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
 
-GLOBAL_VX_CDF = None
-GLOBAL_VY_CDF = None
+GLOBAL_K_CDF = None
 
 
 def resolve_path(path_arg):
@@ -34,56 +31,74 @@ def resolve_path(path_arg):
     return os.path.abspath(os.path.join(ROOT, path_arg))
 
 
-def load_raw_directional_velocity_distribution(path):
+def load_raw_curvature_distribution(path):
     data = np.load(path)
-    vx = data["vx"]
-    vy = data["vy"]
+    kappa = data["values"]
 
-    print("\n[Directional Velocity Distribution]")
-    print("\nvx")
-    print("samples:", len(vx))
-    print("min:", vx.min())
-    print("max:", vx.max())
-    print("\nvy")
-    print("samples:", len(vy))
-    print("min:", vy.min())
-    print("max:", vy.max())
+    print("\n[Curvature Distribution]")
+    print("Samples:", len(kappa))
+    print("Min:", kappa.min())
+    print("Max:", kappa.max())
 
-    return vx, vy
+    return kappa
 
 
-def build_runtime_cdf_signed(raw_values, clip_pct):
-    print("\nBuilding signed runtime CDF")
+def build_runtime_cdf(raw_k, clip_pct):
+    print("\nBuilding curvature runtime CDF")
 
-    lower = np.percentile(raw_values, 100 - clip_pct)
-    upper = np.percentile(raw_values, clip_pct)
+    k_upper = np.percentile(raw_k, clip_pct)
+    k_clipped = raw_k[raw_k <= k_upper]
 
-    clipped = raw_values[(raw_values >= lower) & (raw_values <= upper)]
+    ranks = rankdata(k_clipped, method="average")
+    cdf = (ranks - 1) / (len(k_clipped) - 1 + 1e-8)
 
-    ranks = rankdata(clipped, method="average")
-    cdf = (ranks - 1) / (len(clipped) - 1 + 1e-8)
-
-    order = np.argsort(clipped)
-    v_sorted = clipped[order]
+    order = np.argsort(k_clipped)
+    k_sorted = k_clipped[order]
     cdf_sorted = cdf[order]
 
-    print("runtime samples:", len(v_sorted))
-    print("runtime min:", v_sorted.min())
-    print("runtime max:", v_sorted.max())
+    print("Runtime samples:", len(k_sorted))
+    print("Runtime max:", k_sorted.max())
 
-    return v_sorted, cdf_sorted
+    return k_sorted, cdf_sorted
 
 
-def compute_vx_vy(xs, ys, ts):
-    dt = np.maximum(np.diff(ts), 1e-5)
+def compute_curvature(xs, ys, ts):
+    """
+    Geometric curvature at each point using neighbors i-1 and i+1.
+    Same logic as build_global_distribution.compute_curvature (full length T).
+    """
+    T = len(xs)
+    if T < 3:
+        return np.array([])
 
-    vx = np.diff(xs) / dt
-    vy = np.diff(ys) / dt
+    kappa = np.zeros(T, dtype=np.float64)
+    eps = 1e-8
 
-    vx = np.concatenate([[vx[0]], vx])
-    vy = np.concatenate([[vy[0]], vy])
+    for i in range(1, T - 1):
+        dt_prev = max(ts[i] - ts[i - 1], eps)
+        dt_next = max(ts[i + 1] - ts[i], eps)
+        dt_c = max(ts[i + 1] - ts[i - 1], eps)
 
-    return vx, vy
+        vx_prev = (xs[i] - xs[i - 1]) / dt_prev
+        vy_prev = (ys[i] - ys[i - 1]) / dt_prev
+        vx_next = (xs[i + 1] - xs[i]) / dt_next
+        vy_next = (ys[i + 1] - ys[i]) / dt_next
+
+        vx = 0.5 * (vx_prev + vx_next)
+        vy = 0.5 * (vy_prev + vy_next)
+        ax = (vx_next - vx_prev) / dt_c
+        ay = (vy_next - vy_prev) / dt_c
+
+        speed_sq = vx * vx + vy * vy
+        if speed_sq < eps:
+            kappa[i] = 0.0
+        else:
+            kappa[i] = abs(vx * ay - vy * ax) / (speed_sq ** 1.5 + eps)
+
+    kappa[0] = kappa[1]
+    kappa[-1] = kappa[-2]
+
+    return kappa.astype(np.float32)
 
 
 def clean_balabit(df):
@@ -119,78 +134,34 @@ def generate_windows(events, chunk_size, data_root):
     return windows
 
 
-def compute_srp_pair(seq, epsilon):
-    """Pair-wise SRP with per-sequence local normalization (SRP_chunk)."""
-    coords = seq[:, :2].astype(np.float32)
-
-    x = coords[:, 0]
-    y = coords[:, 1]
-
-    x_min, x_max = np.min(x), np.max(x)
-    y_min, y_max = np.min(y), np.max(y)
-
-    scale = max(x_max - x_min, y_max - y_min)
-    if scale < 1e-8:
-        scale = 1e-8
-
-    x_norm = (x - x_min) / scale
-    y_norm = (y - y_min) / scale
-
-    coords_norm = np.stack([x_norm, y_norm], axis=1)
-
-    diff = coords_norm[:, None, :] - coords_norm[None, :, :]
-    dist = np.sqrt(np.sum(diff ** 2, axis=2))
-
-    rp = np.minimum(dist, epsilon)
-    return rp
-
-
-def compute_srp_chunk_vxvy(seq, epsilon):
+def compute_curvature_image(seq):
     """
-    R = normalized pair-wise distance matrix
-    G = vx vertical stripes
-    B = vy vertical stripes
+    R = G = B = curvature vertical stripes.
     Returns float32 H×W×3 in [0, 1], channels RGB (R, G, B).
     """
     T = len(seq)
-    if T < 2:
+    if T < 3:
         return None
-
-    rp = compute_srp_pair(seq, epsilon)
-    rp_min = rp.min()
-    rp_max = rp.max()
-    denom = max(rp_max - rp_min, 1e-8)
-    r_channel = ((rp - rp_min) / denom).astype(np.float32)
 
     xs = seq[:, 0]
     ys = seq[:, 1]
     ts = seq[:, 2]
 
-    vx, vy = compute_vx_vy(xs, ys, ts)
+    kappa = compute_curvature(xs, ys, ts)
+    if len(kappa) == 0:
+        return None
 
-    vx_norm = np.interp(
-        vx,
-        GLOBAL_VX_CDF[0],
-        GLOBAL_VX_CDF[1],
-        left=0,
-        right=1,
-    )
-    vy_norm = np.interp(
-        vy,
-        GLOBAL_VY_CDF[0],
-        GLOBAL_VY_CDF[1],
+    k_norm = np.interp(
+        kappa,
+        GLOBAL_K_CDF[0],
+        GLOBAL_K_CDF[1],
         left=0,
         right=1,
     )
 
-    stripe_x = np.tile(vx_norm[None, :], (T, 1))
-    stripe_y = np.tile(vy_norm[None, :], (T, 1))
+    stripe = np.tile(k_norm[None, :], (T, 1)).astype(np.float32)
 
-    g_channel = stripe_x.astype(np.float32)
-    b_channel = stripe_y.astype(np.float32)
-
-    # RGB layout for PIL; cv2.imwrite converts to BGR in draw_srp_chunk_vxvy
-    img = np.stack([r_channel, g_channel, b_channel], axis=-1)
+    img = np.stack([stripe, stripe, stripe], axis=-1)
     return np.clip(img, 0, 1)
 
 
@@ -204,11 +175,11 @@ def _resize_transform(side: int):
     return _resize_tfms[s]
 
 
-def draw_srp_chunk_vxvy(seq, save_path, epsilon, output_size=0):
-    if len(seq) < 2:
+def draw_curvature(seq, save_path, output_size=0):
+    if len(seq) < 3:
         return
 
-    img = compute_srp_chunk_vxvy(seq, epsilon)
+    img = compute_curvature_image(seq)
     if img is None:
         return
 
@@ -226,12 +197,12 @@ def draw_srp_chunk_vxvy(seq, save_path, epsilon, output_size=0):
     cv2.imwrite(save_path, img_bgr)
 
 
-def process_dataset(dataset, data_root, out_dir, sizes, epsilon, output_size=0):
+def process_dataset(dataset, data_root, out_dir, sizes, output_size=0):
     users = sorted(os.listdir(data_root))
 
     print("\nDataset:", dataset)
     print("Users:", len(users))
-    print("\n[Phase] Generating pair-wise SRP + vx/vy stripes...")
+    print("\n[Phase] Generating curvature vertical stripes (R=G=B)...")
 
     for user in users:
         user_dir = os.path.join(data_root, user)
@@ -270,23 +241,24 @@ def process_dataset(dataset, data_root, out_dir, sizes, epsilon, output_size=0):
                         user,
                         f"{session}-{i}.png",
                     )
-                    draw_srp_chunk_vxvy(seq, save_path, epsilon, output_size)
+                    draw_curvature(seq, save_path, output_size)
 
 
 def main():
-    global GLOBAL_VX_CDF
-    global GLOBAL_VY_CDF
+    global GLOBAL_K_CDF
 
     parser = argparse.ArgumentParser(
-        description="Chunk SRP (pair-wise R) + vx/vy vertical stripes (G/B).",
+        description="Chunk curvature vertical stripes (R=G=B).",
     )
     parser.add_argument("--dataset", required=True)
     parser.add_argument("--data_root", required=True)
-    parser.add_argument("--velocity_dist", required=True,
-                        help="npz with vx, vy arrays (e.g. vx_vy_distribution_raw.npz)")
+    parser.add_argument(
+        "--curvature_dist",
+        required=True,
+        help="npz with values array (e.g. curvature_distribution_raw.npz)",
+    )
     parser.add_argument("--out_dir", required=True)
     parser.add_argument("--sizes", type=int, nargs="+", default=[120])
-    parser.add_argument("--epsilon", type=float, default=0.3)
     parser.add_argument(
         "--output_size",
         type=int,
@@ -294,31 +266,29 @@ def main():
         help="若 > 0，用 transforms.Resize 将每张图存为 output_size×output_size PNG；0 表示保持 N×N。",
     )
     parser.add_argument(
-        "--v_percentile",
+        "--k_percentile",
         type=float,
-        default=97.5,
-        help="Signed CDF clip percentile for vx/vy (same as SRP_vx_vy).",
+        default=100,
+        help="Upper clip percentile for curvature CDF (same as Velocity --v_percentile).",
     )
     args = parser.parse_args()
 
     data_root = resolve_path(args.data_root)
     out_dir = resolve_path(args.out_dir)
-    dist_path = resolve_path(args.velocity_dist)
+    dist_path = resolve_path(args.curvature_dist)
 
     print("Resolved data_root:", data_root)
     print("Resolved out_dir:", out_dir)
-    print("Resolved velocity_dist:", dist_path)
+    print("Resolved curvature_dist:", dist_path)
 
-    vx_raw, vy_raw = load_raw_directional_velocity_distribution(dist_path)
-    GLOBAL_VX_CDF = build_runtime_cdf_signed(vx_raw, args.v_percentile)
-    GLOBAL_VY_CDF = build_runtime_cdf_signed(vy_raw, args.v_percentile)
+    raw_k = load_raw_curvature_distribution(dist_path)
+    GLOBAL_K_CDF = build_runtime_cdf(raw_k, args.k_percentile)
 
     process_dataset(
         dataset=args.dataset,
         data_root=data_root,
         out_dir=out_dir,
         sizes=args.sizes,
-        epsilon=args.epsilon,
         output_size=args.output_size,
     )
 
