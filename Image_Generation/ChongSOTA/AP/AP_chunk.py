@@ -20,8 +20,8 @@ from torchvision import transforms
 # AP/ is one level deeper than ChongSOTA/SRP_chunk.py → three levels to repo root
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
 
-NUM_SUBSEQ = 4
-GRID_SIZE = 4
+NUM_SUBSEQ = 8
+GRID_SIZE = 8
 
 
 def resolve_path(path_arg):
@@ -189,7 +189,7 @@ def process_dataset(dataset, data_root, out_dir, sizes, epsilon, output_size=448
 
     print("\nDataset:", dataset)
     print("Users:", len(users))
-    print("[Phase] AP 4×4 grid (chunk windows, 4 equal subseqs per window)")
+    print(f"[Phase] {GRID_SIZE}x{GRID_SIZE} AP grid (chunk windows, {NUM_SUBSEQ} equal subseqs per window)")
 
     for user in users:
         user_dir = os.path.join(data_root, user)
