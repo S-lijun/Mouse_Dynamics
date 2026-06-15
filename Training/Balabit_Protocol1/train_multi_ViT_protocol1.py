@@ -41,8 +41,8 @@ sys.stdout = TeeLogger(log_path)
 # ======================================================
 # Imports
 # ======================================================
-from models.scratch_ViT_multi import ScratchMiniViT_MultiLabel as insiderThreatViT
-
+#from models.scratch_ViT_multi import ScratchMiniViT_MultiLabel as insiderThreatViT
+from models.pretrained_VIT_B16_multi import PretrainedViT_B32_Multilabel as insiderThreatViT
 #from models.pretrained_VIT_B16_multi_new import PretrainedViT_B16_Multilabel_NoCLS_NoPos as insiderThreatViT
 from Training.Trainers.multi_class_trainer_ViT_protocol1 import MultiLabelTrainerViT as MultiLabelTrainer
 from Training.Score_Fusion.Score_Fusion_Multi_82 import (
@@ -148,7 +148,7 @@ if __name__ == "__main__":
     print(f"[INFO] Training folder: {training_folder}")
     print(f"[INFO] Testing folder : {testing_folder}")
     
-    img_size = 300
+    img_size = 448
     C_pos, C_neg = 60, 60
     
     train_root = Path(project_root) / "Images" / training_folder
@@ -169,13 +169,13 @@ if __name__ == "__main__":
     test_dataset  = Protocol1MouseDataset(test_root, user_list, transform)
 
    
-    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=8)
-    test_loader  = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=8)
+    train_loader = DataLoader(train_dataset, batch_size=20, shuffle=True, num_workers=12)
+    test_loader  = DataLoader(test_dataset, batch_size=20, shuffle=False, num_workers=12)
 
     print(f"[INFO] Train samples: {len(train_dataset)} | Test samples: {len(test_dataset)}")
 
     # 2. initialize model
-    net = insiderThreatViT(num_users=num_users, img_size=img_size, patch_size= 15).to(device)
+    net = insiderThreatViT(num_users=num_users,image_size=img_size).to(device)
 
     # 3. training
     trainer = MultiLabelTrainer(
@@ -190,9 +190,9 @@ if __name__ == "__main__":
     print("\n========== Training Execution ==========")
     _, best_model, *_ = trainer.train(
         optim_name="adamw",
-        num_epochs=17,
+        num_epochs=25,
         learning_rate=0.0001,
-        step_size=5,
+        step_size=16,
         learning_rate_decay=0.1,
         verbose=True
     )
@@ -216,7 +216,7 @@ if __name__ == "__main__":
     out_dir.mkdir(parents=True, exist_ok=True)
 
     print("\n===== Protocol 1 Score Fusion Curve =====")
-    for n in range(1, 31):
+    for n in range(1, 16):
        
         res = multilabel_score_fusion(scores, labels, session_ids, user_ids, n)
         
