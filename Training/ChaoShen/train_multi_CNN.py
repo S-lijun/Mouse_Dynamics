@@ -48,7 +48,8 @@ sys.stdout = TeeLogger(log_path)
 # Imports
 # ======================================================
 
-from models.scratch_CNN_multi import ScratchMultiCNN as insiderThreatCNN
+#from models.scratch_CNN_multi import ScratchMultiCNN as insiderThreatCNN
+from models.pretrained_googlenet_multi import PretrainedGoogLeNet_Multilabel as insiderThreatCNN
 #from models.pretrained_googlenet_multi import PretrainedGoogLeNet_Multilabel as insiderThreatCNN
 #from Training.Trainers.multi_class_trainer_protocol1 import MultiLabelTrainerCNN as MultiLabelTrainer
 from Training.Trainers.fast_multi_class_trainer_protocol1 import MultiLabelTrainerCNN as MultiLabelTrainer
@@ -71,9 +72,9 @@ class TensorMouseDataset(Dataset):
         img_path = os.path.join(tensor_root, "images.npy")
         lab_path = os.path.join(tensor_root, "labels.npy")
 
-        num_users = 10
-        H = 600
-        W = 600
+        num_users = 28
+        H = 448
+        W = 448
 
         raw_labels = np.memmap(lab_path, dtype=np.uint8, mode="r")
         N = raw_labels.size // num_users
@@ -161,8 +162,8 @@ if __name__ == "__main__":
     # tensor dataset path
     # ==========================================
 
-    train_tensor_folder = input("Enter training tensor folder (relative to ImagesTensor/): ").strip()
-    test_tensor_folder = input("Enter testing tensor folder (relative to ImagesTensor/): ").strip()
+    train_tensor_folder = input("Enter training tensor folder (relative to ImagesTensors/): ").strip()
+    test_tensor_folder = input("Enter testing tensor folder (relative to ImagesTensors/): ").strip()
 
     train_root = Path(project_root) / "ImagesTensors" / train_tensor_folder
     test_root = Path(project_root) / "ImagesTensors" / test_tensor_folder
@@ -184,9 +185,9 @@ if __name__ == "__main__":
 
     train_loader = DataLoader(
         train_dataset,
-        batch_size=64,
+        batch_size=20,
         shuffle=True,
-        num_workers=4,
+        num_workers=12,
         pin_memory=True,
         persistent_workers=True,
         prefetch_factor=4
@@ -194,9 +195,9 @@ if __name__ == "__main__":
 
     test_loader = DataLoader(
         test_dataset,
-        batch_size=64,
+        batch_size=20,
         shuffle=False,
-        num_workers=4,
+        num_workers=12,
         pin_memory=True,
         persistent_workers=True,
         prefetch_factor=4
@@ -206,7 +207,8 @@ if __name__ == "__main__":
     # Model
     # ==========================================
 
-    net = insiderThreatCNN(num_users=num_users, image_size=600).to(device)
+    #net = insiderThreatCNN(num_users=num_users, image_size=600).to(device)
+    net = insiderThreatCNN(num_users=num_users).to(device)
 
     trainer = MultiLabelTrainer(
         net=net,
@@ -257,7 +259,7 @@ if __name__ == "__main__":
 
     print("\n===== Protocol 1 Score Fusion Curve =====")
 
-    for n in range(1, 11):
+    for n in range(1, 16):
 
         res = multilabel_score_fusion(scores, labels, session_ids, user_ids, n)
 
