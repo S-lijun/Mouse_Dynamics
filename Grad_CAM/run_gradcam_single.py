@@ -19,13 +19,14 @@ sys.path.append(ROOT)
 # Import model
 # ======================================================
 
-from models.scratch_CNN_multi import ScratchMultiCNN
+from models.pretrained_googlenet_multi import PretrainedGoogLeNet_Multilabel
 
 
 # ======================================================
 # Paths
 # ======================================================
 
+# 换成 GoogLeNet 训练保存的 checkpoint（文件名按实际 timestamp 改）
 MODEL_PATH = os.path.join(
     ROOT,
     "saved_models",
@@ -37,7 +38,7 @@ IMAGE_PATH = os.path.join(
     "Images",
     "Balabit",
     "SRP",
-    "event60",
+    "event120",
     "user15",
     "session_0205904470-3.png"
 )
@@ -74,9 +75,9 @@ print("Session :", session_name)
 
 print("Loading model...")
 
-model = ScratchMultiCNN(num_users=NUM_USERS)
+model = PretrainedGoogLeNet_Multilabel(num_users=NUM_USERS)
 
-checkpoint = torch.load(MODEL_PATH, map_location="cpu")
+checkpoint = torch.load(MODEL_PATH, map_location="cpu", weights_only=True)
 model.load_state_dict(checkpoint)
 
 model.eval()
@@ -88,7 +89,8 @@ print("Model loaded")
 # Target layer for Grad-CAM
 # ======================================================
 
-target_layers = [model.backbone.stage5[0].block[0]]
+# 对应 ScratchCNN 的 stage5 最后一层 conv：GoogLeNet 用最后一个 Inception block
+target_layers = [model.base.inception5b]
 
 print("Grad-CAM target layer:", target_layers)
 
