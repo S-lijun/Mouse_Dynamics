@@ -42,7 +42,7 @@ sys.stdout = TeeLogger(log_path)
 # Imports
 # ======================================================
 #from models.scratch_ViT_multi import ScratchMiniViT_MultiLabel as insiderThreatViT
-from models.pretrained_VIT_B16_multi import PretrainedViT_B32_Multilabel as insiderThreatViT
+from models.pretrained_VIT_B16_multi import PretrainedViT_B16_Multilabel as insiderThreatViT
 #from models.pretrained_VIT_B16_multi_new import PretrainedViT_B16_Multilabel_NoCLS_NoPos as insiderThreatViT
 from Training.Trainers.multi_class_trainer_ViT_protocol1 import MultiLabelTrainerViT as MultiLabelTrainer
 from Training.Score_Fusion.Score_Fusion_Multi_82 import (
