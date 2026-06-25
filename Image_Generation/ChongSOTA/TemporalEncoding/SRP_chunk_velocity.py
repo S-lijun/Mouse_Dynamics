@@ -247,7 +247,7 @@ def render_srp_chunk_velocity(seq, epsilon, output_size=0):
 
     if output_size and int(output_size) > 0:
         s = int(output_size)
-        pil = Image.fromarray(img_rgb, mode="RGB")
+        pil = Image.fromarray(img_rgb)
         out_pil = _resize_transform(s)(pil)
         img_rgb = np.asarray(out_pil, dtype=np.uint8)
 
