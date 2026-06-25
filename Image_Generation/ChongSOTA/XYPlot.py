@@ -106,10 +106,11 @@ def merge_sequences(sequences, min_length):
 # ============================================================
 
 
-def draw_sequence(seq, save_path, norm_width, norm_height):
+def render_sequence(seq, norm_width, norm_height):
+    """Return uint8 BGR image (TARGET_SIZE×TARGET_SIZE), or None if seq too short."""
 
     if len(seq) < 2:
-        return
+        return None
 
     xs = np.array([float(e["x"]) for e in seq], dtype=np.float64)
     ys = np.array([float(e["y"]) for e in seq], dtype=np.float64)
@@ -144,10 +145,6 @@ def draw_sequence(seq, save_path, norm_width, norm_height):
 
         prev = (int(x_i), int(y_i))
 
-    # ========================================================
-    # Resize with aspect ratio
-    # ========================================================
-
     h, w = canvas.shape[:2]
     effective_size = max(1, TARGET_SIZE - 2 * INNER_PADDING)
     scale = effective_size / max(w, h)
@@ -157,17 +154,7 @@ def draw_sequence(seq, save_path, norm_width, norm_height):
 
     resized = cv2.resize(canvas, (new_w, new_h), interpolation=cv2.INTER_AREA)
     gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
-    #bw = np.where(gray == 255, 255, 0).astype(np.uint8)
-    #resized = cv2.cvtColor(bw, cv2.COLOR_GRAY2BGR)
     resized = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
-
-    #darken = 100
-    #gray = np.where(gray < 255, np.clip(gray - darken, 0, 255), 255).astype(np.uint8)
-    #resized = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
-
-    # ========================================================
-    # Center Padding
-    # ========================================================
 
     pad_top = (TARGET_SIZE - new_h) // 2
     pad_bottom = TARGET_SIZE - new_h - pad_top
@@ -182,11 +169,19 @@ def draw_sequence(seq, save_path, norm_width, norm_height):
         pad_left,
         pad_right,
         cv2.BORDER_CONSTANT,
-        value=(255,255,255)
+        value=(255, 255, 255),
     )
 
-    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    return final
 
+
+def draw_sequence(seq, save_path, norm_width, norm_height):
+
+    final = render_sequence(seq, norm_width, norm_height)
+    if final is None:
+        return
+
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
     cv2.imwrite(save_path, final)
 
 # ============================================================

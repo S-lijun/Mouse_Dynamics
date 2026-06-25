@@ -190,11 +190,11 @@ if __name__ == "__main__":
     print("\n========== Training Execution ==========")
     _, best_model, *_ = trainer.train(
         optim_name="adamw",
-        num_epochs=100,
-        learning_rate=1e-4,
-        weight_decay=0.05,
-        scheduler_name="cosine",
-        patience=15,
+        num_epochs=25,
+        learning_rate=0.0001,
+        step_size=7,
+        learning_rate_decay=0.1,
+        patience=5,
         verbose=True
     )
 
