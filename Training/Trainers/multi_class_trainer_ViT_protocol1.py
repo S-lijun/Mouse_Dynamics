@@ -79,6 +79,7 @@ class MultiLabelTrainerViT:
 
     def train(self, optim_name='adam', num_epochs=10, learning_rate=1e-3,
               reg=0.0, step_size=1, learning_rate_decay=0.95,
+              weight_decay=0.0, scheduler_name='step', patience=15,
               acc_frequency=1, verbose=False):
 
         def custom_multilabel_loss(logits, labels):
@@ -92,22 +93,44 @@ class MultiLabelTrainerViT:
         train_losses, val_losses = [], []
         val_eer_history, val_auc_history = [], []
 
-        patience = 5
         patience_counter = 0
         min_delta = 0.001
 
         # ------------------ Optimizer ------------------ #
         if optim_name.lower() == 'adam':
-            optimizer = optim.Adam(self.net.parameters(), lr=learning_rate)
+            optimizer = optim.Adam(
+                self.net.parameters(), lr=learning_rate, weight_decay=weight_decay
+            )
         elif optim_name.lower() == 'adamw':
-            optimizer = optim.AdamW(self.net.parameters(), lr=learning_rate)
+            optimizer = optim.AdamW(
+                self.net.parameters(), lr=learning_rate, weight_decay=weight_decay
+            )
         elif optim_name.lower() == 'sgd':
-            optimizer = optim.SGD(self.net.parameters(), lr=learning_rate, momentum=0.9)
+            optimizer = optim.SGD(
+                self.net.parameters(), lr=learning_rate, momentum=0.9,
+                weight_decay=weight_decay
+            )
         else:
             raise ValueError(f"Unsupported optimizer: {optim_name}")
 
-        scheduler = torch.optim.lr_scheduler.StepLR(
-            optimizer, step_size=step_size, gamma=learning_rate_decay
+        scheduler_name = scheduler_name.lower()
+        if scheduler_name == 'cosine':
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                optimizer, T_max=num_epochs
+            )
+        elif scheduler_name == 'step':
+            scheduler = torch.optim.lr_scheduler.StepLR(
+                optimizer, step_size=step_size, gamma=learning_rate_decay
+            )
+        else:
+            raise ValueError(
+                f"Unsupported scheduler: {scheduler_name}. Use 'cosine' or 'step'."
+            )
+
+        print(
+            f"[INFO] Optimizer={optim_name}, lr={learning_rate}, "
+            f"weight_decay={weight_decay}, scheduler={scheduler_name}, "
+            f"epochs={num_epochs}, patience={patience}"
         )
 
         for epoch in range(num_epochs):
@@ -197,7 +220,9 @@ class MultiLabelTrainerViT:
             scheduler.step()
 
             if verbose or (epoch + 1) % acc_frequency == 0:
+                current_lr = optimizer.param_groups[0]['lr']
                 print(f"\nEpoch {epoch+1}/{num_epochs}")
+                print(f" LR: {current_lr:.2e}")
                 print(f" Train Loss: {avg_train_loss:.4f}")
                 print(f" Val   Loss: {avg_val_loss:.4f}")
                 print(f" EER: {avg_eer:.4f} | AUC: {avg_auc:.4f}")
