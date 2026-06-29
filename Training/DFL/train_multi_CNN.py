@@ -48,7 +48,9 @@ sys.stdout = TeeLogger(log_path)
 # Imports
 # ======================================================
 
-from models.scratch_CNN_multi import ScratchMultiCNN as insiderThreatCNN
+#from models.scratch_CNN_multi import ScratchMultiCNN as insiderThreatCNN
+from models.pretrained_googlenet_multi import PretrainedGoogLeNet_Multilabel as insiderThreatCNN
+#from models.pretrained_googlenet_multi import PretrainedGoogLeNet_Multilabel as insiderThreatCNN
 #from Training.Trainers.multi_class_trainer_protocol1 import MultiLabelTrainerCNN as MultiLabelTrainer
 from Training.Trainers.fast_multi_class_trainer_protocol1 import MultiLabelTrainerCNN as MultiLabelTrainer
 from Training.Score_Fusion.Score_Fusion_Multi_82 import (
@@ -71,8 +73,8 @@ class TensorMouseDataset(Dataset):
         lab_path = os.path.join(tensor_root, "labels.npy")
 
         num_users = 21
-        H = 300
-        W = 300
+        H = 448
+        W = 448
 
         raw_labels = np.memmap(lab_path, dtype=np.uint8, mode="r")
         N = raw_labels.size // num_users
@@ -102,6 +104,8 @@ class TensorMouseDataset(Dataset):
 
     def __getitem__(self, idx):
 
+        #img = torch.from_numpy(self.images[idx].copy())
+        #img = torch.from_numpy(np.asarray(self.images[idx])).float().div_(255)
         img = torch.from_numpy(self.images[idx]).to(torch.float32).div_(255)
 
         label = torch.from_numpy(self.labels[idx]).float()
@@ -158,8 +162,8 @@ if __name__ == "__main__":
     # tensor dataset path
     # ==========================================
 
-    train_tensor_folder = input("Enter training tensor folder (relative to ImagesTensor/): ").strip()
-    test_tensor_folder = input("Enter testing tensor folder (relative to ImagesTensor/): ").strip()
+    train_tensor_folder = input("Enter training tensor folder (relative to ImagesTensors/): ").strip()
+    test_tensor_folder = input("Enter testing tensor folder (relative to ImagesTensors/): ").strip()
 
     train_root = Path(project_root) / "ImagesTensors" / train_tensor_folder
     test_root = Path(project_root) / "ImagesTensors" / test_tensor_folder
@@ -181,20 +185,20 @@ if __name__ == "__main__":
 
     train_loader = DataLoader(
         train_dataset,
-        batch_size=256,
+        batch_size=20,
         shuffle=True,
-        num_workers=8,
-        pin_memory=False,
+        num_workers=12,
+        pin_memory=True,
         persistent_workers=True,
         prefetch_factor=4
     )
 
     test_loader = DataLoader(
         test_dataset,
-        batch_size=256,
+        batch_size=20,
         shuffle=False,
-        num_workers=8,
-        pin_memory=False,
+        num_workers=12,
+        pin_memory=True,
         persistent_workers=True,
         prefetch_factor=4
     )
@@ -203,7 +207,8 @@ if __name__ == "__main__":
     # Model
     # ==========================================
 
-    net = insiderThreatCNN(num_users=num_users, image_size=300).to(device)
+    #net = insiderThreatCNN(num_users=num_users, image_size=600).to(device)
+    net = insiderThreatCNN(num_users=num_users).to(device)
 
     trainer = MultiLabelTrainer(
         net=net,
@@ -218,9 +223,9 @@ if __name__ == "__main__":
 
     _, best_model, *_ = trainer.train(
         optim_name="adamw",
-        num_epochs=23,
+        num_epochs=17,
         learning_rate=0.0001,
-        step_size=7,
+        step_size=5,
         learning_rate_decay=0.1,
         verbose=True
     )
@@ -254,7 +259,7 @@ if __name__ == "__main__":
 
     print("\n===== Protocol 1 Score Fusion Curve =====")
 
-    for n in range(1, 11):
+    for n in range(1, 16):
 
         res = multilabel_score_fusion(scores, labels, session_ids, user_ids, n)
 
