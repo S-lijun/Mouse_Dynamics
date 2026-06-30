@@ -72,7 +72,7 @@ class TensorMouseDataset(Dataset):
         img_path = os.path.join(tensor_root, "images.npy")
         lab_path = os.path.join(tensor_root, "labels.npy")
 
-        num_users = 21
+        num_users = 10
         H = 448
         W = 448
 
