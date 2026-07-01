@@ -223,8 +223,8 @@ if __name__ == "__main__":
 
     _, best_model, *_ = trainer.train(
         optim_name="sgd",
-        num_epochs=17,
-        learning_rate=0.0001,
+        num_epochs=10,
+        learning_rate=0.001,
         step_size=5,
         learning_rate_decay=0.96,
         verbose=True
