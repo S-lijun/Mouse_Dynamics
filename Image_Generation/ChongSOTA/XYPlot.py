@@ -206,7 +206,6 @@ def clean_balabit(df):
 
     return df.dropna(subset=["x","y","time"])
 
-
 def clean_chaoshen(df):
 
     df = df.rename(columns={
@@ -217,6 +216,8 @@ def clean_chaoshen(df):
     })
 
     df = df[df["event"] == "Move"]
+    df = df[(df["x"] < 65535) & (df["y"] < 65535)]
+    df = df.drop_duplicates()
 
     for c in ["x","y","time"]:
         df[c] = pd.to_numeric(df[c], errors="coerce")
@@ -236,6 +237,9 @@ def clean_dfl(df):
 
     if "state" in df.columns:
         df = df[df["state"].str.lower() == "move"]
+
+    df = df[(df["x"] < 65535) & (df["y"] < 65535)]
+    df = df.drop_duplicates()
 
     for c in ["x","y","time"]:
         df[c] = pd.to_numeric(df[c], errors="coerce")
