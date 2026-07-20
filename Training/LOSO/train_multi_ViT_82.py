@@ -47,6 +47,7 @@ sys.stdout = TeeLogger(log_path)
 #from models.scratch_ViT_multi import ScratchMiniViT_MultiLabel as insiderThreatViT
 from models.pretrained_VIT_B16_multi_new import PretrainedViT_B16_Multilabel_NoCLS_NoPos as insiderThreatViT
 from Training.Trainers.multi_class_trainer_ViT_protocol1 import MultiLabelTrainerViT as MultiLabelTrainer
+from Training.Trainers.checkpoint_utils import setup_training_checkpoint
 from Training.Score_Fusion.Score_Fusion_Multi_82 import (
     multilabel_score_fusion,
     calculate_eer
@@ -137,6 +138,10 @@ def build_kfold_session_splits(dataset, user_list, k, seed=42):
         user_shuffled_sessions[u] = sess_list
 
     folds = []
+
+    ckpt_base, resume_base = setup_training_checkpoint(
+        project_root, timestamp, run_prefix="LOSO_ViT"
+    )
 
     for fold_id in range(k):
         train_idx, test_idx = [], []
@@ -254,15 +259,21 @@ if __name__ == "__main__":
                 C_neg=C_neg
             )
 
+
+            ckpt_dir = ckpt_base / f"fold_{fold_id}"
+            ckpt_dir.mkdir(parents=True, exist_ok=True)
+            resume_path = str(ckpt_dir / "latest.pt") if (ckpt_dir / "latest.pt").is_file() else None
             _, best_model, *_ = trainer.train(
                 optim_name="adamw",
                 num_epochs=17,
                 learning_rate=0.0001,
                 step_size=5,
                 learning_rate_decay=0.1,
-                verbose=True
+                verbose=True,
+                checkpoint_dir=str(ckpt_dir),
+                checkpoint_every=3,
+                resume_path=resume_path,
             )
-
             # ================= Save Best Model =================
             model_dir = Path(project_root) / "saved_models"
             model_dir.mkdir(exist_ok=True)

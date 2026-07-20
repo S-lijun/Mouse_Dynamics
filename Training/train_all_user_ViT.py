@@ -46,6 +46,7 @@ from models.scratch_VIT import ScratchMiniViT_Binary as InsiderThreatViT
 
 # ----- trainer -----
 from Training.Trainers.binary_class_trainer_ViT import BinaryClassTrainer
+from Training.Trainers.checkpoint_utils import setup_training_checkpoint
 
 
 # ----- Dataset classes -----
@@ -168,6 +169,10 @@ if __name__ == "__main__":
             )
 
             # ----- Train -----
+
+            ckpt_dir, resume_path = setup_training_checkpoint(
+                project_root, timestamp, run_prefix="all_user_ViT"
+            )
             model, best_model, train_losses, val_losses, train_accs, val_accs, val_eer, val_auc = trainer.train(
                 optim_name='sgd',
                 num_epochs=15,
@@ -176,8 +181,12 @@ if __name__ == "__main__":
                 learning_rate_decay=0.1,
                 acc_frequency=1,
                 verbose=True,
-                loss_type="custom"   # 可选： "custom", "bce_logits", "ghm"
+                loss_type="custom",
+                checkpoint_dir=str(ckpt_dir),
+                checkpoint_every=3,
+                resume_path=resume_path,
             )
+
 
             # ---- Save best model ----
             saved_model_dir = Path(project_root) / "saved_models"

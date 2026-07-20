@@ -44,6 +44,7 @@ from models.scratch_ViT_multi import ScratchMiniViT_MultiLabel as insiderThreatV
 
 # --- Trainer ---
 from Training.Trainers.multi_class_trainer_ViT import MultiLabelTrainerViT as MultiLabelTrainer
+from Training.Trainers.checkpoint_utils import setup_training_checkpoint
 
 
 from torch.utils.data import WeightedRandomSampler
@@ -170,15 +171,21 @@ if __name__ == "__main__":
             torch.cuda.empty_cache()
             torch.cuda.reset_peak_memory_stats()
 
-            model, best_model, *_ = trainer.train(
-                optim_name='adamw', # "sgd or adam or adamw" 
+
+            ckpt_dir, resume_path = setup_training_checkpoint(
+                project_root, timestamp, run_prefix="train_multi_ViT"
+            )
+            model, best_model, *_ = trainer.train(optim_name='adamw', # "sgd or adam or adamw" 
                 num_epochs=17,
                 learning_rate=0.0001,
                 step_size=5,
                 learning_rate_decay=0.1,
                 acc_frequency=1,
-                verbose=True
-            )
+                verbose=True,
+        checkpoint_dir=str(ckpt_dir),
+        checkpoint_every=3,
+        resume_path=resume_path,
+    )
 
             saved_model_dir = Path("saved_models")
             saved_model_dir.mkdir(exist_ok=True)

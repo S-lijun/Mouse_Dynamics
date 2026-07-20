@@ -47,6 +47,7 @@ sys.stdout = TeeLogger(log_path)
 #from models.scratch_CNN_multi import ScratchMultiCNN as insiderThreatViT
 from models.pretrained_googlenet_multi import PretrainedGoogLeNet_Multilabel as insiderThreatViT
 from Training.Trainers.multi_class_trainer_protocol1 import MultiLabelTrainerCNN as MultiLabelTrainer
+from Training.Trainers.checkpoint_utils import setup_training_checkpoint
 from Training.Score_Fusion.Score_Fusion_Multi_82 import (
     multilabel_score_fusion,
     calculate_eer
@@ -245,6 +246,10 @@ if __name__ == "__main__":
 
             net = insiderThreatViT(num_users=num_users).to(device)
 
+            ckpt_dir, resume_path = setup_training_checkpoint(
+                project_root, timestamp, run_prefix="LOSO_CNN"
+            )
+
             trainer = MultiLabelTrainer(
                 net=net,
                 train_loader=train_loader,
@@ -254,15 +259,21 @@ if __name__ == "__main__":
                 C_neg=C_neg
             )
 
+
+            ckpt_dir = ckpt_base / f"fold_{fold_id}"
+            ckpt_dir.mkdir(parents=True, exist_ok=True)
+            resume_path = str(ckpt_dir / "latest.pt") if (ckpt_dir / "latest.pt").is_file() else None
             _, best_model, *_ = trainer.train(
                 optim_name="adamw",
                 num_epochs=17,
                 learning_rate=0.0001,
                 step_size=5,
                 learning_rate_decay=0.1,
-                verbose=True
+                verbose=True,
+                checkpoint_dir=str(ckpt_dir),
+                checkpoint_every=3,
+                resume_path=resume_path,
             )
-
             # ================= Save Best Model =================
             model_dir = Path(project_root) / "saved_models"
             model_dir.mkdir(exist_ok=True)

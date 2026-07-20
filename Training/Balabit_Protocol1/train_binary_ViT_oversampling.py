@@ -49,6 +49,7 @@ sys.stdout = TeeLogger(log_path)
 
 from models.scratch_VIT import BinaryViT
 from Training.Trainers.binary_class_trainer_ViT import BinaryClassTrainer
+from Training.Trainers.checkpoint_utils import setup_training_checkpoint
 from Training.Score_Fusion.Score_Fusion_Binary import (
     binary_score_fusion,
 )
@@ -232,6 +233,10 @@ if __name__ == "__main__":
     # Train one model per user
     # ======================================================
 
+    ckpt_base, resume_base = setup_training_checkpoint(
+        project_root, timestamp, run_prefix="Balabit_binViT_os"
+    )
+
     for user in user_list:
 
         print("\n==============================")
@@ -311,15 +316,23 @@ if __name__ == "__main__":
             pos_weight=pos_weight,
         )
 
+
+
+        ckpt_dir = ckpt_base / user
+        ckpt_dir.mkdir(parents=True, exist_ok=True)
+        resume_path = str(ckpt_dir / "latest.pt") if (ckpt_dir / "latest.pt").is_file() else resume_base
         _, best_model, *_ = trainer.train(
             optim_name="adam",
             num_epochs=100,
             learning_rate=0.001,
-            lr_milestones=[60, 80],
+            step_size=5,
             learning_rate_decay=0.1,
-            loss_type=VIT_LOSS_TYPE,
             verbose=True,
+            checkpoint_dir=str(ckpt_dir),
+            checkpoint_every=3,
+            resume_path=resume_path,
         )
+
 
         scores, labels, sessions = collect_scores(best_model, test_loader, device)
 

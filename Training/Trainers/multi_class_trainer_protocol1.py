@@ -13,6 +13,11 @@ from scipy.interpolate import interp1d
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+from Training.Trainers.checkpoint_utils import (
+    load_checkpoint,
+    maybe_save_periodic,
+)
+
 # ------------------ Model comparison ------------------ #
 def compare_models(model1, model2):
     device = next(model1.parameters()).device
@@ -80,7 +85,8 @@ class MultiLabelTrainerCNN:
 
     def train(self, optim_name='adam', num_epochs=10, learning_rate=1e-3,
               reg=0.0, step_size=1, learning_rate_decay=0.95,
-              acc_frequency=1, verbose=False):
+              acc_frequency=1, verbose=False,
+              checkpoint_dir=None, checkpoint_every=3, resume_path=None):
 
         def custom_multilabel_loss(logits, labels):
             probs = torch.sigmoid(logits)
@@ -96,6 +102,7 @@ class MultiLabelTrainerCNN:
         patience = 5
         patience_counter = 0
         min_delta = 0.001
+        start_epoch = 0
 
         # ------------------ Optimizer ------------------ #
         if optim_name.lower() == 'adam':
@@ -111,7 +118,31 @@ class MultiLabelTrainerCNN:
             optimizer, step_size=step_size, gamma=learning_rate_decay
         )
 
-        for epoch in range(num_epochs):
+        if resume_path:
+            ckpt = load_checkpoint(resume_path, map_location=self.device)
+            self.net.load_state_dict(ckpt["model_state"])
+            optimizer.load_state_dict(ckpt["optimizer_state"])
+            if ckpt.get("scheduler_state") is not None:
+                scheduler.load_state_dict(ckpt["scheduler_state"])
+            self.best_val_eer = ckpt.get("best_val_eer", float("inf"))
+            self.best_model_state = ckpt.get("best_model_state")
+            patience_counter = ckpt.get("patience_counter", 0)
+            train_losses = ckpt.get("train_losses", [])
+            val_losses = ckpt.get("val_losses", [])
+            val_eer_history = ckpt.get("val_eer_history", [])
+            val_auc_history = ckpt.get("val_auc_history", [])
+            start_epoch = int(ckpt.get("epoch", 0))
+            print(
+                f"[CKPT] Resumed at epoch {start_epoch}/{num_epochs} "
+                f"| best EER={self.best_val_eer:.4f}"
+            )
+
+        if checkpoint_dir:
+            print(
+                f"[CKPT] Periodic save every {checkpoint_every} epoch(s) -> {checkpoint_dir}"
+            )
+
+        for epoch in range(start_epoch, num_epochs):
             self.net.train()
             epoch_train_loss = 0.0
 
@@ -197,6 +228,25 @@ class MultiLabelTrainerCNN:
 
             scheduler.step()
 
+            maybe_save_periodic(
+                checkpoint_dir,
+                checkpoint_every,
+                epoch + 1,
+                {
+                    "epoch": epoch + 1,
+                    "model_state": self.net.state_dict(),
+                    "optimizer_state": optimizer.state_dict(),
+                    "scheduler_state": scheduler.state_dict(),
+                    "best_model_state": self.best_model_state,
+                    "best_val_eer": self.best_val_eer,
+                    "patience_counter": patience_counter,
+                    "train_losses": train_losses,
+                    "val_losses": val_losses,
+                    "val_eer_history": val_eer_history,
+                    "val_auc_history": val_auc_history,
+                },
+            )
+
             if verbose or (epoch + 1) % acc_frequency == 0:
                 print(f"\nEpoch {epoch+1}/{num_epochs}")
                 print(f" Train Loss: {avg_train_loss:.4f}")
@@ -205,6 +255,9 @@ class MultiLabelTrainerCNN:
                 print(f" Precision: {precision:.4f}, Recall: {recall:.4f}, F1: {f1_score:.4f}")
 
         # ------------------ Load best model ------------------ #
+        if self.best_model_state is None:
+            self.best_model_state = copy.deepcopy(self.net.state_dict())
+
         best_model = self.net.__class__(num_users=self.num_users)
         best_model.load_state_dict(self.best_model_state)
         best_model.to(self.device)

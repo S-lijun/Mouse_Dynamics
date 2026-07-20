@@ -9,6 +9,11 @@ from sklearn.metrics import roc_curve, roc_auc_score
 from scipy.optimize import brentq
 from scipy.interpolate import interp1d
 
+from Training.Trainers.checkpoint_utils import (
+    load_checkpoint,
+    maybe_save_periodic,
+)
+
 
 # ============================================================
 # EER
@@ -59,7 +64,10 @@ class BinaryClassTrainer:
         learning_rate=1e-4,
         step_size=5,
         learning_rate_decay=0.1,
-        verbose=True
+        verbose=True,
+        checkpoint_dir=None,
+        checkpoint_every=3,
+        resume_path=None,
     ):
 
         # ====================================================
@@ -98,6 +106,7 @@ class BinaryClassTrainer:
 
         patience = 100
         patience_counter = 0
+        start_epoch = 0
 
         train_losses = []
         val_losses = []
@@ -105,12 +114,35 @@ class BinaryClassTrainer:
         val_eer_history = []
         val_auc_history = []
 
+        if resume_path:
+            ckpt = load_checkpoint(resume_path, map_location=self.device)
+            self.net.load_state_dict(ckpt["model_state"])
+            optimizer.load_state_dict(ckpt["optimizer_state"])
+            if ckpt.get("scheduler_state") is not None:
+                scheduler.load_state_dict(ckpt["scheduler_state"])
+            self.best_val_eer = ckpt.get("best_val_eer", float("inf"))
+            self.best_model_state = ckpt.get("best_model_state")
+            patience_counter = ckpt.get("patience_counter", 0)
+            train_losses = ckpt.get("train_losses", [])
+            val_losses = ckpt.get("val_losses", [])
+            val_eer_history = ckpt.get("val_eer_history", [])
+            val_auc_history = ckpt.get("val_auc_history", [])
+            start_epoch = int(ckpt.get("epoch", 0))
+            print(
+                f"[CKPT] Resumed at epoch {start_epoch}/{num_epochs} "
+                f"| best EER={self.best_val_eer:.4f}"
+            )
+
+        if checkpoint_dir:
+            print(
+                f"[CKPT] Periodic save every {checkpoint_every} epoch(s) -> {checkpoint_dir}"
+            )
 
         # ====================================================
         # Epoch Loop
         # ====================================================
 
-        for epoch in range(num_epochs):
+        for epoch in range(start_epoch, num_epochs):
 
             # ---------------- Train ---------------- #
 
@@ -240,10 +272,32 @@ class BinaryClassTrainer:
 
             scheduler.step()
 
+            maybe_save_periodic(
+                checkpoint_dir,
+                checkpoint_every,
+                epoch + 1,
+                {
+                    "epoch": epoch + 1,
+                    "model_state": self.net.state_dict(),
+                    "optimizer_state": optimizer.state_dict(),
+                    "scheduler_state": scheduler.state_dict(),
+                    "best_model_state": self.best_model_state,
+                    "best_val_eer": self.best_val_eer,
+                    "patience_counter": patience_counter,
+                    "train_losses": train_losses,
+                    "val_losses": val_losses,
+                    "val_eer_history": val_eer_history,
+                    "val_auc_history": val_auc_history,
+                },
+            )
+
 
         # ====================================================
         # Load Best Model
         # ====================================================
+
+        if self.best_model_state is None:
+            self.best_model_state = copy.deepcopy(self.net.state_dict())
 
         best_model = copy.deepcopy(self.net)
         best_model.load_state_dict(self.best_model_state)

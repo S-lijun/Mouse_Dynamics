@@ -44,6 +44,7 @@ sys.stdout = TeeLogger(log_path)
 from models.pretrained_googlenet_multi import PretrainedGoogLeNet_Multilabel as insiderThreatCNN
 #from models.scratch_CNN_multi import ScratchMultiCNN as insiderThreatCNN
 from Training.Trainers.multi_class_trainer_protocol1 import MultiLabelTrainerCNN as MultiLabelTrainer
+from Training.Trainers.checkpoint_utils import setup_training_checkpoint
 from Training.Score_Fusion.Score_Fusion_Multi_82 import (
     multilabel_score_fusion,
     calculate_eer
@@ -185,14 +186,21 @@ if __name__ == "__main__":
         C_neg=C_neg
     )
 
+    
+    ckpt_dir, resume_path = setup_training_checkpoint(
+        project_root, timestamp, run_prefix="Balabit_CNN_P1_old"
+    )
+
     print("\n========== Training Execution ==========")
-    _, best_model, *_ = trainer.train(
-        optim_name="sgd",
+    _, best_model, *_ = trainer.train(optim_name="sgd",
         num_epochs=25,
         learning_rate=0.0001,
         step_size=16,
         learning_rate_decay=0.96,
-        verbose=True
+        verbose=True,
+        checkpoint_dir=str(ckpt_dir),
+        checkpoint_every=3,
+        resume_path=resume_path,
     )
 
     # 4. save best models

@@ -25,6 +25,7 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 
 from models.scratch_CNN_multi import ScratchMultiCNN as insiderThreatCNN
 from Training.Trainers.multi_class_trainer_protocol1 import MultiLabelTrainerCNN as MultiLabelTrainer
+from Training.Trainers.checkpoint_utils import setup_training_checkpoint
 from Training.Score_Fusion.Score_Fusion_Multi_82 import (
     multilabel_score_fusion,
 )
@@ -216,13 +217,19 @@ def run_single_experiment(dataset_cfg):
 
     print("\n========== Training ==========")
 
-    _, best_model, *_ = trainer.train(
-        optim_name="adamw",
+    ckpt_dir, resume_path = setup_training_checkpoint(
+        project_root, timestamp, run_prefix="Balabit_CNN_P1_ds"
+    )
+
+    _, best_model, *_ = trainer.train(optim_name="adamw",
         num_epochs=17,
         learning_rate=0.0001,
         step_size=5,
         learning_rate_decay=0.1,
-        verbose=True
+        verbose=True,
+        checkpoint_dir=str(ckpt_dir),
+        checkpoint_every=3,
+        resume_path=resume_path,
     )
 
     # ================= Save Model =================

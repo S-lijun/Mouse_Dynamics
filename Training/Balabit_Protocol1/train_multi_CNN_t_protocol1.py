@@ -52,6 +52,7 @@ sys.stdout = TeeLogger(log_path)
 from models.pretrained_googlenet_multi import PretrainedGoogLeNet_Multilabel as insiderThreatCNN
 #from Training.Trainers.multi_class_trainer_protocol1 import MultiLabelTrainerCNN as MultiLabelTrainer
 from Training.Trainers.fast_multi_class_trainer_protocol1 import MultiLabelTrainerCNN as MultiLabelTrainer
+from Training.Trainers.checkpoint_utils import setup_training_checkpoint
 from Training.Score_Fusion.Score_Fusion_Multi_82 import (
     multilabel_score_fusion,
     calculate_eer
@@ -164,6 +165,10 @@ if __name__ == "__main__":
     train_tensor_folder = input("Enter training tensor folder (relative to ImagesTensors/): ").strip()
     test_tensor_folder = input("Enter testing tensor folder (relative to ImagesTensors/): ").strip()
 
+    ckpt_dir, resume_path = setup_training_checkpoint(
+        project_root, timestamp, run_prefix="Balabit_CNN_t_P1"
+    )
+
     train_root = Path(project_root) / "ImagesTensors" / train_tensor_folder
     test_root = Path(project_root) / "ImagesTensors" / test_tensor_folder
 
@@ -225,7 +230,10 @@ if __name__ == "__main__":
         learning_rate=0.0001,
         step_size=16,
         learning_rate_decay=0.96,
-        verbose=True
+        verbose=True,
+        checkpoint_dir=str(ckpt_dir),
+        checkpoint_every=3,
+        resume_path=resume_path,
     )
 
     # ==========================================

@@ -45,6 +45,7 @@ sys.stdout = TeeLogger(log_path)
 from models.pretrained_VIT_B16_multi import PretrainedViT_B16_Multilabel as insiderThreatViT
 #from models.pretrained_VIT_B16_multi_new import PretrainedViT_B16_Multilabel_NoCLS_NoPos as insiderThreatViT
 from Training.Trainers.multi_class_trainer_ViT_protocol1 import MultiLabelTrainerViT as MultiLabelTrainer
+from Training.Trainers.checkpoint_utils import setup_training_checkpoint
 from Training.Score_Fusion.Score_Fusion_Multi_82 import (
     multilabel_score_fusion,
     calculate_eer
@@ -187,15 +188,22 @@ if __name__ == "__main__":
         C_neg=C_neg
     )
 
+    
+    ckpt_dir, resume_path = setup_training_checkpoint(
+        project_root, timestamp, run_prefix="Balabit_ViT_P1"
+    )
+
     print("\n========== Training Execution ==========")
-    _, best_model, *_ = trainer.train(
-        optim_name="adamw",
+    _, best_model, *_ = trainer.train(optim_name="adamw",
         num_epochs=25,
         learning_rate=0.0001,
         step_size=7,
         learning_rate_decay=0.1,
         patience=5,
-        verbose=True
+        verbose=True,
+        checkpoint_dir=str(ckpt_dir),
+        checkpoint_every=3,
+        resume_path=resume_path,
     )
 
     # 4. save best models

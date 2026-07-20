@@ -49,6 +49,7 @@ sys.stdout = TeeLogger(log_path)
 #from models.scratch_ViT_ import BinaryViT
 from models.pretrained_VIT_B16 import PretrainedViT_B16
 from Training.Trainers.binary_class_trainer_ViT import BinaryClassTrainer
+from Training.Trainers.checkpoint_utils import setup_training_checkpoint
 from Training.Score_Fusion.Score_Fusion_Binary import (
     binary_score_fusion
 )
@@ -193,6 +194,10 @@ if __name__ == "__main__":
     # Train one model per user
     # ======================================================
 
+    ckpt_base, resume_base = setup_training_checkpoint(
+        project_root, timestamp, run_prefix="Balabit_binViT_P1"
+    )
+
     for user in user_list:
 
         print("\n==============================")
@@ -224,16 +229,23 @@ if __name__ == "__main__":
         )
 
         # Paper: Adam lr=0.001; decay ×0.1 at epochs 60 and 80 only (not every 30 epochs).
+
+
+        ckpt_dir = ckpt_base / user
+        ckpt_dir.mkdir(parents=True, exist_ok=True)
+        resume_path = str(ckpt_dir / "latest.pt") if (ckpt_dir / "latest.pt").is_file() else resume_base
         _, best_model, *_ = trainer.train(
             optim_name="adamw",
             num_epochs=100,
             learning_rate=0.0001,
-            lr_milestones=[10, 20, 30, 40, 50, 60, 70, 80, 90],
+            step_size=5,
             learning_rate_decay=0.5,
-            loss_type="ghm",
-            ghm_delta=0.1,
             verbose=True,
+            checkpoint_dir=str(ckpt_dir),
+            checkpoint_every=3,
+            resume_path=resume_path,
         )
+
 
         scores, labels, sessions = collect_scores(best_model, test_loader, device)
 
