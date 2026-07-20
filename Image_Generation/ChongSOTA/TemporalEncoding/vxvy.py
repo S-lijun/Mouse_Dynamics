@@ -421,7 +421,7 @@ def main():
         help="npz with vx, vy arrays (e.g. vx_vy_distribution_raw.npz)",
     )
     parser.add_argument("--out_dir", required=True)
-    parser.add_argument("--sizes", type=int, nargs="+", default=[120])
+    parser.add_argument("--sizes", type=int, nargs="+", default=[125])
     parser.add_argument(
         "--output_size",
         type=int,

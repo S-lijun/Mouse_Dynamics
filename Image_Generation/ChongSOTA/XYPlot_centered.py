@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-Global normalization: all users share GLOBAL_MAX_X / GLOBAL_MAX_Y (1919 x 1079).
+Per-sequence centered XYPlot: preserve each trajectory's shape (bbox fit + center),
+no screen-width / per-user bandwidth normalization.
+
+Segmentation matches XYPlot_global (split_by_time + merge with GLOBAL_MAX_X).
+Drawing: per-sequence bbox fit + center (no screen-width normalization).
 """
 
 import os
@@ -14,18 +18,16 @@ import pandas as pd
 from XYPlot import (
     ROOT,
     TARGET_SIZE,
+    INNER_PADDING,
     GLOBAL_MAX_X,
-    GLOBAL_MAX_Y,
     split_by_time,
     merge_sequences,
     clean_balabit,
     clean_chaoshen,
     clean_dfl,
-    draw_sequence,
-    render_sequence,
 )
 
-TENSOR_SUBDIR = "Chong_global"
+TENSOR_SUBDIR = "Chong_centered"
 
 
 def natural_key(string):
@@ -55,6 +57,73 @@ def list_session_files(user_dir):
         [f for f in os.listdir(user_dir) if os.path.isfile(os.path.join(user_dir, f))],
         key=natural_key,
     )
+
+
+def render_sequence_centered(seq):
+    """
+    Fit trajectory bbox into TARGET_SIZE×TARGET_SIZE with uniform scale, centered.
+    Same logic as Image_Generation/XYPlot/XYPlot.py draw_mouse_chunk.
+    """
+    if len(seq) < 2:
+        return None
+
+    img_size = int(TARGET_SIZE)
+    effective_size = max(1, img_size - 2 * INNER_PADDING)
+
+    xs = np.array([float(e["x"]) for e in seq], dtype=np.float64)
+    ys = np.array([float(e["y"]) for e in seq], dtype=np.float64)
+
+    min_x, max_x = xs.min(), xs.max()
+    min_y, max_y = ys.min(), ys.max()
+
+    range_x = max(max_x - min_x, 1.0)
+    range_y = max(max_y - min_y, 1.0)
+
+    pad_x = range_x * 0.05
+    pad_y = range_y * 0.05
+
+    min_x -= pad_x
+    max_x += pad_x
+    min_y -= pad_y
+    max_y += pad_y
+
+    range_x = max_x - min_x
+    range_y = max_y - min_y
+
+    scale = min(effective_size / range_x, effective_size / range_y)
+    offset_x = (img_size - range_x * scale) / 2
+    offset_y = (img_size - range_y * scale) / 2
+
+    canvas = np.ones((img_size, img_size, 3), dtype=np.uint8) * 255
+
+    prev = None
+    for x, y in zip(xs, ys):
+        x_s = int(np.clip((x - min_x) * scale + offset_x, 0, img_size - 1))
+        y_s = int(np.clip((y - min_y) * scale + offset_y, 0, img_size - 1))
+
+        if prev is not None:
+            cv2.line(
+                canvas,
+                prev,
+                (x_s, y_s),
+                (0, 0, 0),
+                1,
+                lineType=cv2.LINE_AA,
+            )
+
+        prev = (x_s, y_s)
+
+    gray = cv2.cvtColor(canvas, cv2.COLOR_BGR2GRAY)
+    return cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+
+
+def draw_sequence_centered(seq, save_path):
+    final = render_sequence_centered(seq)
+    if final is None:
+        return
+
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    cv2.imwrite(save_path, final)
 
 
 def _session_sequences(dataset, path):
@@ -92,8 +161,8 @@ def process_dataset_tensors(dataset, data_root, out_dir):
 
     print("\nDataset:", dataset)
     print("Users:", num_users)
-    print("Global norm W×H:", GLOBAL_MAX_X, GLOBAL_MAX_Y)
-    print("\n[Phase] Generating global XYPlot tensors (Images_convert format)...")
+    print("Rendering: per-sequence bbox fit, centered in", TARGET_SIZE, "x", TARGET_SIZE)
+    print("\n[Phase] Generating centered XYPlot tensors (Images_convert format)...")
 
     total_samples = count_samples(dataset, data_root)
     tensor_root = os.path.join(out_dir, TENSOR_SUBDIR)
@@ -122,7 +191,7 @@ def process_dataset_tensors(dataset, data_root, out_dir):
         user_dir = os.path.join(data_root, user)
 
         print("\n------------------------------")
-        print("User:", user, "| norm W×H (global):", GLOBAL_MAX_X, GLOBAL_MAX_Y)
+        print("User:", user)
 
         for file in list_session_files(user_dir):
             path = os.path.join(user_dir, file)
@@ -131,12 +200,9 @@ def process_dataset_tensors(dataset, data_root, out_dir):
             print(f"   Session: {session} -> {len(sequences)} sequences")
 
             for seq in sequences:
-                img = render_sequence(seq, GLOBAL_MAX_X, GLOBAL_MAX_Y)
+                img = render_sequence_centered(seq)
                 if img is None:
                     continue
-
-                if img.shape[:2] != (H, W):
-                    img = cv2.resize(img, (W, H), interpolation=cv2.INTER_AREA)
 
                 images[idx] = bgr_to_tensor_chw(img)
 
@@ -166,7 +232,7 @@ def process_dataset(dataset, data_root, out_dir, tensors=False):
 
     print("\nDataset:", dataset)
     print("Users:", len(users))
-    print("Using global max x/y:", GLOBAL_MAX_X, GLOBAL_MAX_Y)
+    print("Rendering: per-sequence bbox fit, centered in", TARGET_SIZE, "x", TARGET_SIZE)
 
     for user in users:
         user_dir = os.path.join(data_root, user)
@@ -202,7 +268,7 @@ def process_dataset(dataset, data_root, out_dir, tensors=False):
                     user,
                     f"{session}-{i}.png",
                 )
-                draw_sequence(seq, save_path, GLOBAL_MAX_X, GLOBAL_MAX_Y)
+                draw_sequence_centered(seq, save_path)
 
 
 def main():
@@ -225,7 +291,7 @@ def main():
     print("[out_dir]", out_dir)
 
     process_dataset(args.dataset, data_root, out_dir, tensors=args.tensors)
-    print("\nGlobal XYPlot generation finished.")
+    print("\nCentered XYPlot generation finished.")
 
 
 if __name__ == "__main__":

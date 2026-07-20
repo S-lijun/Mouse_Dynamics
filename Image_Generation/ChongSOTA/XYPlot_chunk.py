@@ -1,197 +1,44 @@
 # -*- coding: utf-8 -*-
+"""
+Chunked centered XYPlot: fixed-size event windows + per-sequence bbox fit/center.
+
+Drawing matches XYPlot_centered (no screen-width / per-user normalization).
+Segmentation is fixed chunk_size (default 125), not time-diff split + merge.
+"""
 
 import os
+import re
 import argparse
-import pandas as pd
-import numpy as np
+
 import cv2
+import numpy as np
+import pandas as pd
 
-# ============================================================
-# ROOT
-# ============================================================
+from XYPlot import (
+    ROOT,
+    TARGET_SIZE,
+    INNER_PADDING,
+    clean_balabit,
+    clean_chaoshen,
+    clean_dfl,
+)
 
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-print("[ROOT]", ROOT)
-
-# ============================================================
-# Parameters
-# ============================================================
-
-TARGET_SIZE = 448      # final image size
-INNER_PADDING = 5      # pixels, keep small white margins around trajectory
-
-# Balabit 1920×1080
-GLOBAL_MAX_X = 1919.0
-GLOBAL_MAX_Y = 1079.0
-
-DEFAULT_TRAINING_ROOT = {
-    "balabit": "Data/Balabit-dataset/training_files",
-    "chaoshen": "Data/ChaoShen/training_files",
-    "dfl": "Data/DFL-dataset_raw/training_files",
-}
+TENSOR_SUBDIR = "Chong"
 
 
-# ============================================================
-# Chunking
-# ============================================================
-
-def split_by_chunk_size(events, chunk_size):
-
-    if chunk_size <= 0:
-        raise ValueError("chunk_size must be a positive integer.")
-
-    return [events[i:i + chunk_size] for i in range(0, len(events), chunk_size)]
+def natural_key(string):
+    return [int(s) if s.isdigit() else s.lower()
+            for s in re.split(r"(\d+)", string)]
 
 
-# ============================================================
-# Draw Sequence (NEW)
-# ============================================================
+def resolve_path(path_arg):
+    if os.path.isabs(path_arg):
+        return os.path.abspath(path_arg)
+    cwd_candidate = os.path.abspath(path_arg)
+    if os.path.exists(cwd_candidate):
+        return cwd_candidate
+    return os.path.abspath(os.path.join(ROOT, path_arg))
 
-
-def draw_sequence(seq, save_path, norm_width, norm_height):
-
-    if len(seq) < 2:
-        return
-
-    xs = np.array([float(e["x"]) for e in seq], dtype=np.float64)
-    ys = np.array([float(e["y"]) for e in seq], dtype=np.float64)
-
-    W = max(float(norm_width), 1.0)
-    H = max(float(norm_height), 1.0)
-    a = H / W
-    canvas_w = int(W) + 1
-    span = float(canvas_w - 1)
-    canvas_h = int(np.ceil(a * span)) + 1
-
-    canvas = np.ones((canvas_h, canvas_w, 3), dtype=np.uint8) * 255
-
-    x_pix = np.clip(np.rint(xs / W * span), 0, canvas_w - 1).astype(np.int32)
-    y_pix = np.clip(np.rint(ys / W * span), 0, canvas_h - 1).astype(np.int32)
-
-    prev = None
-
-    for x_i, y_i in zip(x_pix, y_pix):
-
-        if prev is not None:
-
-            cv2.line(
-                canvas,
-                prev,
-                (int(x_i), int(y_i)),
-                (0, 0, 0),
-                1,
-                lineType=cv2.LINE_AA,
-            )
-
-        prev = (int(x_i), int(y_i))
-
-    # ========================================================
-    # Resize with aspect ratio
-    # ========================================================
-
-    h, w = canvas.shape[:2]
-    effective_size = max(1, TARGET_SIZE - 2 * INNER_PADDING)
-    scale = effective_size / max(w, h)
-
-    new_w = int(w * scale)
-    new_h = int(h * scale)
-
-    resized = cv2.resize(canvas, (new_w, new_h), interpolation=cv2.INTER_AREA)
-    gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
-    #bw = np.where(gray == 255, 255, 0).astype(np.uint8)
-    #resized = cv2.cvtColor(bw, cv2.COLOR_GRAY2BGR)
-    resized = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
-
-    #darken = 100
-    #gray = np.where(gray < 255, np.clip(gray - darken, 0, 255), 255).astype(np.uint8)
-    #resized = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
-
-    # ========================================================
-    # Center Padding
-    # ========================================================
-
-    pad_top = (TARGET_SIZE - new_h) // 2
-    pad_bottom = TARGET_SIZE - new_h - pad_top
-
-    pad_left = (TARGET_SIZE - new_w) // 2
-    pad_right = TARGET_SIZE - new_w - pad_left
-
-    final = cv2.copyMakeBorder(
-        resized,
-        pad_top,
-        pad_bottom,
-        pad_left,
-        pad_right,
-        cv2.BORDER_CONSTANT,
-        value=(255,255,255)
-    )
-
-    os.makedirs(os.path.dirname(save_path), exist_ok=True)
-
-    cv2.imwrite(save_path, final)
-
-# ============================================================
-# Cleaning (unchanged)
-# ============================================================
-
-def clean_balabit(df):
-
-    df = df.rename(columns={
-        "client timestamp":"time",
-        "x":"x",
-        "y":"y",
-        "state":"state"
-    })
-
-    df = df[df["state"] == "Move"]
-    df = df[(df["x"] < 65535) & (df["y"] < 65535)]
-    df = df.drop_duplicates()
-
-    for c in ["x","y","time"]:
-        df[c] = pd.to_numeric(df[c], errors="coerce")
-
-    return df.dropna(subset=["x","y","time"])
-
-
-def clean_chaoshen(df):
-
-    df = df.rename(columns={
-        "X":"x",
-        "Y":"y",
-        "Timestamp":"time",
-        "EventName":"event"
-    })
-
-    df = df[df["event"] == "Move"]
-
-    for c in ["x","y","time"]:
-        df[c] = pd.to_numeric(df[c], errors="coerce")
-
-    return df.dropna(subset=["x","y","time"])
-
-
-def clean_dfl(df):
-
-    df.columns = [c.strip().lower() for c in df.columns]
-
-    if "client timestamp" in df.columns:
-        df = df.rename(columns={"client timestamp":"time"})
-
-    elif "timestamp" in df.columns:
-        df = df.rename(columns={"timestamp":"time"})
-
-    if "state" in df.columns:
-        df = df[df["state"].str.lower() == "move"]
-
-    for c in ["x","y","time"]:
-        df[c] = pd.to_numeric(df[c], errors="coerce")
-
-    return df.dropna(subset=["x","y","time"])
-
-
-# ============================================================
-# Per-user bounds from training split
-# ============================================================
 
 def _clean_df(dataset, df):
     if dataset == "balabit":
@@ -203,117 +50,240 @@ def _clean_df(dataset, df):
     raise ValueError(dataset)
 
 
-def build_user_max_xy_from_training(dataset, training_root):
-    user_max_xy = {}
-    users = sorted(os.listdir(training_root))
+def list_users(data_root):
+    return sorted(
+        [u for u in os.listdir(data_root) if os.path.isdir(os.path.join(data_root, u))],
+        key=natural_key,
+    )
 
-    for user in users:
-        user_dir = os.path.join(training_root, user)
-        if not os.path.isdir(user_dir):
-            continue
 
-        max_x = 0.0
-        max_y = 0.0
-        saw_points = False
+def list_session_files(user_dir):
+    return sorted(
+        [f for f in os.listdir(user_dir) if os.path.isfile(os.path.join(user_dir, f))],
+        key=natural_key,
+    )
 
-        for name in sorted(os.listdir(user_dir)):
-            path = os.path.join(user_dir, name)
-            if not os.path.isfile(path):
-                continue
 
-            df = pd.read_csv(path)
-            df = _clean_df(dataset, df)
-            if len(df) == 0:
-                continue
+# ============================================================
+# Chunking
+# ============================================================
 
-            max_x = max(max_x, float(df["x"].max()))
-            max_y = max(max_y, float(df["y"].max()))
-            saw_points = True
+def split_by_chunk_size(events, chunk_size):
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be a positive integer.")
+    return [events[i:i + chunk_size] for i in range(0, len(events), chunk_size)]
 
-        if saw_points:
-            user_max_xy[user] = (max_x, max_y)
-        else:
-            user_max_xy[user] = (GLOBAL_MAX_X, GLOBAL_MAX_Y)
 
-    return user_max_xy
+# ============================================================
+# Centered draw (same as XYPlot_centered)
+# ============================================================
+
+def render_sequence_centered(seq):
+    """
+    Fit trajectory bbox into TARGET_SIZE×TARGET_SIZE with uniform scale, centered.
+    """
+    if len(seq) < 2:
+        return None
+
+    img_size = int(TARGET_SIZE)
+    effective_size = max(1, img_size - 2 * INNER_PADDING)
+
+    xs = np.array([float(e["x"]) for e in seq], dtype=np.float64)
+    ys = np.array([float(e["y"]) for e in seq], dtype=np.float64)
+
+    min_x, max_x = xs.min(), xs.max()
+    min_y, max_y = ys.min(), ys.max()
+
+    range_x = max(max_x - min_x, 1.0)
+    range_y = max(max_y - min_y, 1.0)
+
+    pad_x = range_x * 0.05
+    pad_y = range_y * 0.05
+
+    min_x -= pad_x
+    max_x += pad_x
+    min_y -= pad_y
+    max_y += pad_y
+
+    range_x = max_x - min_x
+    range_y = max_y - min_y
+
+    scale = min(effective_size / range_x, effective_size / range_y)
+    offset_x = (img_size - range_x * scale) / 2
+    offset_y = (img_size - range_y * scale) / 2
+
+    canvas = np.ones((img_size, img_size, 3), dtype=np.uint8) * 255
+
+    prev = None
+    for x, y in zip(xs, ys):
+        x_s = int(np.clip((x - min_x) * scale + offset_x, 0, img_size - 1))
+        y_s = int(np.clip((y - min_y) * scale + offset_y, 0, img_size - 1))
+
+        if prev is not None:
+            cv2.line(
+                canvas,
+                prev,
+                (x_s, y_s),
+                (0, 0, 0),
+                1,
+                lineType=cv2.LINE_AA,
+            )
+
+        prev = (x_s, y_s)
+
+    gray = cv2.cvtColor(canvas, cv2.COLOR_BGR2GRAY)
+    return cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+
+
+def draw_sequence_centered(seq, save_path):
+    final = render_sequence_centered(seq)
+    if final is None:
+        return
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    cv2.imwrite(save_path, final)
+
+
+def _session_sequences(dataset, path, chunk_size):
+    df = pd.read_csv(path)
+    df = _clean_df(dataset, df)
+
+    events = df.to_dict("records")
+    if len(events) < 2:
+        return []
+
+    sequences = split_by_chunk_size(events, chunk_size)
+    return [seq for seq in sequences if len(seq) >= 2]
+
+
+def count_samples(dataset, data_root, chunk_size):
+    total = 0
+    for user in list_users(data_root):
+        user_dir = os.path.join(data_root, user)
+        for file in list_session_files(user_dir):
+            path = os.path.join(user_dir, file)
+            total += len(_session_sequences(dataset, path, chunk_size))
+    return total
+
+
+def bgr_to_tensor_chw(img):
+    return img.transpose(2, 0, 1)
 
 
 # ============================================================
 # Dataset Processing
 # ============================================================
 
-def process_dataset(dataset, data_root, out_dir, chunk_size, user_max_xy):
+def process_dataset_tensors(dataset, data_root, out_dir, chunk_size):
+    users = list_users(data_root)
+    num_users = len(users)
+    user_to_idx = {u: i for i, u in enumerate(users)}
 
-    users = sorted(os.listdir(data_root))
+    print("\nDataset:", dataset)
+    print("Users:", num_users)
+    print("Chunk size:", chunk_size)
+    print("Rendering: per-sequence bbox fit, centered in", TARGET_SIZE, "x", TARGET_SIZE)
+    print("\n[Phase] Generating centered chunk XYPlot tensors...")
+
+    total_samples = count_samples(dataset, data_root, chunk_size)
+    tensor_root = os.path.join(out_dir, TENSOR_SUBDIR)
+    os.makedirs(tensor_root, exist_ok=True)
+
+    H = W = int(TARGET_SIZE)
+    print(f"\n[{TENSOR_SUBDIR}] Total samples: {total_samples} | Tensor size: {H}x{W}")
+
+    images = np.memmap(
+        os.path.join(tensor_root, "images.npy"),
+        dtype=np.uint8,
+        mode="w+",
+        shape=(total_samples, 3, H, W),
+    )
+    labels = np.memmap(
+        os.path.join(tensor_root, "labels.npy"),
+        dtype=np.uint8,
+        mode="w+",
+        shape=(total_samples, num_users),
+    )
+
+    sessions = []
+    idx = 0
+
+    for user in users:
+        user_dir = os.path.join(data_root, user)
+
+        print("\n------------------------------")
+        print("User:", user)
+
+        for file in list_session_files(user_dir):
+            path = os.path.join(user_dir, file)
+            session = os.path.splitext(file)[0]
+            sequences = _session_sequences(dataset, path, chunk_size)
+            print(f"   Session: {session} -> {len(sequences)} chunks")
+
+            for seq in sequences:
+                img = render_sequence_centered(seq)
+                if img is None:
+                    continue
+
+                images[idx] = bgr_to_tensor_chw(img)
+                y = np.zeros(num_users, dtype=np.uint8)
+                y[user_to_idx[user]] = 1
+                labels[idx] = y
+                sessions.append(session)
+                idx += 1
+
+    images.flush()
+    labels.flush()
+    np.save(
+        os.path.join(tensor_root, "sessions.npy"),
+        np.array(sessions, dtype=object),
+    )
+    print(f"\nTensor dataset saved to: {tensor_root}")
+
+
+def process_dataset(dataset, data_root, out_dir, chunk_size, tensors=False):
+    if tensors:
+        process_dataset_tensors(dataset, data_root, out_dir, chunk_size)
+        return
+
+    users = list_users(data_root)
 
     print("\nDataset:", dataset)
     print("Users:", len(users))
-    print("Per-user max bounds loaded for", len(user_max_xy), "users (from training_root).")
     print("Chunk size:", chunk_size)
+    print("Rendering: per-sequence bbox fit, centered in", TARGET_SIZE, "x", TARGET_SIZE)
 
     for user in users:
-
         user_dir = os.path.join(data_root, user)
 
-        if not os.path.isdir(user_dir):
-            continue
-
-        if user in user_max_xy:
-            norm_x, norm_y = user_max_xy[user]
-        else:
-            norm_x, norm_y = GLOBAL_MAX_X, GLOBAL_MAX_Y
-            print(
-                "\n[WARN] User", user, "not in training scan; using GLOBAL_MAX_X/Y:",
-                norm_x, norm_y,
-            )
-
         print("\n------------------------------")
-        print("User:", user, "| norm W×H (from training):", norm_x, norm_y)
+        print("User:", user)
 
-        session_files = sorted(os.listdir(user_dir))
-
-        for file in session_files:
-
+        for file in list_session_files(user_dir):
             path = os.path.join(user_dir, file)
-
-            if not os.path.isfile(path):
-                continue
-
             session = os.path.splitext(file)[0]
-
             print("   Session:", session)
 
             df = pd.read_csv(path)
-
             df = _clean_df(dataset, df)
-
             events = df.to_dict("records")
 
             print("      Events:", len(events))
             if len(events) < 2:
                 continue
 
-            # ========================================================
-            # Chunk only (no segmentation, no merge)
-            # ========================================================
-
             sequences = split_by_chunk_size(events, chunk_size)
             print("      Chunks:", len(sequences))
 
-            # ========================================================
-            # 4. Draw
-            # ========================================================
-
             for i, seq in enumerate(sequences):
-
+                if len(seq) < 2:
+                    continue
                 save_path = os.path.join(
                     out_dir,
-                    "Chong",
+                    TENSOR_SUBDIR,
                     user,
-                    f"{session}-{i}.png"
+                    f"{session}-{i}.png",
                 )
-
-                draw_sequence(seq, save_path, norm_x, norm_y)
+                draw_sequence_centered(seq, save_path)
 
 
 # ============================================================
@@ -321,48 +291,38 @@ def process_dataset(dataset, data_root, out_dir, chunk_size, user_max_xy):
 # ============================================================
 
 def main():
-
     parser = argparse.ArgumentParser()
-
-    parser.add_argument("--dataset",
-                        required=True,
-                        choices=["balabit","chaoshen","dfl"])
-
-    parser.add_argument("--data_root",
-                        required=True)
-
+    parser.add_argument("--dataset", required=True, choices=["balabit", "chaoshen", "dfl"])
+    parser.add_argument("--data_root", required=True)
+    parser.add_argument("--out_dir", required=True)
     parser.add_argument(
-        "--training_root",
-        default=None,
-        help="Relative to ROOT; default follows --dataset training_files.",
+        "--sizes",
+        type=int,
+        default=125,
+        help="Number of events per chunk.",
     )
-
-    parser.add_argument("--out_dir",
-                        required=True)
-
-    parser.add_argument("--sizes",
-                        type=int,
-                        required=True,
-                        help="Number of events per chunk.")
-
+    parser.add_argument(
+        "--tensors",
+        action="store_true",
+        default=False,
+        help="Output images.npy / labels.npy / sessions.npy instead of PNG.",
+    )
     args = parser.parse_args()
 
-    training_rel = args.training_root or DEFAULT_TRAINING_ROOT[args.dataset]
-    training_root = os.path.join(ROOT, training_rel)
-    print("[training_root]", training_rel)
-    data_root = os.path.join(ROOT, args.data_root)
-    out_dir = os.path.join(ROOT, args.out_dir)
-    user_max_xy = build_user_max_xy_from_training(args.dataset, training_root)
+    data_root = resolve_path(args.data_root)
+    out_dir = resolve_path(args.out_dir)
+
+    print("[data_root]", data_root)
+    print("[out_dir]", out_dir)
 
     process_dataset(
         args.dataset,
         data_root,
         out_dir,
         args.sizes,
-        user_max_xy,
+        tensors=args.tensors,
     )
-
-    print("\nChunk image generation finished.")
+    print("\nCentered chunk XYPlot generation finished.")
 
 
 if __name__ == "__main__":

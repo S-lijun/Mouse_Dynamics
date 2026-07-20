@@ -454,8 +454,8 @@ def main():
     parser.add_argument("--velocity_dist", required=True,
                         help="npz with vx, vy arrays (e.g. vx_vy_distribution_raw.npz)")
     parser.add_argument("--out_dir", required=True)
-    parser.add_argument("--sizes", type=int, nargs="+", default=[120])
-    parser.add_argument("--epsilon", type=float, default=0.3)
+    parser.add_argument("--sizes", type=int, nargs="+", default=[125])
+    parser.add_argument("--epsilon", type=float, default=1.0)
     parser.add_argument(
         "--output_size",
         type=int,
@@ -465,7 +465,7 @@ def main():
     parser.add_argument(
         "--v_percentile",
         type=float,
-        default=97.5,
+        default=100,
         help="Signed CDF clip percentile for vx/vy (same as SRP_vx_vy).",
     )
     parser.add_argument(

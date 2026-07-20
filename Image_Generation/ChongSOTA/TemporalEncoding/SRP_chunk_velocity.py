@@ -429,7 +429,7 @@ def main():
         help="npz with values array (e.g. velocity_distribution_raw.npz)",
     )
     parser.add_argument("--out_dir", required=True)
-    parser.add_argument("--sizes", type=int, nargs="+", default=[120])
+    parser.add_argument("--sizes", type=int, nargs="+", default=[125])
     parser.add_argument("--epsilon", type=float, default=1.0)
     parser.add_argument(
         "--output_size",
@@ -440,7 +440,7 @@ def main():
     parser.add_argument(
         "--v_percentile",
         type=float,
-        default=95.0,
+        default=100,
         help="Upper clip percentile for speed CDF (same as SRP_velocity).",
     )
     parser.add_argument(

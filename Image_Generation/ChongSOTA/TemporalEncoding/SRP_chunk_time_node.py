@@ -1,4 +1,14 @@
 # -*- coding: utf-8 -*-
+"""
+Chunk-wise SRP with node time-difference temporal encoding (vertical stripes).
+
+Per chunk (same windowing as SRP_chunk_velocity.py):
+  R = pair-wise distance on locally normalized x,y (compute_srp_pair), min-max -> [0, 1]
+  G = B = node Δt via global CDF + vertical stripe (np.tile along rows)
+
+Δt pipeline follows RecurrencePlot/SRP_time_node.py.
+Global distribution: build_global_distribution.py --feature timediff_node (npz key: values).
+"""
 
 import os
 import re
@@ -8,8 +18,11 @@ import numpy as np
 import cv2
 from PIL import Image
 from torchvision import transforms
+from scipy.stats import rankdata
 
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
+
+GLOBAL_TD_CDF = None
 
 
 def natural_key(string):
@@ -26,57 +39,95 @@ def resolve_path(path_arg):
     return os.path.abspath(os.path.join(ROOT, path_arg))
 
 
-"""
-Clean up Balabit dataset (no global normalization here).
-"""
+def load_raw_time_distribution(path):
+    data = np.load(path)
+    td = data["values"]
+
+    print("\n[Time Difference Distribution]")
+    print("Samples:", len(td))
+    print("Min:", td.min())
+    print("Max:", td.max())
+
+    return td
+
+
+def build_runtime_cdf(raw_td, clip_pct):
+    print("\nBuilding runtime Δt CDF")
+
+    td_upper = np.percentile(raw_td, clip_pct)
+    td_clipped = raw_td[raw_td <= td_upper]
+
+    ranks = rankdata(td_clipped, method="average")
+    cdf = (ranks - 1) / (len(td_clipped) - 1 + 1e-8)
+
+    order = np.argsort(td_clipped)
+    td_sorted = td_clipped[order]
+    cdf_sorted = cdf[order]
+
+    print("Runtime samples:", len(td_sorted))
+    print("Runtime max:", td_sorted.max())
+
+    return td_sorted, cdf_sorted
+
+
+def compute_timediff_node(ts):
+    """
+    Node Δt: dt[i] = t[i+1]-t[i], last node copies the previous interval.
+    Same as RecurrencePlot/SRP_time_node.py (length T).
+    """
+    T = len(ts)
+    dt_node = np.zeros(T, dtype=np.float32)
+    if T < 2:
+        return dt_node
+
+    dt_node[:-1] = ts[1:] - ts[:-1]
+    dt_node[-1] = dt_node[-2]
+    return dt_node
+
 
 def clean_balabit(df):
-
     df = df.rename(columns={
-        "client timestamp":"time",
-        "x":"x",
-        "y":"y",
-        "state":"state"
+        "client timestamp": "time",
+        "x": "x",
+        "y": "y",
+        "state": "state",
     })
 
     df = df[df["state"] == "Move"]
     df = df[(df["x"] < 65535) & (df["y"] < 65535)]
     df = df.drop_duplicates()
 
-    for c in ["x","y","time"]:
+    for c in ["x", "y", "time"]:
         df[c] = pd.to_numeric(df[c], errors="coerce")
 
-    return df.dropna(subset=["x","y","time"])
+    return df.dropna(subset=["x", "y", "time"])
 
 
 def clean_chaoshen(df):
-
     df = df.rename(columns={
-        "X":"x",
-        "Y":"y",
-        "Timestamp":"time",
-        "EventName":"event"
+        "X": "x",
+        "Y": "y",
+        "Timestamp": "time",
+        "EventName": "event",
     })
 
     df = df[df["event"] == "Move"]
     df = df[(df["x"] < 65535) & (df["y"] < 65535)]
     df = df.drop_duplicates()
 
-    for c in ["x","y","time"]:
+    for c in ["x", "y", "time"]:
         df[c] = pd.to_numeric(df[c], errors="coerce")
 
-    return df.dropna(subset=["x","y","time"])
+    return df.dropna(subset=["x", "y", "time"])
 
 
 def clean_dfl(df):
-
     df.columns = [c.strip().lower() for c in df.columns]
 
     if "client timestamp" in df.columns:
-        df = df.rename(columns={"client timestamp":"time"})
-
+        df = df.rename(columns={"client timestamp": "time"})
     elif "timestamp" in df.columns:
-        df = df.rename(columns={"timestamp":"time"})
+        df = df.rename(columns={"timestamp": "time"})
 
     if "state" in df.columns:
         df = df[df["state"].str.lower() == "move"]
@@ -84,10 +135,10 @@ def clean_dfl(df):
     df = df[(df["x"] < 65535) & (df["y"] < 65535)]
     df = df.drop_duplicates()
 
-    for c in ["x","y","time"]:
+    for c in ["x", "y", "time"]:
         df[c] = pd.to_numeric(df[c], errors="coerce")
 
-    return df.dropna(subset=["x","y","time"])
+    return df.dropna(subset=["x", "y", "time"])
 
 
 def _clean_df(dataset, df):
@@ -100,15 +151,11 @@ def _clean_df(dataset, df):
     raise ValueError(dataset)
 
 
-"""
-Generate train/test windows.
-"""
 def generate_windows(events, chunk_size, data_root):
     if len(events) < chunk_size:
         return []
 
     if "train" in data_root.lower():
-        #stride = max(1, chunk_size // 4)
         stride = chunk_size
     else:
         stride = chunk_size
@@ -119,38 +166,8 @@ def generate_windows(events, chunk_size, data_root):
     return windows
 
 
-"""
-Per-sequence local normalization and pair-wise SRP.
-
-Steps:
-1) Use x,y only from one sequence.
-2) Compute range_x/range_y in this sequence.
-3) scale = max(range_x, range_y) (guarded by 1e-8).
-4) Normalize x,y with same scale.
-5) Pair-wise distance on normalized coordinates.
-6) If distance < epsilon => keep; else clip to epsilon.
-"""
-
-'''
 def compute_srp_pair(seq, epsilon):
-    coords = seq[:, :2].astype(np.float32)
-
-    min_xy = np.min(coords, axis=0, keepdims=True)
-    max_xy = np.max(coords, axis=0, keepdims=True)
-    ranges = max_xy - min_xy
-    max_range = float(np.max(ranges))
-    scale = max(max_range, 1e-8)
-
-    coords_norm = (coords - min_xy) / scale
-
-    diff = coords_norm[:, None, :] - coords_norm[None, :, :]
-    dist = np.sqrt(np.sum(diff ** 2, axis=2))
-
-    rp = np.minimum(dist, epsilon)
-    return rp
-'''
-
-def compute_srp_pair(seq, epsilon):
+    """Pair-wise SRP with per-sequence local normalization (SRP_chunk)."""
     coords = seq[:, :2].astype(np.float32)
 
     x = coords[:, 0]
@@ -175,42 +192,75 @@ def compute_srp_pair(seq, epsilon):
     return rp
 
 
+def compute_srp_chunk_time_node(seq, epsilon):
+    """
+    R = normalized pair-wise distance matrix
+    G = B = node Δt vertical stripes
+    Returns float32 H×W×3 in [0, 1], channels RGB (R, G, B).
+    """
+    T = len(seq)
+    if T < 2:
+        return None
+
+    rp = compute_srp_pair(seq, epsilon)
+    rp_min = rp.min()
+    rp_max = rp.max()
+    denom = max(rp_max - rp_min, 1e-8)
+    r_channel = ((rp - rp_min) / denom).astype(np.float32)
+
+    ts = seq[:, 2]
+    dt_node = compute_timediff_node(ts)
+
+    dt_norm = np.interp(
+        dt_node,
+        GLOBAL_TD_CDF[0],
+        GLOBAL_TD_CDF[1],
+        left=0,
+        right=1,
+    )
+
+    stripe = np.tile(dt_norm[None, :], (T, 1)).astype(np.float32)
+
+    g_channel = stripe
+    b_channel = stripe
+
+    img = np.stack([r_channel, g_channel, b_channel], axis=-1)
+    return np.clip(img, 0, 1)
+
+
 _resize_tfms = {}
 
 
 def _resize_transform(side: int):
-    """仅 transforms.Resize((s,s))，与训练脚本里 Resize 一致；不写盘、不 ToTensor。"""
     s = int(side)
     if s not in _resize_tfms:
         _resize_tfms[s] = transforms.Resize((s, s))
     return _resize_tfms[s]
 
 
-def render_srp(seq, epsilon, output_size=0):
-    """Return uint8 grayscale SRP (H, W), or None if seq too short."""
+def render_srp_chunk_time_node(seq, epsilon, output_size=0):
+    """Return uint8 RGB (H, W, 3), or None if seq too short."""
     if len(seq) < 2:
         return None
 
-    rp = compute_srp_pair(seq, epsilon)
+    img = compute_srp_chunk_time_node(seq, epsilon)
+    if img is None:
+        return None
 
-    rp_min = rp.min()
-    rp_max = rp.max()
-    denom = max(rp_max - rp_min, 1e-8)
-
-    img = ((rp - rp_min) / denom * 255).astype(np.uint8)
+    img_rgb = (img * 255).astype(np.uint8)
 
     if output_size and int(output_size) > 0:
         s = int(output_size)
-        pil = Image.fromarray(img, mode="L")
+        pil = Image.fromarray(img_rgb)
         out_pil = _resize_transform(s)(pil)
-        img = np.asarray(out_pil, dtype=np.uint8)
+        img_rgb = np.asarray(out_pil, dtype=np.uint8)
 
-    return img
+    return img_rgb
 
 
-def gray_to_tensor_chw(img):
-    """Match Images_convert.py: grayscale -> (3, H, W) uint8."""
-    return np.stack([img, img, img], axis=0)
+def rgb_to_tensor_chw(img_rgb):
+    """RGB H×W×3 uint8 -> (3, H, W) uint8 (Images_convert format)."""
+    return np.transpose(img_rgb, (2, 0, 1))
 
 
 def list_users(data_root):
@@ -246,17 +296,15 @@ def count_windows(dataset, data_root, chunk_size):
     return total, users
 
 
-"""
-Save SRP to image (largest values to 255, smallest to 0).
-"""
-def draw_srp(seq, save_path, epsilon, output_size=0):
-    """output_size: 若 > 0，将灰度 SRP 用 transforms.Resize 为 output_size×output_size 再保存；0 表示保持 N×N。"""
-    img = render_srp(seq, epsilon, output_size)
-    if img is None:
+def draw_srp_chunk_time_node(seq, save_path, epsilon, output_size=0):
+    img_rgb = render_srp_chunk_time_node(seq, epsilon, output_size)
+    if img_rgb is None:
         return
 
+    img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
+
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
-    cv2.imwrite(save_path, img)
+    cv2.imwrite(save_path, img_bgr)
 
 
 def process_dataset_tensors(dataset, data_root, out_dir, sizes, epsilon, output_size=0):
@@ -266,7 +314,7 @@ def process_dataset_tensors(dataset, data_root, out_dir, sizes, epsilon, output_
 
     print("\nDataset:", dataset)
     print("Users:", num_users)
-    print("\n[Phase] Generating pair-wise SRP tensors (Images_convert format)...")
+    print("\n[Phase] Generating pair-wise SRP + node Δt stripe tensors (Images_convert format)...")
 
     for chunk_size in sizes:
         H = int(output_size) if output_size and int(output_size) > 0 else chunk_size
@@ -307,14 +355,14 @@ def process_dataset_tensors(dataset, data_root, out_dir, sizes, epsilon, output_
                 print(f"  Session {session} | chunk={chunk_size} -> {len(windows)} windows")
 
                 for seq in windows:
-                    img = render_srp(seq, epsilon, output_size)
-                    if img is None:
+                    img_rgb = render_srp_chunk_time_node(seq, epsilon, output_size)
+                    if img_rgb is None:
                         continue
 
-                    if img.shape[:2] != (H, W):
-                        img = cv2.resize(img, (W, H), interpolation=cv2.INTER_NEAREST)
+                    if img_rgb.shape[:2] != (H, W):
+                        img_rgb = cv2.resize(img_rgb, (W, H), interpolation=cv2.INTER_NEAREST)
 
-                    images[idx] = gray_to_tensor_chw(img)
+                    images[idx] = rgb_to_tensor_chw(img_rgb)
 
                     y = np.zeros(num_users, dtype=np.uint8)
                     y[user_to_idx[user]] = 1
@@ -333,19 +381,16 @@ def process_dataset_tensors(dataset, data_root, out_dir, sizes, epsilon, output_
         print(f"\nTensor dataset saved to: {tensor_root}")
 
 
-"""
-Convert dataset into windows and SRP images.
-"""
 def process_dataset(dataset, data_root, out_dir, sizes, epsilon, output_size=0, tensors=False):
     if tensors:
         process_dataset_tensors(dataset, data_root, out_dir, sizes, epsilon, output_size)
         return
 
-    users = sorted(os.listdir(data_root))
+    users = list_users(data_root)
 
     print("\nDataset:", dataset)
     print("Users:", len(users))
-    print("\n[Phase] Generating pair-wise SRP (local normalization)...")
+    print("\n[Phase] Generating pair-wise SRP + node Δt stripes...")
 
     for user in users:
         user_dir = os.path.join(data_root, user)
@@ -355,11 +400,8 @@ def process_dataset(dataset, data_root, out_dir, sizes, epsilon, output_size=0, 
         print("\n------------------------------")
         print("User:", user)
 
-        for file in os.listdir(user_dir):
+        for file in list_session_csvs(user_dir):
             path = os.path.join(user_dir, file)
-            if not os.path.isfile(path):
-                continue
-
             session = os.path.splitext(file)[0]
             events = load_events(dataset, path)
 
@@ -372,15 +414,24 @@ def process_dataset(dataset, data_root, out_dir, sizes, epsilon, output_size=0, 
                         out_dir,
                         f"event{chunk_size}",
                         user,
-                        f"{session}-{i}.png"
+                        f"{session}-{i}.png",
                     )
-                    draw_srp(seq, save_path, epsilon, output_size)
+                    draw_srp_chunk_time_node(seq, save_path, epsilon, output_size)
 
 
 def main():
-    parser = argparse.ArgumentParser()
+    global GLOBAL_TD_CDF
+
+    parser = argparse.ArgumentParser(
+        description="Chunk SRP (pair-wise R) + node time-difference vertical stripes (G=B).",
+    )
     parser.add_argument("--dataset", required=True, choices=["balabit", "chaoshen", "dfl"])
     parser.add_argument("--data_root", required=True)
+    parser.add_argument(
+        "--td_dist",
+        required=True,
+        help="npz from build_global_distribution --feature timediff_node (key: values).",
+    )
     parser.add_argument("--out_dir", required=True)
     parser.add_argument("--sizes", type=int, nargs="+", default=[125])
     parser.add_argument("--epsilon", type=float, default=1.0)
@@ -388,7 +439,13 @@ def main():
         "--output_size",
         type=int,
         default=448,
-        help="若 > 0，用 transforms.Resize 将每张 SRP 存为 output_size×output_size；0 表示保持原始 N×N。",
+        help="若 > 0，用 transforms.Resize 将每张图存为 output_size×output_size PNG；0 表示保持 N×N。",
+    )
+    parser.add_argument(
+        "--t_percentile",
+        type=float,
+        default=95,
+        help="Upper clip percentile for Δt CDF (same as SRP_time_node).",
     )
     parser.add_argument(
         "--tensors",
@@ -400,9 +457,14 @@ def main():
 
     data_root = resolve_path(args.data_root)
     out_dir = resolve_path(args.out_dir)
+    dist_path = resolve_path(args.td_dist)
 
     print("Resolved data_root:", data_root)
     print("Resolved out_dir:", out_dir)
+    print("Resolved td_dist:", dist_path)
+
+    raw_td = load_raw_time_distribution(dist_path)
+    GLOBAL_TD_CDF = build_runtime_cdf(raw_td, args.t_percentile)
 
     process_dataset(
         dataset=args.dataset,

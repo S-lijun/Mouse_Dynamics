@@ -262,7 +262,7 @@ def main():
         choices=["vx", "vy"],
         help="Which directional velocity to encode in all three RGB channels.",
     )
-    parser.add_argument("--sizes", type=int, nargs="+", default=[120])
+    parser.add_argument("--sizes", type=int, nargs="+", default=[125])
     parser.add_argument(
         "--output_size",
         type=int,
