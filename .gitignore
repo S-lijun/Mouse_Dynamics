@@ -17,6 +17,12 @@ Data/DFL/*
 !Data/DFL/training_files/**
 !Data/DFL/testing_files_protocol1/**
 
+!Data/TWOS/
+Data/TWOS/*
+!Data/TWOS/training_files/
+!Data/TWOS/testing_files_protocol1/
+!Data/TWOS/training_files/**
+!Data/TWOS/testing_files_protocol1/**
 
 !Data/Balabit-dataset
 #!Data/Balabit_PeakClick
