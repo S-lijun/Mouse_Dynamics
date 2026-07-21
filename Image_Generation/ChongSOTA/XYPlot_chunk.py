@@ -21,6 +21,7 @@ from XYPlot import (
     clean_balabit,
     clean_chaoshen,
     clean_dfl,
+    clean_twos,
 )
 
 TENSOR_SUBDIR = "Chong"
@@ -47,6 +48,8 @@ def _clean_df(dataset, df):
         return clean_chaoshen(df)
     if dataset == "dfl":
         return clean_dfl(df)
+    if dataset == "twos":
+        return clean_twos(df)
     raise ValueError(dataset)
 
 
@@ -292,7 +295,7 @@ def process_dataset(dataset, data_root, out_dir, chunk_size, tensors=False):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", required=True, choices=["balabit", "chaoshen", "dfl"])
+    parser.add_argument("--dataset", required=True, choices=["balabit", "chaoshen", "dfl", "twos"])
     parser.add_argument("--data_root", required=True)
     parser.add_argument("--out_dir", required=True)
     parser.add_argument(

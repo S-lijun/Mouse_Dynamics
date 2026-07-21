@@ -247,6 +247,25 @@ def clean_dfl(df):
     return df.dropna(subset=["x","y","time"])
 
 
+def clean_twos(df):
+
+    df = df.rename(columns={
+        "timestamp": "time",
+        "x": "x",
+        "y": "y",
+        "event": "event",
+    })
+
+    df = df[df["event"] == "Mouse Moved"]
+    df = df[(df["x"] < 65535) & (df["y"] < 65535)]
+    df = df.drop_duplicates()
+
+    for c in ["x", "y", "time"]:
+        df[c] = pd.to_numeric(df[c], errors="coerce")
+
+    return df.dropna(subset=["x", "y", "time"])
+
+
 # ============================================================
 # Dataset Processing (MODIFIED)
 # ============================================================
@@ -290,6 +309,10 @@ def process_dataset(dataset, data_root, out_dir):
                 df = clean_chaoshen(df)
             elif dataset == "dfl":
                 df = clean_dfl(df)
+            elif dataset == "twos":
+                df = clean_twos(df)
+            else:
+                raise ValueError(dataset)
 
             events = df.to_dict("records")
 
@@ -351,7 +374,7 @@ def main():
 
     parser.add_argument("--dataset",
                         required=True,
-                        choices=["balabit","chaoshen","dfl"])
+                        choices=["balabit","chaoshen","dfl","twos"])
 
     parser.add_argument("--data_root",
                         required=True)

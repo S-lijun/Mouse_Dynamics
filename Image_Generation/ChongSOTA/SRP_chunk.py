@@ -90,6 +90,25 @@ def clean_dfl(df):
     return df.dropna(subset=["x","y","time"])
 
 
+def clean_twos(df):
+
+    df = df.rename(columns={
+        "timestamp": "time",
+        "x": "x",
+        "y": "y",
+        "event": "event",
+    })
+
+    df = df[df["event"] == "Mouse Moved"]
+    df = df[(df["x"] < 65535) & (df["y"] < 65535)]
+    df = df.drop_duplicates()
+
+    for c in ["x", "y", "time"]:
+        df[c] = pd.to_numeric(df[c], errors="coerce")
+
+    return df.dropna(subset=["x", "y", "time"])
+
+
 def _clean_df(dataset, df):
     if dataset == "balabit":
         return clean_balabit(df)
@@ -97,6 +116,8 @@ def _clean_df(dataset, df):
         return clean_chaoshen(df)
     if dataset == "dfl":
         return clean_dfl(df)
+    if dataset == "twos":
+        return clean_twos(df)
     raise ValueError(dataset)
 
 
@@ -379,7 +400,7 @@ def process_dataset(dataset, data_root, out_dir, sizes, epsilon, output_size=0, 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", required=True, choices=["balabit", "chaoshen", "dfl"])
+    parser.add_argument("--dataset", required=True, choices=["balabit", "chaoshen", "dfl", "twos"])
     parser.add_argument("--data_root", required=True)
     parser.add_argument("--out_dir", required=True)
     parser.add_argument("--sizes", type=int, nargs="+", default=[125])
