@@ -1,9 +1,12 @@
 timestamp,event,x,y,user,screen_width,screen_height
 1489790594609,Mouse Moved,293.0,205.0,User11,800.0,600.0
 1489790596075,Mouse Moved,296.0,205.0,User11,,
+1489790596075,Mouse Moved,314.0,212.0,User11,,
 1489790596107,Mouse Moved,335.0,222.0,User11,,
+1489790596107,Mouse Moved,359.0,234.0,User11,,
 1489790596122,Mouse Moved,384.0,245.0,User11,,
 1489790596154,Mouse Moved,404.0,254.0,User11,,
+1489790596154,Mouse Moved,419.0,260.0,User11,,
 1489790596170,Mouse Moved,426.0,263.0,User11,,
 1489790596200,Mouse Moved,434.0,266.0,User11,,
 1489790596216,Mouse Moved,438.0,270.0,User11,,
@@ -32,4 +35,3 @@ timestamp,event,x,y,user,screen_width,screen_height
 1489790596653,Mouse Moved,479.0,333.0,User11,,
 1489790596668,Mouse Moved,479.0,335.0,User11,,
 1489790597042,Mouse Moved,479.0,336.0,User11,,
-1489790597059,Mouse Moved,479.0,340.0,User11,,
