@@ -4,7 +4,7 @@ Plot raw feature distributions for a dataset split (training / testing).
 
 Features match TemporalEncoding pipelines (Velocity.py / vxvy.py).
 All plots use unified units: pixels / second.
-ChaoShen & DFL timestamps are ms → feature values are scaled ×1000.
+ChaoShen & DFL & TWOS timestamps are ms → feature values are scaled ×1000.
 Percentile: velocity uses upper cap only; vx/vy use symmetric central band.
 
 Example:
@@ -12,7 +12,7 @@ Example:
     --dataset balabit --split training --feature velocity --percentile 95
 
   python3 plot_feature_distribution.py \\
-    --dataset balabit --split testing --feature vx --percentile 99
+    --dataset twos --split training --feature vx --percentile 99
 """
 
 import os
@@ -41,14 +41,19 @@ DEFAULT_DATA_ROOT = {
         "training": "Data/DFL/training_files",
         "testing": "Data/DFL/testing_files_protocol1",
     },
+    "twos": {
+        "training": "Data/TWOS/training_files",
+        "testing": "Data/TWOS/testing_files_protocol1",
+    },
 }
 
-# Balabit timestamps are seconds; ChaoShen/DFL are milliseconds.
+# Balabit timestamps are seconds; ChaoShen/DFL/TWOS are milliseconds.
 # Raw dx/dt is px/ms for the latter — multiply by 1000 for unified px/s plots.
 FEATURE_SCALE_TO_PX_PER_SEC = {
     "balabit": 1.0,
     "chaoshen": 1000.0,
     "dfl": 1000.0,
+    "twos": 1000.0,
 }
 
 FEATURE_ALIASES = {
@@ -120,6 +125,21 @@ def clean_dfl(df):
     return df.dropna(subset=["x", "y", "time"])
 
 
+def clean_twos(df):
+    df = df.rename(columns={
+        "timestamp": "time",
+        "x": "x",
+        "y": "y",
+        "event": "event",
+    })
+    df = df[df["event"] == "Mouse Moved"]
+    df = df[(df["x"] < 65535) & (df["y"] < 65535)]
+    df = df.drop_duplicates()
+    for c in ["x", "y", "time"]:
+        df[c] = pd.to_numeric(df[c], errors="coerce")
+    return df.dropna(subset=["x", "y", "time"])
+
+
 def _clean_df(dataset, df):
     if dataset == "balabit":
         return clean_balabit(df)
@@ -127,6 +147,8 @@ def _clean_df(dataset, df):
         return clean_chaoshen(df)
     if dataset == "dfl":
         return clean_dfl(df)
+    if dataset == "twos":
+        return clean_twos(df)
     raise ValueError(dataset)
 
 
@@ -369,7 +391,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Plot TemporalEncoding feature distributions for train/test splits.",
     )
-    parser.add_argument("--dataset", required=True, choices=["balabit", "chaoshen", "dfl"])
+    parser.add_argument("--dataset", required=True, choices=["balabit", "chaoshen", "dfl", "twos"])
     parser.add_argument(
         "--split",
         required=True,
@@ -424,7 +446,7 @@ def main():
     print("[split]", args.split)
     print("[feature]", args.feature)
     print("[percentile]", args.percentile)
-    print("[units]", "pixels/second (ChaoShen/DFL ×1000 from px/ms)")
+    print("[units]", "pixels/second (ChaoShen/DFL/TWOS ×1000 from px/ms)")
     print("[data_root]", data_root)
 
     values, n_sessions, n_events = collect_feature_values(
