@@ -222,8 +222,8 @@ if __name__ == "__main__":
         neg_weight_value=1.0,
         # TWOS is heavily imbalanced (rarest user ~100 train samples);
         # C=60 makes loss weights huge and can explode to NaN in AMP.
-        C_pos=5,
-        C_neg=5
+        C_pos=60,
+        C_neg=60
     )
 
     print("\n========== Training Execution ==========")

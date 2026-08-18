@@ -37,14 +37,12 @@ from XYPlot import (
     clean_balabit,
     clean_chaoshen,
     clean_dfl,
-    clean_twos,
 )
 
 DEFAULT_TRAINING_ROOT = {
     "balabit": "Data/Balabit-dataset/training_files",
     "chaoshen": "Data/ChaoShen/training_files",
     "dfl": "Data/DFL-dataset_raw/training_files",
-    "twos": "Data/TWOS/training_files",
 }
 
 
@@ -64,20 +62,12 @@ def resolve_path(path_arg):
 
 def _clean_df(dataset, df):
     if dataset == "balabit":
-        # Balabit client timestamp is already in seconds.
         return clean_balabit(df)
     if dataset == "chaoshen":
-        df = clean_chaoshen(df)
-    elif dataset == "dfl":
-        df = clean_dfl(df)
-    elif dataset == "twos":
-        df = clean_twos(df)
-    else:
-        raise ValueError(dataset)
-
-    # ChaoShen / DFL / TWOS timestamps are milliseconds; split_by_time uses seconds.
-    df["time"] = df["time"] / 1000.0
-    return df
+        return clean_chaoshen(df)
+    if dataset == "dfl":
+        return clean_dfl(df)
+    raise ValueError(dataset)
 
 
 def list_users(data_root):
@@ -359,7 +349,7 @@ def main():
     parser.add_argument(
         "--dataset",
         required=True,
-        choices=["balabit", "chaoshen", "dfl", "twos"],
+        choices=["balabit", "chaoshen", "dfl"],
         help="Cleaning pipeline for the raw CSVs.",
     )
     parser.add_argument(

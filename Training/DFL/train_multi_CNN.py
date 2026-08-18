@@ -105,11 +105,13 @@ class TensorMouseDataset(Dataset):
 
     def __getitem__(self, idx):
 
-        #img = torch.from_numpy(self.images[idx].copy())
-        #img = torch.from_numpy(np.asarray(self.images[idx])).float().div_(255)
-        img = torch.from_numpy(self.images[idx]).to(torch.float32).div_(255)
+        # Must .copy(): images are np.memmap on scratch; torch.from_numpy on a
+        # view + DataLoader pin_memory can trigger CUDA misaligned address.
+        img = torch.from_numpy(
+            np.ascontiguousarray(self.images[idx])
+        ).to(torch.float32).div_(255).contiguous()
 
-        label = torch.from_numpy(self.labels[idx]).float()
+        label = torch.from_numpy(np.asarray(self.labels[idx]).copy()).float()
         session_id = self.sessions[idx]
 
         return img, label, session_id
@@ -133,9 +135,12 @@ def collect_val_scores(model, loader, device):
 
             X = X.to(device, non_blocking=True)
 
-            logits = model(X)
+            # Match training val path: AMP avoids FP32 activation OOM
+            # (bare CUDA OOM often surfaces as Segmentation fault on this cluster)
+            with torch.cuda.amp.autocast(enabled=(device.type == "cuda")):
+                logits = model(X)
 
-            outs.append(torch.sigmoid(logits).cpu())
+            outs.append(torch.sigmoid(logits.float()).cpu())
             labs.append(y)
             sess.extend(s)
 
@@ -195,7 +200,7 @@ if __name__ == "__main__":
         num_workers=12,
         pin_memory=True,
         persistent_workers=True,
-        prefetch_factor=4
+        prefetch_factor=4,
     )
 
     test_loader = DataLoader(
@@ -205,7 +210,7 @@ if __name__ == "__main__":
         num_workers=12,
         pin_memory=True,
         persistent_workers=True,
-        prefetch_factor=4
+        prefetch_factor=4,
     )
 
     # ==========================================
@@ -234,7 +239,7 @@ if __name__ == "__main__":
         learning_rate_decay=0.1,
         verbose=True,
         checkpoint_dir=str(ckpt_dir),
-        checkpoint_every=3,
+        checkpoint_every=1,
         resume_path=resume_path,
     )
 

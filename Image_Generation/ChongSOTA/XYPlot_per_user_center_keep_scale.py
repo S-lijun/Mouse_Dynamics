@@ -1,14 +1,25 @@
 # -*- coding: utf-8 -*-
 """
-Per-user normalization: max x / max y from all sessions of that user under
-training_files only (default path per --dataset). The same bounds are used
-for any data_root (e.g. testing_files). Bounds are cached to
-ChongSOTA/bounds/<dataset>_xy_bounds.json on first scan unless --rescan_bounds.
+Per-user XYPlot with trajectory centering, keeping screen scale.
+
+Same as XYPlot_per_user.py:
+  - split_by_time + merge_sequences(min_length=user max_x)
+  - canvas / pixel mapping from per-user training max_x, max_y
+  - final uniform pack of the whole screen canvas into TARGET_SIZE
+    (preserves trajectory-vs-screen scale)
+
+Only change:
+  - translate each trajectory so its bbox center sits at screen center
+  - NO per-trajectory bbox fit / rescale (unlike XYPlot_per_user_centered.py)
+
+Usage:
+  python XYPlot_per_user_center_keep_scale.py --dataset balabit \\
+    --data_root Data/Balabit-dataset/training_files \\
+    --out_dir Images/Balabit/XYPlot_per_user_center_keep_scale
 """
 
 import os
 import re
-import json
 import argparse
 
 import cv2
@@ -18,6 +29,7 @@ import pandas as pd
 from XYPlot import (
     ROOT,
     TARGET_SIZE,
+    INNER_PADDING,
     GLOBAL_MAX_X,
     GLOBAL_MAX_Y,
     split_by_time,
@@ -25,18 +37,15 @@ from XYPlot import (
     clean_balabit,
     clean_chaoshen,
     clean_dfl,
-    draw_sequence,
-    render_sequence,
+)
+from XYPlot_per_user import (
+    DEFAULT_TRAINING_ROOT,
+    default_bounds_json,
+    get_or_scan_user_max_xy,
+    _norm_bounds,
 )
 
-DEFAULT_TRAINING_ROOT = {
-    "balabit": "Data/Balabit-dataset/training_files",
-    "chaoshen": "Data/ChaoShen/training_files",
-    "dfl": "Data/DFL-dataset_raw/training_files",
-}
-
-TENSOR_SUBDIR = "Chong_per_user"
-BOUNDS_DIR = os.path.join(os.path.dirname(__file__), "bounds")
+TENSOR_SUBDIR = "Chong_per_user_center_keep_scale"
 
 
 def natural_key(string):
@@ -77,15 +86,6 @@ def list_session_files(user_dir):
     )
 
 
-def _norm_bounds(user, user_max_xy):
-    if user in user_max_xy:
-        return user_max_xy[user]
-    print(
-        "\n[WARN] User", user, "not in training scan; using GLOBAL_MAX_X/Y:",
-        GLOBAL_MAX_X, GLOBAL_MAX_Y,
-    )
-    return GLOBAL_MAX_X, GLOBAL_MAX_Y
-
 
 def _session_sequences(dataset, path, norm_x, norm_y):
     df = pd.read_csv(path)
@@ -100,90 +100,84 @@ def _session_sequences(dataset, path, norm_x, norm_y):
     return [seq for seq in sequences if len(seq) >= 2]
 
 
-def default_bounds_json(dataset):
-    return os.path.join(BOUNDS_DIR, "{}_xy_bounds.json".format(dataset))
-
-
-def build_user_max_xy_from_training(dataset, training_root):
+def render_sequence_center_keep_scale(seq, norm_width, norm_height):
     """
-    Scan every session under training_root/<user>/ and record each user's
-    global max x and max y (after the same cleaning as drawing).
-    Returns dict user -> (max_x, max_y).
+    Same screen canvas / mapping as XYPlot.render_sequence, but translate
+    the trajectory so its bbox center is at the screen center. No traj resize.
     """
-    user_max_xy = {}
+    if len(seq) < 2:
+        return None
 
-    print("\n[bounds] Scanning users under:", training_root)
-    for user in list_users(training_root):
-        user_dir = os.path.join(training_root, user)
+    xs = np.array([float(e["x"]) for e in seq], dtype=np.float64)
+    ys = np.array([float(e["y"]) for e in seq], dtype=np.float64)
 
-        max_x = 0.0
-        max_y = 0.0
-        saw_points = False
+    W = max(float(norm_width), 1.0)
+    H = max(float(norm_height), 1.0)
 
-        for name in list_session_files(user_dir):
-            path = os.path.join(user_dir, name)
+    # Center trajectory on screen (translation only).
+    traj_cx = 0.5 * (xs.min() + xs.max())
+    traj_cy = 0.5 * (ys.min() + ys.max())
+    xs = xs - traj_cx + 0.5 * W
+    ys = ys - traj_cy + 0.5 * H
 
-            df = pd.read_csv(path)
-            df = _clean_df(dataset, df)
-            if len(df) == 0:
-                continue
+    a = H / W
+    canvas_w = int(W) + 1
+    span = float(canvas_w - 1)
+    canvas_h = int(np.ceil(a * span)) + 1
 
-            max_x = max(max_x, float(df["x"].max()))
-            max_y = max(max_y, float(df["y"].max()))
-            saw_points = True
+    canvas = np.ones((canvas_h, canvas_w, 3), dtype=np.uint8) * 255
 
-        if saw_points:
-            user_max_xy[user] = (max_x, max_y)
-        else:
-            user_max_xy[user] = (GLOBAL_MAX_X, GLOBAL_MAX_Y)
-        print("  scanned user:", user, "->", user_max_xy[user])
+    x_pix = np.clip(np.rint(xs / W * span), 0, canvas_w - 1).astype(np.int32)
+    y_pix = np.clip(np.rint(ys / W * span), 0, canvas_h - 1).astype(np.int32)
 
-    return user_max_xy
+    prev = None
+    for x_i, y_i in zip(x_pix, y_pix):
+        if prev is not None:
+            cv2.line(
+                canvas,
+                prev,
+                (int(x_i), int(y_i)),
+                (0, 0, 0),
+                1,
+                lineType=cv2.LINE_AA,
+            )
+        prev = (int(x_i), int(y_i))
 
+    # Uniform pack of the whole screen canvas (same as XYPlot_per_user).
+    # This keeps trajectory-vs-screen scale; it is not a per-traj bbox resize.
+    h, w = canvas.shape[:2]
+    effective_size = max(1, TARGET_SIZE - 2 * INNER_PADDING)
+    scale = effective_size / max(w, h)
 
-def save_bounds_json(user_max_xy, dataset, scan_root, path):
-    payload = {
-        "dataset": dataset,
-        "scan_root": os.path.abspath(scan_root),
-        "n_users": len(user_max_xy),
-        "users": {},
-    }
-    for user, (max_x, max_y) in user_max_xy.items():
-        payload["users"][user] = {
-            "max_x": float(max_x),
-            "max_y": float(max_y),
-        }
-    parent = os.path.dirname(path)
-    if parent:
-        os.makedirs(parent, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2, ensure_ascii=False)
-        f.write("\n")
-    print("[bounds] Saved:", path)
+    new_w = int(w * scale)
+    new_h = int(h * scale)
 
+    resized = cv2.resize(canvas, (new_w, new_h), interpolation=cv2.INTER_AREA)
+    gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
+    resized = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
 
-def load_bounds_json(path):
-    with open(path, "r", encoding="utf-8") as f:
-        payload = json.load(f)
-    if "users" not in payload or not payload["users"]:
-        raise ValueError(
-            "bounds json missing non-empty 'users'; re-run with --rescan_bounds"
-        )
-    user_max_xy = {}
-    for user, ub in payload["users"].items():
-        if "max_x" not in ub or "max_y" not in ub:
-            raise KeyError("user {} missing max_x/max_y".format(user))
-        user_max_xy[user] = (float(ub["max_x"]), float(ub["max_y"]))
-    print("[bounds] Loaded: {} ({} users)".format(path, len(user_max_xy)))
-    return user_max_xy
+    pad_top = (TARGET_SIZE - new_h) // 2
+    pad_bottom = TARGET_SIZE - new_h - pad_top
+    pad_left = (TARGET_SIZE - new_w) // 2
+    pad_right = TARGET_SIZE - new_w - pad_left
+
+    return cv2.copyMakeBorder(
+        resized,
+        pad_top,
+        pad_bottom,
+        pad_left,
+        pad_right,
+        cv2.BORDER_CONSTANT,
+        value=(255, 255, 255),
+    )
 
 
-def get_or_scan_user_max_xy(dataset, training_root, bounds_json, rescan=False):
-    if (not rescan) and os.path.isfile(bounds_json):
-        return load_bounds_json(bounds_json)
-    user_max_xy = build_user_max_xy_from_training(dataset, training_root)
-    save_bounds_json(user_max_xy, dataset, training_root, bounds_json)
-    return user_max_xy
+def draw_sequence_center_keep_scale(seq, save_path, norm_width, norm_height):
+    final = render_sequence_center_keep_scale(seq, norm_width, norm_height)
+    if final is None:
+        return
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    cv2.imwrite(save_path, final)
 
 
 def count_samples(dataset, data_root, user_max_xy):
@@ -202,7 +196,6 @@ def count_samples(dataset, data_root, user_max_xy):
 
 
 def bgr_to_tensor_chw(img):
-    """Match Images_convert.py: BGR HWC -> (3, H, W) uint8."""
     return img.transpose(2, 0, 1)
 
 
@@ -214,7 +207,8 @@ def process_dataset_tensors(dataset, data_root, out_dir, user_max_xy):
     print("\nDataset:", dataset)
     print("Users:", num_users)
     print("Per-user max bounds loaded for", len(user_max_xy), "users (from training_root).")
-    print("\n[Phase] Generating per-user XYPlot tensors (Images_convert format)...")
+    print("Rendering: center traj on screen, keep screen scale (no bbox fit).")
+    print("\n[Phase] Generating tensors...")
 
     total_samples, _ = count_samples(dataset, data_root, user_max_xy)
     tensor_root = os.path.join(out_dir, TENSOR_SUBDIR)
@@ -244,7 +238,7 @@ def process_dataset_tensors(dataset, data_root, out_dir, user_max_xy):
         norm_x, norm_y = _norm_bounds(user, user_max_xy)
 
         print("\n------------------------------")
-        print("User:", user, "| norm W×H (from training):", norm_x, norm_y)
+        print("User:", user, "| screen W×H (from training):", norm_x, norm_y)
 
         for file in list_session_files(user_dir):
             path = os.path.join(user_dir, file)
@@ -253,7 +247,7 @@ def process_dataset_tensors(dataset, data_root, out_dir, user_max_xy):
             print(f"   Session: {session} -> {len(sequences)} sequences")
 
             for seq in sequences:
-                img = render_sequence(seq, norm_x, norm_y)
+                img = render_sequence_center_keep_scale(seq, norm_x, norm_y)
                 if img is None:
                     continue
 
@@ -289,13 +283,14 @@ def process_dataset(dataset, data_root, out_dir, user_max_xy, tensors=False):
     print("\nDataset:", dataset)
     print("Users in data_root:", len(users))
     print("Per-user max bounds loaded for", len(user_max_xy), "users (from training_root).")
+    print("Rendering: center traj on screen, keep screen scale (no bbox fit).")
 
     for user in users:
         user_dir = os.path.join(data_root, user)
         norm_x, norm_y = _norm_bounds(user, user_max_xy)
 
         print("\n------------------------------")
-        print("User:", user, "| norm W×H (from training):", norm_x, norm_y)
+        print("User:", user, "| screen W×H (from training):", norm_x, norm_y)
 
         for file in list_session_files(user_dir):
             path = os.path.join(user_dir, file)
@@ -323,17 +318,21 @@ def process_dataset(dataset, data_root, out_dir, user_max_xy, tensors=False):
                     user,
                     f"{session}-{i}.png",
                 )
-                draw_sequence(seq, save_path, norm_x, norm_y)
+                draw_sequence_center_keep_scale(seq, save_path, norm_x, norm_y)
 
 
 def main():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description=(
+            "XYPlot_per_user + center each traj on screen; "
+            "keep screen scale (no per-traj bbox resize)."
+        )
+    )
     parser.add_argument("--dataset", required=True, choices=["balabit", "chaoshen", "dfl"])
     parser.add_argument(
         "--training_root",
         default=None,
-        help="Relative to ROOT; default follows --dataset (Balabit/ChaoShen/DFL training_files)."
-             " Only used when scanning/resaving bounds JSON.",
+        help="Relative to ROOT; default follows --dataset. Only for bounds scan.",
     )
     parser.add_argument(
         "--data_root",
@@ -356,7 +355,7 @@ def main():
         "--tensors",
         action="store_true",
         default=False,
-        help="直接输出 Images_convert 格式的 tensors（images.npy / labels.npy / sessions.npy），不写 PNG。",
+        help="输出 images.npy / labels.npy / sessions.npy，不写 PNG。",
     )
     args = parser.parse_args()
 
@@ -392,7 +391,7 @@ def main():
         user_max_xy,
         tensors=args.tensors,
     )
-    print("\nPer-user XYPlot generation finished.")
+    print("\nPer-user center-keep-scale XYPlot generation finished.")
 
 
 if __name__ == "__main__":

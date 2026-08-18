@@ -1,4 +1,10 @@
-import sys, os, datetime, random, re, gc, json
+"""ChaoShen Protocol1 CNN training with AMP forced off (compute1 workaround).
+
+Same as train_multi_CNN.py, but disables torch.cuda.amp in-process so the
+shared fast trainer runs FP32. Use this on compute1 if AMP yields NaN /
+misaligned address; leave train_multi_CNN.py untouched.
+"""
+import sys, os, datetime, random, re, gc, json, contextlib
 from collections import defaultdict
 from pathlib import Path
 
@@ -25,7 +31,7 @@ timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
 log_dir = Path(project_root) / "output_logs" / "train_multi_label_p1"
 log_dir.mkdir(parents=True, exist_ok=True)
-log_path = log_dir / f"Protocol1_training_{timestamp}.out"
+log_path = log_dir / f"Protocol1_training_noamp_{timestamp}.out"
 
 
 class TeeLogger:
@@ -48,14 +54,31 @@ sys.stdout = TeeLogger(log_path)
 # Imports
 # ======================================================
 
-from models.pretrained_VIT_B16_multi import PretrainedViT_B16_Multilabel as insiderThreatViT
-#from Training.Trainers.multi_class_trainer_protocol1 import MultiLabelTrainerCNN as MultiLabelTrainer
+from models.pretrained_googlenet_multi import PretrainedGoogLeNet_Multilabel as insiderThreatCNN
 from Training.Trainers.fast_multi_class_trainer_protocol1 import MultiLabelTrainerCNN as MultiLabelTrainer
 from Training.Trainers.checkpoint_utils import setup_training_checkpoint
 from Training.Score_Fusion.Score_Fusion_Multi_82 import (
     multilabel_score_fusion,
     calculate_eer
 )
+
+
+def _disable_cuda_amp_in_process():
+    @contextlib.contextmanager
+    def _noop_autocast(*args, **kwargs):
+        yield
+
+    _OrigScaler = torch.cuda.amp.GradScaler
+
+    def _DisabledScaler(*args, **kwargs):
+        kwargs = dict(kwargs)
+        kwargs["enabled"] = False
+        return _OrigScaler(*args, **kwargs)
+
+    torch.cuda.amp.autocast = _noop_autocast
+    torch.cuda.amp.GradScaler = _DisabledScaler
+    print("[INFO] CUDA AMP disabled (train_multi_CNN_noamp.py)")
+
 
 # ======================================================
 # Tensor Dataset
@@ -71,7 +94,7 @@ class TensorMouseDataset(Dataset):
         img_path = os.path.join(tensor_root, "images.npy")
         lab_path = os.path.join(tensor_root, "labels.npy")
 
-        num_users = 24
+        num_users = 28
         H = 448
         W = 448
 
@@ -102,19 +125,17 @@ class TensorMouseDataset(Dataset):
         return len(self.images)
 
     def __getitem__(self, idx):
+        # Explicit copy: memmap view + pin_memory can misalign on compute1.
+        img = torch.from_numpy(
+            np.array(self.images[idx], dtype=np.uint8, copy=True)
+        ).to(torch.float32).div_(255).contiguous()
 
-        #img = torch.from_numpy(self.images[idx].copy())
-        #img = torch.from_numpy(np.asarray(self.images[idx])).float().div_(255)
-        img = torch.from_numpy(self.images[idx]).to(torch.float32).div_(255)
-
-        label = torch.from_numpy(self.labels[idx]).float()
+        label = torch.from_numpy(
+            np.array(self.labels[idx], dtype=np.float32, copy=True)
+        )
         session_id = self.sessions[idx]
 
         return img, label, session_id
-
-# ======================================================
-# Score Collection
-# ======================================================
 
 
 def collect_val_scores(model, loader, device):
@@ -130,10 +151,8 @@ def collect_val_scores(model, loader, device):
         for X, y, s in loader:
 
             X = X.to(device, non_blocking=True)
-
             logits = model(X)
-
-            outs.append(torch.sigmoid(logits).cpu())
+            outs.append(torch.sigmoid(logits.float()).cpu())
             labs.append(y)
             sess.extend(s)
 
@@ -144,36 +163,25 @@ def collect_val_scores(model, loader, device):
     return scores, labels, session_ids
 
 
-# ======================================================
-# Main
-# ======================================================
-
 if __name__ == "__main__":
 
     print("=" * 80)
-    print(f"[INFO] Training Protocol 1 - Started at {timestamp}")
+    print(f"[INFO] Training Protocol 1 (no AMP) - Started at {timestamp}")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     torch.backends.cudnn.benchmark = True
+    _disable_cuda_amp_in_process()
     print("[INFO] Using device:", device)
-
-    # ==========================================
-    # tensor dataset path
-    # ==========================================
 
     train_tensor_folder = input("Enter training tensor folder (relative to ImagesTensors/): ").strip()
     test_tensor_folder = input("Enter testing tensor folder (relative to ImagesTensors/): ").strip()
 
     ckpt_dir, resume_path = setup_training_checkpoint(
-        project_root, timestamp, run_prefix="TWOS_ViT_P1"
+        project_root, timestamp, run_prefix="ChaoShen_CNN_P1_noamp"
     )
 
     train_root = Path(project_root) / "ImagesTensors" / train_tensor_folder
     test_root = Path(project_root) / "ImagesTensors" / test_tensor_folder
-
-    # ==========================================
-    # Dataset
-    # ==========================================
 
     train_dataset = TensorMouseDataset(train_root)
     test_dataset = TensorMouseDataset(test_root)
@@ -182,44 +190,35 @@ if __name__ == "__main__":
 
     print(f"[INFO] Train samples: {len(train_dataset)} | Test samples: {len(test_dataset)}")
 
-    # ==========================================
-    # DataLoader (FAST CV CONFIG)
-    # ==========================================
-
     train_loader = DataLoader(
         train_dataset,
-        batch_size=128,
+        batch_size=20,
         shuffle=True,
         num_workers=12,
         pin_memory=True,
         persistent_workers=True,
-        prefetch_factor=4
+        prefetch_factor=4,
     )
 
     test_loader = DataLoader(
         test_dataset,
-        batch_size=128,
+        batch_size=20,
         shuffle=False,
         num_workers=12,
         pin_memory=True,
         persistent_workers=True,
-        prefetch_factor=4  
+        prefetch_factor=4,
     )
 
-    # ==========================================
-    # Model
-    # ==========================================
-
-    #net = insiderThreatCNN(num_users=num_users, image_size=600).to(device)
-    net = insiderThreatViT(num_users=num_users).to(device)
+    net = insiderThreatCNN(num_users=num_users).to(device)
 
     trainer = MultiLabelTrainer(
         net=net,
         train_loader=train_loader,
         val_loader=test_loader,
         neg_weight_value=1.0,
-        C_pos=5,
-        C_neg=5
+        C_pos=60,
+        C_neg=60
     )
 
     print("\n========== Training Execution ==========")
@@ -232,26 +231,18 @@ if __name__ == "__main__":
         learning_rate_decay=0.1,
         verbose=True,
         checkpoint_dir=str(ckpt_dir),
-        checkpoint_every=3,
+        checkpoint_every=1,
         resume_path=resume_path,
     )
-
-    # ==========================================
-    # Save Model
-    # ==========================================
 
     model_dir = Path(project_root) / "saved_models"
     model_dir.mkdir(exist_ok=True)
 
-    model_path = model_dir / f"multilabel_P1_best_{timestamp}.pth"
+    model_path = model_dir / f"multilabel_P1_best_noamp_{timestamp}.pth"
 
     torch.save(best_model.state_dict(), model_path)
 
     print(f"[INFO] Model saved: {model_path}")
-
-    # ==========================================
-    # Score Fusion
-    # ==========================================
 
     scores, labels, session_ids = collect_val_scores(best_model, test_loader, device)
 
@@ -260,7 +251,7 @@ if __name__ == "__main__":
     result = {"n": [], "avg_eer": [], "avg_auc": []}
     semantic_user_curve = defaultdict(dict)
 
-    out_dir = Path(project_root) / "Training" / "Results" / "Protocol1" / timestamp
+    out_dir = Path(project_root) / "Training" / "Results" / "Protocol1" / f"{timestamp}_noamp"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     print("\n===== Protocol 1 Score Fusion Curve =====")
@@ -306,4 +297,4 @@ if __name__ == "__main__":
     gc.collect()
     torch.cuda.empty_cache()
 
-    print("[INFO] Protocol 1 Finished.")
+    print("[INFO] Protocol 1 (no AMP) Finished.")

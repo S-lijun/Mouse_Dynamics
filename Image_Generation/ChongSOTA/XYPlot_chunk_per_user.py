@@ -1,14 +1,16 @@
 # -*- coding: utf-8 -*-
 """
-Per-user normalization: max x / max y from all sessions of that user under
-training_files only (default path per --dataset). The same bounds are used
-for any data_root (e.g. testing_files). Bounds are cached to
-ChongSOTA/bounds/<dataset>_xy_bounds.json on first scan unless --rescan_bounds.
+Chunked XYPlot with per-user screen-coordinate drawing (not centered).
+
+Windowing: fixed-size event chunks (same as XYPlot_chunk.py, default 125).
+Drawing: per-user screen projection (training max_x / max_y), after shifting
+  each point by that user's training min_x / min_y. If min is 0 this matches
+  the old x/max_x mapping.
+Bounds JSON shared with XYPlot_per_user.py under ChongSOTA/bounds/ (max only).
 """
 
 import os
 import re
-import json
 import argparse
 
 import cv2
@@ -20,23 +22,20 @@ from XYPlot import (
     TARGET_SIZE,
     GLOBAL_MAX_X,
     GLOBAL_MAX_Y,
-    split_by_time,
-    merge_sequences,
     clean_balabit,
     clean_chaoshen,
     clean_dfl,
     draw_sequence,
     render_sequence,
 )
+from XYPlot_per_user import (  # noqa: E402
+    DEFAULT_TRAINING_ROOT,
+    _norm_bounds,
+    default_bounds_json,
+    get_or_scan_user_max_xy,
+)
 
-DEFAULT_TRAINING_ROOT = {
-    "balabit": "Data/Balabit-dataset/training_files",
-    "chaoshen": "Data/ChaoShen/training_files",
-    "dfl": "Data/DFL-dataset_raw/training_files",
-}
-
-TENSOR_SUBDIR = "Chong_per_user"
-BOUNDS_DIR = os.path.join(os.path.dirname(__file__), "bounds")
+TENSOR_SUBDIR = "Chong_chunk_per_user"
 
 
 def natural_key(string):
@@ -77,17 +76,60 @@ def list_session_files(user_dir):
     )
 
 
-def _norm_bounds(user, user_max_xy):
-    if user in user_max_xy:
-        return user_max_xy[user]
-    print(
-        "\n[WARN] User", user, "not in training scan; using GLOBAL_MAX_X/Y:",
-        GLOBAL_MAX_X, GLOBAL_MAX_Y,
-    )
-    return GLOBAL_MAX_X, GLOBAL_MAX_Y
+# ============================================================
+# Chunking (same as XYPlot_chunk)
+# ============================================================
+
+def split_by_chunk_size(events, chunk_size):
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be a positive integer.")
+    return [events[i:i + chunk_size] for i in range(0, len(events), chunk_size)]
 
 
-def _session_sequences(dataset, path, norm_x, norm_y):
+def scan_user_min_xy(dataset, training_root):
+    """Per-user min x/y from training_root (same cleaning as drawing)."""
+    user_min_xy = {}
+    print("\n[min] Scanning users under:", training_root)
+    for user in list_users(training_root):
+        user_dir = os.path.join(training_root, user)
+        min_x = float("inf")
+        min_y = float("inf")
+        saw = False
+        for name in list_session_files(user_dir):
+            path = os.path.join(user_dir, name)
+            df = pd.read_csv(path)
+            df = _clean_df(dataset, df)
+            if len(df) == 0:
+                continue
+            min_x = min(min_x, float(df["x"].min()))
+            min_y = min(min_y, float(df["y"].min()))
+            saw = True
+        if saw:
+            user_min_xy[user] = (min_x, min_y)
+        else:
+            user_min_xy[user] = (0.0, 0.0)
+        print("  scanned user:", user, "-> min", user_min_xy[user])
+    return user_min_xy
+
+
+def _user_min(user, user_min_xy):
+    if user in user_min_xy:
+        return user_min_xy[user]
+    print("\n[WARN] User", user, "not in training min scan; using min=0")
+    return 0.0, 0.0
+
+
+def _shift_seq(seq, min_x, min_y):
+    out = []
+    for e in seq:
+        d = dict(e)
+        d["x"] = float(e["x"]) - min_x
+        d["y"] = float(e["y"]) - min_y
+        out.append(d)
+    return out
+
+
+def _session_sequences(dataset, path, chunk_size):
     df = pd.read_csv(path)
     df = _clean_df(dataset, df)
 
@@ -95,110 +137,18 @@ def _session_sequences(dataset, path, norm_x, norm_y):
     if len(events) < 2:
         return []
 
-    sequences = split_by_time(events)
-    sequences = merge_sequences(sequences, norm_x)
+    sequences = split_by_chunk_size(events, chunk_size)
     return [seq for seq in sequences if len(seq) >= 2]
 
 
-def default_bounds_json(dataset):
-    return os.path.join(BOUNDS_DIR, "{}_xy_bounds.json".format(dataset))
-
-
-def build_user_max_xy_from_training(dataset, training_root):
-    """
-    Scan every session under training_root/<user>/ and record each user's
-    global max x and max y (after the same cleaning as drawing).
-    Returns dict user -> (max_x, max_y).
-    """
-    user_max_xy = {}
-
-    print("\n[bounds] Scanning users under:", training_root)
-    for user in list_users(training_root):
-        user_dir = os.path.join(training_root, user)
-
-        max_x = 0.0
-        max_y = 0.0
-        saw_points = False
-
-        for name in list_session_files(user_dir):
-            path = os.path.join(user_dir, name)
-
-            df = pd.read_csv(path)
-            df = _clean_df(dataset, df)
-            if len(df) == 0:
-                continue
-
-            max_x = max(max_x, float(df["x"].max()))
-            max_y = max(max_y, float(df["y"].max()))
-            saw_points = True
-
-        if saw_points:
-            user_max_xy[user] = (max_x, max_y)
-        else:
-            user_max_xy[user] = (GLOBAL_MAX_X, GLOBAL_MAX_Y)
-        print("  scanned user:", user, "->", user_max_xy[user])
-
-    return user_max_xy
-
-
-def save_bounds_json(user_max_xy, dataset, scan_root, path):
-    payload = {
-        "dataset": dataset,
-        "scan_root": os.path.abspath(scan_root),
-        "n_users": len(user_max_xy),
-        "users": {},
-    }
-    for user, (max_x, max_y) in user_max_xy.items():
-        payload["users"][user] = {
-            "max_x": float(max_x),
-            "max_y": float(max_y),
-        }
-    parent = os.path.dirname(path)
-    if parent:
-        os.makedirs(parent, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2, ensure_ascii=False)
-        f.write("\n")
-    print("[bounds] Saved:", path)
-
-
-def load_bounds_json(path):
-    with open(path, "r", encoding="utf-8") as f:
-        payload = json.load(f)
-    if "users" not in payload or not payload["users"]:
-        raise ValueError(
-            "bounds json missing non-empty 'users'; re-run with --rescan_bounds"
-        )
-    user_max_xy = {}
-    for user, ub in payload["users"].items():
-        if "max_x" not in ub or "max_y" not in ub:
-            raise KeyError("user {} missing max_x/max_y".format(user))
-        user_max_xy[user] = (float(ub["max_x"]), float(ub["max_y"]))
-    print("[bounds] Loaded: {} ({} users)".format(path, len(user_max_xy)))
-    return user_max_xy
-
-
-def get_or_scan_user_max_xy(dataset, training_root, bounds_json, rescan=False):
-    if (not rescan) and os.path.isfile(bounds_json):
-        return load_bounds_json(bounds_json)
-    user_max_xy = build_user_max_xy_from_training(dataset, training_root)
-    save_bounds_json(user_max_xy, dataset, training_root, bounds_json)
-    return user_max_xy
-
-
-def count_samples(dataset, data_root, user_max_xy):
+def count_samples(dataset, data_root, chunk_size):
     total = 0
-    users = list_users(data_root)
-
-    for user in users:
+    for user in list_users(data_root):
         user_dir = os.path.join(data_root, user)
-        norm_x, norm_y = _norm_bounds(user, user_max_xy)
-
         for file in list_session_files(user_dir):
             path = os.path.join(user_dir, file)
-            total += len(_session_sequences(dataset, path, norm_x, norm_y))
-
-    return total, users
+            total += len(_session_sequences(dataset, path, chunk_size))
+    return total
 
 
 def bgr_to_tensor_chw(img):
@@ -206,17 +156,23 @@ def bgr_to_tensor_chw(img):
     return img.transpose(2, 0, 1)
 
 
-def process_dataset_tensors(dataset, data_root, out_dir, user_max_xy):
+# ============================================================
+# Dataset Processing
+# ============================================================
+
+def process_dataset_tensors(dataset, data_root, out_dir, user_max_xy, user_min_xy, chunk_size):
     users = list_users(data_root)
     num_users = len(users)
     user_to_idx = {u: i for i, u in enumerate(users)}
 
     print("\nDataset:", dataset)
     print("Users:", num_users)
+    print("Chunk size:", chunk_size)
     print("Per-user max bounds loaded for", len(user_max_xy), "users (from training_root).")
-    print("\n[Phase] Generating per-user XYPlot tensors (Images_convert format)...")
+    print("Rendering: per-user screen coords (same as XYPlot_per_user) |", TARGET_SIZE, "x", TARGET_SIZE)
+    print("\n[Phase] Generating chunk + per-user XYPlot tensors...")
 
-    total_samples, _ = count_samples(dataset, data_root, user_max_xy)
+    total_samples = count_samples(dataset, data_root, chunk_size)
     tensor_root = os.path.join(out_dir, TENSOR_SUBDIR)
     os.makedirs(tensor_root, exist_ok=True)
 
@@ -242,18 +198,22 @@ def process_dataset_tensors(dataset, data_root, out_dir, user_max_xy):
     for user in users:
         user_dir = os.path.join(data_root, user)
         norm_x, norm_y = _norm_bounds(user, user_max_xy)
+        min_x, min_y = _user_min(user, user_min_xy)
+        canvas_w = max(float(norm_x) - min_x, 1.0)
+        canvas_h = max(float(norm_y) - min_y, 1.0)
 
         print("\n------------------------------")
-        print("User:", user, "| norm W×H (from training):", norm_x, norm_y)
+        print("User:", user, "| min=({}, {}) max=({}, {})".format(
+            min_x, min_y, norm_x, norm_y))
 
         for file in list_session_files(user_dir):
             path = os.path.join(user_dir, file)
             session = os.path.splitext(file)[0]
-            sequences = _session_sequences(dataset, path, norm_x, norm_y)
-            print(f"   Session: {session} -> {len(sequences)} sequences")
+            sequences = _session_sequences(dataset, path, chunk_size)
+            print(f"   Session: {session} -> {len(sequences)} chunks")
 
             for seq in sequences:
-                img = render_sequence(seq, norm_x, norm_y)
+                img = render_sequence(_shift_seq(seq, min_x, min_y), canvas_w, canvas_h)
                 if img is None:
                     continue
 
@@ -261,7 +221,6 @@ def process_dataset_tensors(dataset, data_root, out_dir, user_max_xy):
                     img = cv2.resize(img, (W, H), interpolation=cv2.INTER_AREA)
 
                 images[idx] = bgr_to_tensor_chw(img)
-
                 y = np.zeros(num_users, dtype=np.uint8)
                 y[user_to_idx[user]] = 1
                 labels[idx] = y
@@ -270,32 +229,36 @@ def process_dataset_tensors(dataset, data_root, out_dir, user_max_xy):
 
     images.flush()
     labels.flush()
-
     np.save(
         os.path.join(tensor_root, "sessions.npy"),
         np.array(sessions, dtype=object),
     )
-
     print(f"\nTensor dataset saved to: {tensor_root}")
 
 
-def process_dataset(dataset, data_root, out_dir, user_max_xy, tensors=False):
+def process_dataset(dataset, data_root, out_dir, user_max_xy, user_min_xy, chunk_size, tensors=False):
     if tensors:
-        process_dataset_tensors(dataset, data_root, out_dir, user_max_xy)
+        process_dataset_tensors(dataset, data_root, out_dir, user_max_xy, user_min_xy, chunk_size)
         return
 
     users = list_users(data_root)
 
     print("\nDataset:", dataset)
-    print("Users in data_root:", len(users))
+    print("Users:", len(users))
+    print("Chunk size:", chunk_size)
     print("Per-user max bounds loaded for", len(user_max_xy), "users (from training_root).")
+    print("Rendering: per-user screen coords (same as XYPlot_per_user) |", TARGET_SIZE, "x", TARGET_SIZE)
 
     for user in users:
         user_dir = os.path.join(data_root, user)
         norm_x, norm_y = _norm_bounds(user, user_max_xy)
+        min_x, min_y = _user_min(user, user_min_xy)
+        canvas_w = max(float(norm_x) - min_x, 1.0)
+        canvas_h = max(float(norm_y) - min_y, 1.0)
 
         print("\n------------------------------")
-        print("User:", user, "| norm W×H (from training):", norm_x, norm_y)
+        print("User:", user, "| min=({}, {}) max=({}, {})".format(
+            min_x, min_y, norm_x, norm_y))
 
         for file in list_session_files(user_dir):
             path = os.path.join(user_dir, file)
@@ -304,30 +267,38 @@ def process_dataset(dataset, data_root, out_dir, user_max_xy, tensors=False):
 
             df = pd.read_csv(path)
             df = _clean_df(dataset, df)
-
             events = df.to_dict("records")
+
             print("      Events:", len(events))
             if len(events) < 2:
                 continue
 
-            sequences = split_by_time(events)
-            print("      After split:", len(sequences))
-
-            sequences = merge_sequences(sequences, norm_x)
-            print("      After merge:", len(sequences))
+            sequences = split_by_chunk_size(events, chunk_size)
+            print("      Chunks:", len(sequences))
 
             for i, seq in enumerate(sequences):
+                if len(seq) < 2:
+                    continue
                 save_path = os.path.join(
                     out_dir,
                     TENSOR_SUBDIR,
                     user,
                     f"{session}-{i}.png",
                 )
-                draw_sequence(seq, save_path, norm_x, norm_y)
+                draw_sequence(_shift_seq(seq, min_x, min_y), save_path, canvas_w, canvas_h)
 
+
+# ============================================================
+# CLI
+# ============================================================
 
 def main():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description=(
+            "XYPlot: fixed chunk windows (same as XYPlot_chunk) + "
+            "per-user screen draw (same as XYPlot_per_user)."
+        ),
+    )
     parser.add_argument("--dataset", required=True, choices=["balabit", "chaoshen", "dfl"])
     parser.add_argument(
         "--training_root",
@@ -342,9 +313,16 @@ def main():
     )
     parser.add_argument("--out_dir", required=True)
     parser.add_argument(
+        "--sizes",
+        type=int,
+        default=125,
+        help="Number of events per chunk.",
+    )
+    parser.add_argument(
         "--bounds_json",
         default=None,
-        help="Per-user max_x/max_y cache; default ChongSOTA/bounds/<dataset>_xy_bounds.json.",
+        help="Per-user max_x/max_y cache; default ChongSOTA/bounds/<dataset>_xy_bounds.json "
+             "(shared with XYPlot_per_user.py).",
     )
     parser.add_argument(
         "--rescan_bounds",
@@ -356,7 +334,7 @@ def main():
         "--tensors",
         action="store_true",
         default=False,
-        help="直接输出 Images_convert 格式的 tensors（images.npy / labels.npy / sessions.npy），不写 PNG。",
+        help="Output images.npy / labels.npy / sessions.npy instead of PNG.",
     )
     args = parser.parse_args()
 
@@ -370,9 +348,10 @@ def main():
     )
 
     print("[training_root]", training_root)
-    print("Resolved data_root:", data_root)
-    print("Resolved out_dir:", out_dir)
+    print("[data_root]", data_root)
+    print("[out_dir]", out_dir)
     print("Bounds JSON:", bounds_json)
+    print("Chunk size:", args.sizes)
 
     user_max_xy = get_or_scan_user_max_xy(
         dataset=args.dataset,
@@ -380,6 +359,7 @@ def main():
         bounds_json=bounds_json,
         rescan=args.rescan_bounds,
     )
+    user_min_xy = scan_user_min_xy(args.dataset, training_root)
 
     print("\nUSER_MAX_XY:")
     for u in sorted(user_max_xy.keys(), key=natural_key):
@@ -390,9 +370,11 @@ def main():
         data_root,
         out_dir,
         user_max_xy,
+        user_min_xy,
+        args.sizes,
         tensors=args.tensors,
     )
-    print("\nPer-user XYPlot generation finished.")
+    print("\nChunk + per-user XYPlot generation finished.")
 
 
 if __name__ == "__main__":

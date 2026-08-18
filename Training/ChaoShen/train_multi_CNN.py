@@ -195,7 +195,7 @@ if __name__ == "__main__":
         num_workers=12,
         pin_memory=True,
         persistent_workers=True,
-        prefetch_factor=4
+        prefetch_factor=4,
     )
 
     test_loader = DataLoader(
@@ -205,7 +205,7 @@ if __name__ == "__main__":
         num_workers=12,
         pin_memory=True,
         persistent_workers=True,
-        prefetch_factor=4
+        prefetch_factor=4,
     )
 
     # ==========================================
@@ -234,7 +234,7 @@ if __name__ == "__main__":
         learning_rate_decay=0.1,
         verbose=True,
         checkpoint_dir=str(ckpt_dir),
-        checkpoint_every=3,
+        checkpoint_every=1,
         resume_path=resume_path,
     )
 

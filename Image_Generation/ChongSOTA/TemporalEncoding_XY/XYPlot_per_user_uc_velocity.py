@@ -1,23 +1,36 @@
 # -*- coding: utf-8 -*-
 """
-Per-user normalization: max x / max y from all sessions of that user under
-training_files only (default path per --dataset). The same bounds are used
-for any data_root (e.g. testing_files). Bounds are cached to
-ChongSOTA/bounds/<dataset>_xy_bounds.json on first scan unless --rescan_bounds.
+Per-user XYPlot with speed-magnitude coloring on the trajectory.
+
+Same windowing / per-user normalization as XYPlot_per_user.py:
+  max x / max y from all sessions of that user under training_files;
+  split_by_time + merge_sequences; same screen-coordinate projection.
+  Bounds JSON cached under ChongSOTA/bounds/ (shared with XYPlot_per_user.py).
+
+Velocity encoding (same as XYPlot_chunk_velocity.py):
+  White background.
+  Trajectory stroke colored by |v| (global CDF → [0, 1]):
+    R = 0 on stroke (geometry), G = B = v_norm.
 """
 
 import os
 import re
-import json
+import sys
 import argparse
 
 import cv2
 import numpy as np
 import pandas as pd
+from scipy.stats import rankdata
 
-from XYPlot import (
+_CHONG = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if _CHONG not in sys.path:
+    sys.path.insert(0, _CHONG)
+
+from XYPlot import (  # noqa: E402
     ROOT,
     TARGET_SIZE,
+    INNER_PADDING,
     GLOBAL_MAX_X,
     GLOBAL_MAX_Y,
     split_by_time,
@@ -25,8 +38,12 @@ from XYPlot import (
     clean_balabit,
     clean_chaoshen,
     clean_dfl,
-    draw_sequence,
-    render_sequence,
+)
+
+from XYPlot_per_user import (  # noqa: E402
+    default_bounds_json,
+    get_or_scan_user_max_xy,
+    _norm_bounds,
 )
 
 DEFAULT_TRAINING_ROOT = {
@@ -35,8 +52,8 @@ DEFAULT_TRAINING_ROOT = {
     "dfl": "Data/DFL-dataset_raw/training_files",
 }
 
-TENSOR_SUBDIR = "Chong_per_user"
-BOUNDS_DIR = os.path.join(os.path.dirname(__file__), "bounds")
+TENSOR_SUBDIR = "Chong_per_user_velocity"
+GLOBAL_V_CDF = None
 
 
 def natural_key(string):
@@ -51,6 +68,44 @@ def resolve_path(path_arg):
     if os.path.exists(cwd_candidate):
         return cwd_candidate
     return os.path.abspath(os.path.join(ROOT, path_arg))
+
+
+def load_raw_velocity_distribution(path):
+    data = np.load(path)
+    velocities = data["values"]
+
+    print("\n[Velocity Distribution]")
+    print("Samples:", len(velocities))
+    print("Min:", velocities.min())
+    print("Max:", velocities.max())
+
+    return velocities
+
+
+def build_runtime_cdf(raw_v, clip_pct):
+    print("\nBuilding velocity runtime CDF")
+
+    v_upper = np.percentile(raw_v, clip_pct)
+    v_clipped = raw_v[raw_v <= v_upper]
+
+    ranks = rankdata(v_clipped, method="average")
+    cdf = (ranks - 1) / (len(v_clipped) - 1 + 1e-8)
+
+    order = np.argsort(v_clipped)
+    v_sorted = v_clipped[order]
+    cdf_sorted = cdf[order]
+
+    print("Runtime samples:", len(v_sorted))
+    print("Runtime max:", v_sorted.max())
+
+    return v_sorted, cdf_sorted
+
+
+def compute_velocity(xs, ys, ts):
+    dt = np.maximum(np.diff(ts), 1e-5)
+    v = np.sqrt(np.diff(xs) ** 2 + np.diff(ys) ** 2) / dt
+    v = np.concatenate([[v[0]], v])
+    return v
 
 
 def _clean_df(dataset, df):
@@ -77,15 +132,6 @@ def list_session_files(user_dir):
     )
 
 
-def _norm_bounds(user, user_max_xy):
-    if user in user_max_xy:
-        return user_max_xy[user]
-    print(
-        "\n[WARN] User", user, "not in training scan; using GLOBAL_MAX_X/Y:",
-        GLOBAL_MAX_X, GLOBAL_MAX_Y,
-    )
-    return GLOBAL_MAX_X, GLOBAL_MAX_Y
-
 
 def _session_sequences(dataset, path, norm_x, norm_y):
     df = pd.read_csv(path)
@@ -100,90 +146,106 @@ def _session_sequences(dataset, path, norm_x, norm_y):
     return [seq for seq in sequences if len(seq) >= 2]
 
 
-def default_bounds_json(dataset):
-    return os.path.join(BOUNDS_DIR, "{}_xy_bounds.json".format(dataset))
+# ============================================================
+# Draw: same per-user projection as XYPlot.render_sequence,
+#       stroke/points colored by |v| (R=0, G=B=v)
+# ============================================================
 
-
-def build_user_max_xy_from_training(dataset, training_root):
+def render_sequence_velocity(seq, norm_width, norm_height):
     """
-    Scan every session under training_root/<user>/ and record each user's
-    global max x and max y (after the same cleaning as drawing).
-    Returns dict user -> (max_x, max_y).
+    Per-user screen coords; white bg; polyline colored by CDF-normalized |v|.
+    Stroke RGB = (0, v, v). Returns uint8 RGB (TARGET_SIZE, TARGET_SIZE, 3), or None.
     """
-    user_max_xy = {}
+    if len(seq) < 2:
+        return None
 
-    print("\n[bounds] Scanning users under:", training_root)
-    for user in list_users(training_root):
-        user_dir = os.path.join(training_root, user)
+    xs = np.array([float(e["x"]) for e in seq], dtype=np.float64)
+    ys = np.array([float(e["y"]) for e in seq], dtype=np.float64)
+    ts = np.array([float(e["time"]) for e in seq], dtype=np.float64)
 
-        max_x = 0.0
-        max_y = 0.0
-        saw_points = False
+    W = max(float(norm_width), 1.0)
+    H = max(float(norm_height), 1.0)
+    a = H / W
+    canvas_w = int(W) + 1
+    span = float(canvas_w - 1)
+    canvas_h = int(np.ceil(a * span)) + 1
 
-        for name in list_session_files(user_dir):
-            path = os.path.join(user_dir, name)
+    x_pix = np.clip(np.rint(xs / W * span), 0, canvas_w - 1).astype(np.int32)
+    y_pix = np.clip(np.rint(ys / W * span), 0, canvas_h - 1).astype(np.int32)
 
-            df = pd.read_csv(path)
-            df = _clean_df(dataset, df)
-            if len(df) == 0:
-                continue
+    v = compute_velocity(xs, ys, ts)
+    v_norm = np.interp(
+        v,
+        GLOBAL_V_CDF[0],
+        GLOBAL_V_CDF[1],
+        left=0,
+        right=1,
+    )
 
-            max_x = max(max_x, float(df["x"].max()))
-            max_y = max(max_y, float(df["y"].max()))
-            saw_points = True
+    # OpenCV canvas is BGR; convert to RGB on return.
+    canvas = np.ones((canvas_h, canvas_w, 3), dtype=np.uint8) * 255
+    T = len(seq)
 
-        if saw_points:
-            user_max_xy[user] = (max_x, max_y)
-        else:
-            user_max_xy[user] = (GLOBAL_MAX_X, GLOBAL_MAX_Y)
-        print("  scanned user:", user, "->", user_max_xy[user])
+    for i in range(1, T):
+        vn = float(v_norm[i])
+        # RGB (0, v, v) → BGR (v, v, 0)
+        c = int(np.clip(round(vn * 255.0), 0, 255))
+        color_bgr = (c, c, 0)
+        p0 = (int(x_pix[i - 1]), int(y_pix[i - 1]))
+        p1 = (int(x_pix[i]), int(y_pix[i]))
+        cv2.line(canvas, p0, p1, color_bgr, 1, lineType=cv2.LINE_AA)
+        cv2.circle(canvas, p1, 1, color_bgr, -1, lineType=cv2.LINE_AA)
 
-    return user_max_xy
+    c0 = int(np.clip(round(float(v_norm[0]) * 255.0), 0, 255))
+    cv2.circle(
+        canvas,
+        (int(x_pix[0]), int(y_pix[0])),
+        1,
+        (c0, c0, 0),
+        -1,
+        lineType=cv2.LINE_AA,
+    )
+
+    h, w = canvas.shape[:2]
+    effective_size = max(1, TARGET_SIZE - 2 * INNER_PADDING)
+    scale = effective_size / max(w, h)
+
+    new_w = int(w * scale)
+    new_h = int(h * scale)
+
+    resized = cv2.resize(canvas, (new_w, new_h), interpolation=cv2.INTER_AREA)
+
+    pad_top = (TARGET_SIZE - new_h) // 2
+    pad_bottom = TARGET_SIZE - new_h - pad_top
+    pad_left = (TARGET_SIZE - new_w) // 2
+    pad_right = TARGET_SIZE - new_w - pad_left
+
+    final_bgr = cv2.copyMakeBorder(
+        resized,
+        pad_top,
+        pad_bottom,
+        pad_left,
+        pad_right,
+        cv2.BORDER_CONSTANT,
+        value=(255, 255, 255),
+    )
+
+    return cv2.cvtColor(final_bgr, cv2.COLOR_BGR2RGB)
 
 
-def save_bounds_json(user_max_xy, dataset, scan_root, path):
-    payload = {
-        "dataset": dataset,
-        "scan_root": os.path.abspath(scan_root),
-        "n_users": len(user_max_xy),
-        "users": {},
-    }
-    for user, (max_x, max_y) in user_max_xy.items():
-        payload["users"][user] = {
-            "max_x": float(max_x),
-            "max_y": float(max_y),
-        }
-    parent = os.path.dirname(path)
-    if parent:
-        os.makedirs(parent, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2, ensure_ascii=False)
-        f.write("\n")
-    print("[bounds] Saved:", path)
+def rgb_to_tensor_chw(img_rgb):
+    """RGB H×W×3 uint8 -> (3, H, W) uint8."""
+    return np.transpose(img_rgb, (2, 0, 1))
 
 
-def load_bounds_json(path):
-    with open(path, "r", encoding="utf-8") as f:
-        payload = json.load(f)
-    if "users" not in payload or not payload["users"]:
-        raise ValueError(
-            "bounds json missing non-empty 'users'; re-run with --rescan_bounds"
-        )
-    user_max_xy = {}
-    for user, ub in payload["users"].items():
-        if "max_x" not in ub or "max_y" not in ub:
-            raise KeyError("user {} missing max_x/max_y".format(user))
-        user_max_xy[user] = (float(ub["max_x"]), float(ub["max_y"]))
-    print("[bounds] Loaded: {} ({} users)".format(path, len(user_max_xy)))
-    return user_max_xy
+def draw_sequence_velocity(seq, save_path, norm_width, norm_height):
+    img_rgb = render_sequence_velocity(seq, norm_width, norm_height)
+    if img_rgb is None:
+        return
 
-
-def get_or_scan_user_max_xy(dataset, training_root, bounds_json, rescan=False):
-    if (not rescan) and os.path.isfile(bounds_json):
-        return load_bounds_json(bounds_json)
-    user_max_xy = build_user_max_xy_from_training(dataset, training_root)
-    save_bounds_json(user_max_xy, dataset, training_root, bounds_json)
-    return user_max_xy
+    img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    cv2.imwrite(save_path, img_bgr)
 
 
 def count_samples(dataset, data_root, user_max_xy):
@@ -201,11 +263,6 @@ def count_samples(dataset, data_root, user_max_xy):
     return total, users
 
 
-def bgr_to_tensor_chw(img):
-    """Match Images_convert.py: BGR HWC -> (3, H, W) uint8."""
-    return img.transpose(2, 0, 1)
-
-
 def process_dataset_tensors(dataset, data_root, out_dir, user_max_xy):
     users = list_users(data_root)
     num_users = len(users)
@@ -214,7 +271,8 @@ def process_dataset_tensors(dataset, data_root, out_dir, user_max_xy):
     print("\nDataset:", dataset)
     print("Users:", num_users)
     print("Per-user max bounds loaded for", len(user_max_xy), "users (from training_root).")
-    print("\n[Phase] Generating per-user XYPlot tensors (Images_convert format)...")
+    print("Rendering: white bg, stroke colored by |v| (R=0, G=B=v) |", TARGET_SIZE, "x", TARGET_SIZE)
+    print("\n[Phase] Generating per-user XYPlot velocity-colored tensors...")
 
     total_samples, _ = count_samples(dataset, data_root, user_max_xy)
     tensor_root = os.path.join(out_dir, TENSOR_SUBDIR)
@@ -253,14 +311,14 @@ def process_dataset_tensors(dataset, data_root, out_dir, user_max_xy):
             print(f"   Session: {session} -> {len(sequences)} sequences")
 
             for seq in sequences:
-                img = render_sequence(seq, norm_x, norm_y)
-                if img is None:
+                img_rgb = render_sequence_velocity(seq, norm_x, norm_y)
+                if img_rgb is None:
                     continue
 
-                if img.shape[:2] != (H, W):
-                    img = cv2.resize(img, (W, H), interpolation=cv2.INTER_AREA)
+                if img_rgb.shape[:2] != (H, W):
+                    img_rgb = cv2.resize(img_rgb, (W, H), interpolation=cv2.INTER_AREA)
 
-                images[idx] = bgr_to_tensor_chw(img)
+                images[idx] = rgb_to_tensor_chw(img_rgb)
 
                 y = np.zeros(num_users, dtype=np.uint8)
                 y[user_to_idx[user]] = 1
@@ -289,6 +347,7 @@ def process_dataset(dataset, data_root, out_dir, user_max_xy, tensors=False):
     print("\nDataset:", dataset)
     print("Users in data_root:", len(users))
     print("Per-user max bounds loaded for", len(user_max_xy), "users (from training_root).")
+    print("Rendering: white bg, stroke colored by |v| (R=0, G=B=v) |", TARGET_SIZE, "x", TARGET_SIZE)
 
     for user in users:
         user_dir = os.path.join(data_root, user)
@@ -317,40 +376,59 @@ def process_dataset(dataset, data_root, out_dir, user_max_xy, tensors=False):
             print("      After merge:", len(sequences))
 
             for i, seq in enumerate(sequences):
+                if len(seq) < 2:
+                    continue
                 save_path = os.path.join(
                     out_dir,
                     TENSOR_SUBDIR,
                     user,
                     f"{session}-{i}.png",
                 )
-                draw_sequence(seq, save_path, norm_x, norm_y)
+                draw_sequence_velocity(seq, save_path, norm_x, norm_y)
 
 
 def main():
-    parser = argparse.ArgumentParser()
+    global GLOBAL_V_CDF
+
+    parser = argparse.ArgumentParser(
+        description=(
+            "Per-user XYPlot: white bg, trajectory colored by |v| (R=0, G=B=v)."
+        ),
+    )
     parser.add_argument("--dataset", required=True, choices=["balabit", "chaoshen", "dfl"])
     parser.add_argument(
         "--training_root",
         default=None,
-        help="Relative to ROOT; default follows --dataset (Balabit/ChaoShen/DFL training_files)."
-             " Only used when scanning/resaving bounds JSON.",
+        help="Relative to ROOT; default follows --dataset (Balabit/ChaoShen/DFL training_files).",
     )
     parser.add_argument(
         "--data_root",
         required=True,
         help="Sessions to render (train or test), relative to ROOT.",
     )
+    parser.add_argument(
+        "--velocity_dist",
+        required=True,
+        help="npz with values array (e.g. velocity_distribution_raw.npz)",
+    )
     parser.add_argument("--out_dir", required=True)
     parser.add_argument(
         "--bounds_json",
         default=None,
-        help="Per-user max_x/max_y cache; default ChongSOTA/bounds/<dataset>_xy_bounds.json.",
+        help="Per-user max_x/max_y cache; default ChongSOTA/bounds/<dataset>_xy_bounds.json "
+             "(shared with XYPlot_per_user.py).",
     )
     parser.add_argument(
         "--rescan_bounds",
         action="store_true",
         default=False,
         help="Force rescan training_root and overwrite bounds JSON.",
+    )
+    parser.add_argument(
+        "--v_percentile",
+        type=float,
+        default=100,
+        help="Upper clip percentile for speed CDF (same as XYPlot_chunk_velocity).",
     )
     parser.add_argument(
         "--tensors",
@@ -364,6 +442,7 @@ def main():
     training_root = resolve_path(training_rel)
     data_root = resolve_path(args.data_root)
     out_dir = resolve_path(args.out_dir)
+    dist_path = resolve_path(args.velocity_dist)
     bounds_json = (
         resolve_path(args.bounds_json) if args.bounds_json
         else default_bounds_json(args.dataset)
@@ -372,7 +451,11 @@ def main():
     print("[training_root]", training_root)
     print("Resolved data_root:", data_root)
     print("Resolved out_dir:", out_dir)
+    print("[velocity_dist]", dist_path)
     print("Bounds JSON:", bounds_json)
+
+    raw_v = load_raw_velocity_distribution(dist_path)
+    GLOBAL_V_CDF = build_runtime_cdf(raw_v, args.v_percentile)
 
     user_max_xy = get_or_scan_user_max_xy(
         dataset=args.dataset,
@@ -392,7 +475,7 @@ def main():
         user_max_xy,
         tensors=args.tensors,
     )
-    print("\nPer-user XYPlot generation finished.")
+    print("\nPer-user XYPlot velocity-colored generation finished.")
 
 
 if __name__ == "__main__":

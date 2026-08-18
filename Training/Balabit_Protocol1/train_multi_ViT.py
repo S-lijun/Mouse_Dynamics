@@ -71,7 +71,7 @@ class TensorMouseDataset(Dataset):
         img_path = os.path.join(tensor_root, "images.npy")
         lab_path = os.path.join(tensor_root, "labels.npy")
 
-        num_users = 24
+        num_users = 10
         H = 448
         W = 448
 
@@ -165,7 +165,7 @@ if __name__ == "__main__":
     test_tensor_folder = input("Enter testing tensor folder (relative to ImagesTensors/): ").strip()
 
     ckpt_dir, resume_path = setup_training_checkpoint(
-        project_root, timestamp, run_prefix="TWOS_ViT_P1"
+        project_root, timestamp, run_prefix="DFL_ViT_P1"
     )
 
     train_root = Path(project_root) / "ImagesTensors" / train_tensor_folder
@@ -188,9 +188,9 @@ if __name__ == "__main__":
 
     train_loader = DataLoader(
         train_dataset,
-        batch_size=128,
+        batch_size=96,
         shuffle=True,
-        num_workers=12,
+        num_workers=8,
         pin_memory=True,
         persistent_workers=True,
         prefetch_factor=4
@@ -198,12 +198,12 @@ if __name__ == "__main__":
 
     test_loader = DataLoader(
         test_dataset,
-        batch_size=128,
+        batch_size=96,
         shuffle=False,
-        num_workers=12,
+        num_workers=8,
         pin_memory=True,
         persistent_workers=True,
-        prefetch_factor=4  
+        prefetch_factor=4
     )
 
     # ==========================================
@@ -218,8 +218,8 @@ if __name__ == "__main__":
         train_loader=train_loader,
         val_loader=test_loader,
         neg_weight_value=1.0,
-        C_pos=5,
-        C_neg=5
+        C_pos=60,
+        C_neg=60
     )
 
     print("\n========== Training Execution ==========")

@@ -67,7 +67,9 @@ class MultiLabelTrainerCNN:
         else:
             self.device = torch.device("cpu")
 
-        self.net = self.net.to(self.device, memory_format=torch.channels_last)
+        # Do NOT use channels_last: GoogLeNet + AMP has hit
+        # "CUDA error: misaligned address" on this cluster (fails in conv3).
+        self.net = self.net.to(self.device)
 
         self.neg_weight = torch.tensor([neg_weight_value], dtype=torch.float).to(self.device)
         print(f"[INFO] Using neg_weight = {self.neg_weight.item():.2f} (applied to all users)")
@@ -176,7 +178,7 @@ class MultiLabelTrainerCNN:
                                      leave=False):
 
     
-                X = X.to(self.device, memory_format=torch.channels_last, non_blocking=True)
+                X = X.to(self.device, non_blocking=True).contiguous()
                 y = y.to(self.device, non_blocking=True)
 
                 optimizer.zero_grad()
@@ -210,7 +212,7 @@ class MultiLabelTrainerCNN:
 
                 for X, y, _ in self.val_loader:
 
-                    X = X.to(self.device, memory_format=torch.channels_last, non_blocking=True)
+                    X = X.to(self.device, non_blocking=True).contiguous()
                     y = y.to(self.device, non_blocking=True)
 
                     with torch.cuda.amp.autocast(enabled=(self.device.type == "cuda")):

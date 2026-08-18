@@ -1,14 +1,16 @@
 # -*- coding: utf-8 -*-
 """
-Per-user normalization: max x / max y from all sessions of that user under
-training_files only (default path per --dataset). The same bounds are used
-for any data_root (e.g. testing_files). Bounds are cached to
-ChongSOTA/bounds/<dataset>_xy_bounds.json on first scan unless --rescan_bounds.
+Per-user segmentation + centered XYPlot.
+
+Segmentation / merge / bounds: identical to XYPlot_per_user.py
+  (split_by_time + merge_sequences with per-user max_x from training bounds).
+
+Drawing: identical to XYPlot_chunk.py
+  (per-sequence bbox fit + center; no screen-width normalization).
 """
 
 import os
 import re
-import json
 import argparse
 
 import cv2
@@ -18,6 +20,7 @@ import pandas as pd
 from XYPlot import (
     ROOT,
     TARGET_SIZE,
+    INNER_PADDING,
     GLOBAL_MAX_X,
     GLOBAL_MAX_Y,
     split_by_time,
@@ -25,18 +28,15 @@ from XYPlot import (
     clean_balabit,
     clean_chaoshen,
     clean_dfl,
-    draw_sequence,
-    render_sequence,
+)
+from XYPlot_per_user import (  # noqa: E402
+    DEFAULT_TRAINING_ROOT,
+    default_bounds_json,
+    get_or_scan_user_max_xy,
+    _norm_bounds,
 )
 
-DEFAULT_TRAINING_ROOT = {
-    "balabit": "Data/Balabit-dataset/training_files",
-    "chaoshen": "Data/ChaoShen/training_files",
-    "dfl": "Data/DFL-dataset_raw/training_files",
-}
-
-TENSOR_SUBDIR = "Chong_per_user"
-BOUNDS_DIR = os.path.join(os.path.dirname(__file__), "bounds")
+TENSOR_SUBDIR = "Chong_per_user_centered"
 
 
 def natural_key(string):
@@ -77,15 +77,6 @@ def list_session_files(user_dir):
     )
 
 
-def _norm_bounds(user, user_max_xy):
-    if user in user_max_xy:
-        return user_max_xy[user]
-    print(
-        "\n[WARN] User", user, "not in training scan; using GLOBAL_MAX_X/Y:",
-        GLOBAL_MAX_X, GLOBAL_MAX_Y,
-    )
-    return GLOBAL_MAX_X, GLOBAL_MAX_Y
-
 
 def _session_sequences(dataset, path, norm_x, norm_y):
     df = pd.read_csv(path)
@@ -100,90 +91,73 @@ def _session_sequences(dataset, path, norm_x, norm_y):
     return [seq for seq in sequences if len(seq) >= 2]
 
 
-def default_bounds_json(dataset):
-    return os.path.join(BOUNDS_DIR, "{}_xy_bounds.json".format(dataset))
+# ============================================================
+# Centered draw (identical to XYPlot_chunk.py)
+# ============================================================
 
-
-def build_user_max_xy_from_training(dataset, training_root):
+def render_sequence_centered(seq):
     """
-    Scan every session under training_root/<user>/ and record each user's
-    global max x and max y (after the same cleaning as drawing).
-    Returns dict user -> (max_x, max_y).
+    Fit trajectory bbox into TARGET_SIZE×TARGET_SIZE with uniform scale, centered.
     """
-    user_max_xy = {}
+    if len(seq) < 2:
+        return None
 
-    print("\n[bounds] Scanning users under:", training_root)
-    for user in list_users(training_root):
-        user_dir = os.path.join(training_root, user)
+    img_size = int(TARGET_SIZE)
+    effective_size = max(1, img_size - 2 * INNER_PADDING)
 
-        max_x = 0.0
-        max_y = 0.0
-        saw_points = False
+    xs = np.array([float(e["x"]) for e in seq], dtype=np.float64)
+    ys = np.array([float(e["y"]) for e in seq], dtype=np.float64)
 
-        for name in list_session_files(user_dir):
-            path = os.path.join(user_dir, name)
+    min_x, max_x = xs.min(), xs.max()
+    min_y, max_y = ys.min(), ys.max()
 
-            df = pd.read_csv(path)
-            df = _clean_df(dataset, df)
-            if len(df) == 0:
-                continue
+    range_x = max(max_x - min_x, 1.0)
+    range_y = max(max_y - min_y, 1.0)
 
-            max_x = max(max_x, float(df["x"].max()))
-            max_y = max(max_y, float(df["y"].max()))
-            saw_points = True
+    pad_x = range_x * 0.05
+    pad_y = range_y * 0.05
 
-        if saw_points:
-            user_max_xy[user] = (max_x, max_y)
-        else:
-            user_max_xy[user] = (GLOBAL_MAX_X, GLOBAL_MAX_Y)
-        print("  scanned user:", user, "->", user_max_xy[user])
+    min_x -= pad_x
+    max_x += pad_x
+    min_y -= pad_y
+    max_y += pad_y
 
-    return user_max_xy
+    range_x = max_x - min_x
+    range_y = max_y - min_y
 
+    scale = min(effective_size / range_x, effective_size / range_y)
+    offset_x = (img_size - range_x * scale) / 2
+    offset_y = (img_size - range_y * scale) / 2
 
-def save_bounds_json(user_max_xy, dataset, scan_root, path):
-    payload = {
-        "dataset": dataset,
-        "scan_root": os.path.abspath(scan_root),
-        "n_users": len(user_max_xy),
-        "users": {},
-    }
-    for user, (max_x, max_y) in user_max_xy.items():
-        payload["users"][user] = {
-            "max_x": float(max_x),
-            "max_y": float(max_y),
-        }
-    parent = os.path.dirname(path)
-    if parent:
-        os.makedirs(parent, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2, ensure_ascii=False)
-        f.write("\n")
-    print("[bounds] Saved:", path)
+    canvas = np.ones((img_size, img_size, 3), dtype=np.uint8) * 255
 
+    prev = None
+    for x, y in zip(xs, ys):
+        x_s = int(np.clip((x - min_x) * scale + offset_x, 0, img_size - 1))
+        y_s = int(np.clip((y - min_y) * scale + offset_y, 0, img_size - 1))
 
-def load_bounds_json(path):
-    with open(path, "r", encoding="utf-8") as f:
-        payload = json.load(f)
-    if "users" not in payload or not payload["users"]:
-        raise ValueError(
-            "bounds json missing non-empty 'users'; re-run with --rescan_bounds"
-        )
-    user_max_xy = {}
-    for user, ub in payload["users"].items():
-        if "max_x" not in ub or "max_y" not in ub:
-            raise KeyError("user {} missing max_x/max_y".format(user))
-        user_max_xy[user] = (float(ub["max_x"]), float(ub["max_y"]))
-    print("[bounds] Loaded: {} ({} users)".format(path, len(user_max_xy)))
-    return user_max_xy
+        if prev is not None:
+            cv2.line(
+                canvas,
+                prev,
+                (x_s, y_s),
+                (0, 0, 0),
+                1,
+                lineType=cv2.LINE_AA,
+            )
+
+        prev = (x_s, y_s)
+
+    gray = cv2.cvtColor(canvas, cv2.COLOR_BGR2GRAY)
+    return cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
 
 
-def get_or_scan_user_max_xy(dataset, training_root, bounds_json, rescan=False):
-    if (not rescan) and os.path.isfile(bounds_json):
-        return load_bounds_json(bounds_json)
-    user_max_xy = build_user_max_xy_from_training(dataset, training_root)
-    save_bounds_json(user_max_xy, dataset, training_root, bounds_json)
-    return user_max_xy
+def draw_sequence_centered(seq, save_path):
+    final = render_sequence_centered(seq)
+    if final is None:
+        return
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    cv2.imwrite(save_path, final)
 
 
 def count_samples(dataset, data_root, user_max_xy):
@@ -214,7 +188,8 @@ def process_dataset_tensors(dataset, data_root, out_dir, user_max_xy):
     print("\nDataset:", dataset)
     print("Users:", num_users)
     print("Per-user max bounds loaded for", len(user_max_xy), "users (from training_root).")
-    print("\n[Phase] Generating per-user XYPlot tensors (Images_convert format)...")
+    print("Rendering: per-sequence bbox fit, centered in", TARGET_SIZE, "x", TARGET_SIZE)
+    print("\n[Phase] Generating per-user centered XYPlot tensors...")
 
     total_samples, _ = count_samples(dataset, data_root, user_max_xy)
     tensor_root = os.path.join(out_dir, TENSOR_SUBDIR)
@@ -244,7 +219,7 @@ def process_dataset_tensors(dataset, data_root, out_dir, user_max_xy):
         norm_x, norm_y = _norm_bounds(user, user_max_xy)
 
         print("\n------------------------------")
-        print("User:", user, "| norm W×H (from training):", norm_x, norm_y)
+        print("User:", user, "| merge min_length (norm_x from training):", norm_x)
 
         for file in list_session_files(user_dir):
             path = os.path.join(user_dir, file)
@@ -253,12 +228,9 @@ def process_dataset_tensors(dataset, data_root, out_dir, user_max_xy):
             print(f"   Session: {session} -> {len(sequences)} sequences")
 
             for seq in sequences:
-                img = render_sequence(seq, norm_x, norm_y)
+                img = render_sequence_centered(seq)
                 if img is None:
                     continue
-
-                if img.shape[:2] != (H, W):
-                    img = cv2.resize(img, (W, H), interpolation=cv2.INTER_AREA)
 
                 images[idx] = bgr_to_tensor_chw(img)
 
@@ -289,13 +261,14 @@ def process_dataset(dataset, data_root, out_dir, user_max_xy, tensors=False):
     print("\nDataset:", dataset)
     print("Users in data_root:", len(users))
     print("Per-user max bounds loaded for", len(user_max_xy), "users (from training_root).")
+    print("Rendering: per-sequence bbox fit, centered in", TARGET_SIZE, "x", TARGET_SIZE)
 
     for user in users:
         user_dir = os.path.join(data_root, user)
         norm_x, norm_y = _norm_bounds(user, user_max_xy)
 
         print("\n------------------------------")
-        print("User:", user, "| norm W×H (from training):", norm_x, norm_y)
+        print("User:", user, "| merge min_length (norm_x from training):", norm_x)
 
         for file in list_session_files(user_dir):
             path = os.path.join(user_dir, file)
@@ -323,11 +296,16 @@ def process_dataset(dataset, data_root, out_dir, user_max_xy, tensors=False):
                     user,
                     f"{session}-{i}.png",
                 )
-                draw_sequence(seq, save_path, norm_x, norm_y)
+                draw_sequence_centered(seq, save_path)
 
 
 def main():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description=(
+            "XYPlot: per-user split/merge (same as XYPlot_per_user) + "
+            "centered bbox draw (same as XYPlot_chunk)."
+        ),
+    )
     parser.add_argument("--dataset", required=True, choices=["balabit", "chaoshen", "dfl"])
     parser.add_argument(
         "--training_root",
@@ -344,7 +322,8 @@ def main():
     parser.add_argument(
         "--bounds_json",
         default=None,
-        help="Per-user max_x/max_y cache; default ChongSOTA/bounds/<dataset>_xy_bounds.json.",
+        help="Per-user max_x/max_y cache; default ChongSOTA/bounds/<dataset>_xy_bounds.json "
+             "(shared with XYPlot_per_user.py).",
     )
     parser.add_argument(
         "--rescan_bounds",
@@ -392,7 +371,7 @@ def main():
         user_max_xy,
         tensors=args.tensors,
     )
-    print("\nPer-user XYPlot generation finished.")
+    print("\nPer-user centered XYPlot generation finished.")
 
 
 if __name__ == "__main__":
