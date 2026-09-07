@@ -681,6 +681,35 @@ def render_srp_rb_g_xy_diag(seq, epsilon, output_size, user_bounds):
     return _maybe_resize_rgb(rgb, output_size)
 
 
+def render_srp_rb_g_xy_diag_halves(seq, epsilon, output_size, user_bounds):
+    """
+    Same R/B as render_srp_rb_g_xy_diag (global-diag SRP, no local dist stretch).
+
+    G = two horizontal rectangles, vertical stripes (column j = event j):
+      top    (rows 0 .. mid-1): G[i,j] = (y[j]-min_y)/(max_y-min_y)
+      bottom (rows mid .. n-1): G[i,j] = (x[j]-min_x)/(max_x-min_x)
+    Each event gets the same number of x pixels and the same number of y pixels
+    (bottom has one extra row when n is odd).
+    Returns HxWx3 uint8 RGB, or None.
+    """
+    if len(seq) < 2:
+        return None
+
+    srp = compute_srp_pair_global_diag(seq, user_bounds, epsilon).astype(np.float32)
+    x, y = _norm_xy_01(seq, user_bounds)
+
+    n = srp.shape[0]
+    mid = n // 2
+    G = np.empty((n, n), dtype=np.float32)
+    G[:mid, :] = y[None, :]
+    G[mid:, :] = x[None, :]
+
+    R = np.clip(np.rint(srp * 255.0), 0, 255).astype(np.uint8)
+    G8 = np.clip(np.rint(G * 255.0), 0, 255).astype(np.uint8)
+    rgb = np.stack([R, G8, R], axis=2)
+    return _maybe_resize_rgb(rgb, output_size)
+
+
 def render_srp_r_gxy_b_vel(seq, epsilon, output_size, user_bounds, v_cdf):
     """
     RGB image:
@@ -748,6 +777,43 @@ def render_srp_r_gxy_b_vel_diag(seq, epsilon, output_size, user_bounds, v_cdf):
     G[ii_u, jj_u] = y[jj_u]
     diag_idx = np.arange(n)
     G[diag_idx, diag_idx] = 0.5 * (x + y)
+
+    xs = seq[:, 0].astype(np.float64)
+    ys = seq[:, 1].astype(np.float64)
+    ts = seq[:, 2].astype(np.float64)
+    dt = np.maximum(np.diff(ts), 1e-5)
+    v = np.sqrt(np.diff(xs) ** 2 + np.diff(ys) ** 2) / dt
+    v = np.concatenate([[v[0]], v])
+    v_norm = np.interp(v, v_cdf[0], v_cdf[1], left=0, right=1)
+    B = np.tile(v_norm[None, :], (n, 1)).astype(np.float32)
+
+    R8 = np.clip(np.rint(srp * 255.0), 0, 255).astype(np.uint8)
+    G8 = np.clip(np.rint(G * 255.0), 0, 255).astype(np.uint8)
+    B8 = np.clip(np.rint(B * 255.0), 0, 255).astype(np.uint8)
+    rgb = np.stack([R8, G8, B8], axis=2)
+    return _maybe_resize_rgb(rgb, output_size)
+
+
+def render_srp_r_gxy_b_vel_diag_halves(seq, epsilon, output_size, user_bounds, v_cdf):
+    """
+    Same R/B as render_srp_r_gxy_b_vel_diag (global-diag SRP, |v| full-column stripes).
+
+    G = two horizontal rectangles, vertical stripes (column j = event j):
+      top    (rows 0 .. mid-1): G[i,j] = y_norm[j]
+      bottom (rows mid .. n-1): G[i,j] = x_norm[j]
+    Returns HxWx3 uint8 RGB, or None.
+    """
+    if len(seq) < 2:
+        return None
+
+    srp = compute_srp_pair_global_diag(seq, user_bounds, epsilon).astype(np.float32)
+    x, y = _norm_xy_01(seq, user_bounds)
+
+    n = srp.shape[0]
+    mid = n // 2
+    G = np.empty((n, n), dtype=np.float32)
+    G[:mid, :] = y[None, :]
+    G[mid:, :] = x[None, :]
 
     xs = seq[:, 0].astype(np.float64)
     ys = seq[:, 1].astype(np.float64)
@@ -862,6 +928,53 @@ def render_srp_r_gxy_b_vxvy_diag(
     B[ii_l, jj_l] = vx_norm[jj_l]
     B[ii_u, jj_u] = vy_norm[jj_u]
     B[diag_idx, diag_idx] = 0.5 * (vx_norm + vy_norm)
+
+    R8 = np.clip(np.rint(srp * 255.0), 0, 255).astype(np.uint8)
+    G8 = np.clip(np.rint(G * 255.0), 0, 255).astype(np.uint8)
+    B8 = np.clip(np.rint(B * 255.0), 0, 255).astype(np.uint8)
+    rgb = np.stack([R8, G8, B8], axis=2)
+    return _maybe_resize_rgb(rgb, output_size)
+
+
+def render_srp_r_gxy_b_vxvy_diag_halves(
+    seq, epsilon, output_size, user_bounds, vx_cdf, vy_cdf
+):
+    """
+    Same R as render_srp_r_gxy_b_vxvy_diag (global-diag SRP).
+
+    G and B use two horizontal rectangles, vertical stripes (column j = event j):
+      G top=y_norm, G bottom=x_norm
+      B top=vy_norm, B bottom=vx_norm
+    (same halves cut as G so vx/vy are not triangle-biased by event index).
+    Returns HxWx3 uint8 RGB, or None.
+    """
+    if len(seq) < 2:
+        return None
+
+    srp = compute_srp_pair_global_diag(seq, user_bounds, epsilon).astype(np.float32)
+    x, y = _norm_xy_01(seq, user_bounds)
+
+    n = srp.shape[0]
+    mid = n // 2
+    G = np.empty((n, n), dtype=np.float32)
+    G[:mid, :] = y[None, :]
+    G[mid:, :] = x[None, :]
+
+    xs = seq[:, 0].astype(np.float64)
+    ys = seq[:, 1].astype(np.float64)
+    ts = seq[:, 2].astype(np.float64)
+    dt = np.maximum(np.diff(ts), 1e-5)
+    vx = np.diff(xs) / dt
+    vy = np.diff(ys) / dt
+    vx = np.concatenate([[vx[0]], vx])
+    vy = np.concatenate([[vy[0]], vy])
+
+    vx_norm = np.interp(vx, vx_cdf[0], vx_cdf[1], left=0, right=1).astype(np.float32)
+    vy_norm = np.interp(vy, vy_cdf[0], vy_cdf[1], left=0, right=1).astype(np.float32)
+
+    B = np.empty((n, n), dtype=np.float32)
+    B[:mid, :] = vy_norm[None, :]
+    B[mid:, :] = vx_norm[None, :]
 
     R8 = np.clip(np.rint(srp * 255.0), 0, 255).astype(np.uint8)
     G8 = np.clip(np.rint(G * 255.0), 0, 255).astype(np.uint8)

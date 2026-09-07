@@ -25,6 +25,7 @@ from XYPlot import (
     clean_balabit,
     clean_chaoshen,
     clean_dfl,
+    clean_twos,
     draw_sequence,
     render_sequence,
 )
@@ -33,6 +34,7 @@ DEFAULT_TRAINING_ROOT = {
     "balabit": "Data/Balabit-dataset/training_files",
     "chaoshen": "Data/ChaoShen/training_files",
     "dfl": "Data/DFL-dataset_raw/training_files",
+    "twos": "Data/TWOS/training_files",
 }
 
 TENSOR_SUBDIR = "Chong_per_user"
@@ -60,6 +62,8 @@ def _clean_df(dataset, df):
         return clean_chaoshen(df)
     if dataset == "dfl":
         return clean_dfl(df)
+    if dataset == "twos":
+        return clean_twos(df)
     raise ValueError(dataset)
 
 

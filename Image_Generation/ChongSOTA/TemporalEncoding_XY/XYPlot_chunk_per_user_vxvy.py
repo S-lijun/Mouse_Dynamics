@@ -3,8 +3,8 @@
 Chunked XYPlot with per-user screen coords + directional velocity coloring (vx/vy).
 
 Windowing: fixed-size event chunks (same as XYPlot_chunk_per_user.py, default 125).
-Drawing: same per-user screen projection as XYPlot_per_user / XYPlot_chunk_per_user
-  (training-derived max_x / max_y), not centered.
+Drawing: same per-user screen projection as XYPlot_chunk_per_user
+  (shift by training min_x/min_y, canvas = max-min), not centered.
 
 Stroke encoding:
   White background.
@@ -40,6 +40,7 @@ from XYPlot import (  # noqa: E402
     clean_balabit,
     clean_chaoshen,
     clean_dfl,
+    clean_twos,
 )
 
 from XYPlot_per_user import (  # noqa: E402
@@ -47,6 +48,11 @@ from XYPlot_per_user import (  # noqa: E402
     default_bounds_json,
     get_or_scan_user_max_xy,
     _norm_bounds,
+)
+from XYPlot_chunk_per_user import (  # noqa: E402
+    scan_user_min_xy,
+    _user_min,
+    _shift_seq,
 )
 
 TENSOR_SUBDIR = "Chong_chunk_per_user_vxvy"
@@ -109,6 +115,8 @@ def _clean_df(dataset, df):
         return clean_chaoshen(df)
     if dataset == "dfl":
         return clean_dfl(df)
+    if dataset == "twos":
+        return clean_twos(df)
     raise ValueError(dataset)
 
 
@@ -258,7 +266,7 @@ def count_samples(dataset, data_root, chunk_size):
 # Dataset Processing
 # ============================================================
 
-def process_dataset_tensors(dataset, data_root, out_dir, user_max_xy, chunk_size):
+def process_dataset_tensors(dataset, data_root, out_dir, user_max_xy, user_min_xy, chunk_size):
     users = list_users(data_root)
     num_users = len(users)
     user_to_idx = {u: i for i, u in enumerate(users)}
@@ -267,7 +275,7 @@ def process_dataset_tensors(dataset, data_root, out_dir, user_max_xy, chunk_size
     print("Users:", num_users)
     print("Chunk size:", chunk_size)
     print("Per-user max bounds loaded for", len(user_max_xy), "users (from training_root).")
-    print("Rendering: per-user screen + stroke R=0 G=vx B=vy |", TARGET_SIZE, "x", TARGET_SIZE)
+    print("Rendering: per-user screen (min-shift, max-min) + stroke R=0 G=vx B=vy |", TARGET_SIZE, "x", TARGET_SIZE)
     print("\n[Phase] Generating chunk + per-user XYPlot vx/vy tensors...")
 
     total_samples = count_samples(dataset, data_root, chunk_size)
@@ -296,9 +304,13 @@ def process_dataset_tensors(dataset, data_root, out_dir, user_max_xy, chunk_size
     for user in users:
         user_dir = os.path.join(data_root, user)
         norm_x, norm_y = _norm_bounds(user, user_max_xy)
+        min_x, min_y = _user_min(user, user_min_xy)
+        canvas_w = max(float(norm_x) - min_x, 1.0)
+        canvas_h = max(float(norm_y) - min_y, 1.0)
 
         print("\n------------------------------")
-        print("User:", user, "| norm W×H (from training):", norm_x, norm_y)
+        print("User:", user, "| min=({}, {}) max=({}, {})".format(
+            min_x, min_y, norm_x, norm_y))
 
         for file in list_session_files(user_dir):
             path = os.path.join(user_dir, file)
@@ -307,7 +319,9 @@ def process_dataset_tensors(dataset, data_root, out_dir, user_max_xy, chunk_size
             print(f"   Session: {session} -> {len(sequences)} chunks")
 
             for seq in sequences:
-                img_rgb = render_sequence_vxvy(seq, norm_x, norm_y)
+                img_rgb = render_sequence_vxvy(
+                    _shift_seq(seq, min_x, min_y), canvas_w, canvas_h
+                )
                 if img_rgb is None:
                     continue
 
@@ -330,9 +344,9 @@ def process_dataset_tensors(dataset, data_root, out_dir, user_max_xy, chunk_size
     print(f"\nTensor dataset saved to: {tensor_root}")
 
 
-def process_dataset(dataset, data_root, out_dir, user_max_xy, chunk_size, tensors=False):
+def process_dataset(dataset, data_root, out_dir, user_max_xy, user_min_xy, chunk_size, tensors=False):
     if tensors:
-        process_dataset_tensors(dataset, data_root, out_dir, user_max_xy, chunk_size)
+        process_dataset_tensors(dataset, data_root, out_dir, user_max_xy, user_min_xy, chunk_size)
         return
 
     users = list_users(data_root)
@@ -341,14 +355,18 @@ def process_dataset(dataset, data_root, out_dir, user_max_xy, chunk_size, tensor
     print("Users:", len(users))
     print("Chunk size:", chunk_size)
     print("Per-user max bounds loaded for", len(user_max_xy), "users (from training_root).")
-    print("Rendering: per-user screen + stroke R=0 G=vx B=vy |", TARGET_SIZE, "x", TARGET_SIZE)
+    print("Rendering: per-user screen (min-shift, max-min) + stroke R=0 G=vx B=vy |", TARGET_SIZE, "x", TARGET_SIZE)
 
     for user in users:
         user_dir = os.path.join(data_root, user)
         norm_x, norm_y = _norm_bounds(user, user_max_xy)
+        min_x, min_y = _user_min(user, user_min_xy)
+        canvas_w = max(float(norm_x) - min_x, 1.0)
+        canvas_h = max(float(norm_y) - min_y, 1.0)
 
         print("\n------------------------------")
-        print("User:", user, "| norm W×H (from training):", norm_x, norm_y)
+        print("User:", user, "| min=({}, {}) max=({}, {})".format(
+            min_x, min_y, norm_x, norm_y))
 
         for file in list_session_files(user_dir):
             path = os.path.join(user_dir, file)
@@ -375,7 +393,9 @@ def process_dataset(dataset, data_root, out_dir, user_max_xy, chunk_size, tensor
                     user,
                     f"{session}-{i}.png",
                 )
-                draw_sequence_vxvy(seq, save_path, norm_x, norm_y)
+                draw_sequence_vxvy(
+                    _shift_seq(seq, min_x, min_y), save_path, canvas_w, canvas_h
+                )
 
 
 # ============================================================
@@ -391,7 +411,7 @@ def main():
             "per-user screen draw + stroke R=0 G=vx B=vy."
         ),
     )
-    parser.add_argument("--dataset", required=True, choices=["balabit", "chaoshen", "dfl"])
+    parser.add_argument("--dataset", required=True, choices=["balabit", "chaoshen", "dfl", "twos"])
     parser.add_argument(
         "--training_root",
         default=None,
@@ -470,6 +490,7 @@ def main():
         bounds_json=bounds_json,
         rescan=args.rescan_bounds,
     )
+    user_min_xy = scan_user_min_xy(args.dataset, training_root)
 
     print("\nUSER_MAX_XY:")
     for u in sorted(user_max_xy.keys(), key=natural_key):
@@ -480,6 +501,7 @@ def main():
         data_root,
         out_dir,
         user_max_xy,
+        user_min_xy,
         args.sizes,
         tensors=args.tensors,
     )

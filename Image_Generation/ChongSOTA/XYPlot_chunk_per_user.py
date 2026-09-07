@@ -25,6 +25,7 @@ from XYPlot import (
     clean_balabit,
     clean_chaoshen,
     clean_dfl,
+    clean_twos,
     draw_sequence,
     render_sequence,
 )
@@ -59,6 +60,8 @@ def _clean_df(dataset, df):
         return clean_chaoshen(df)
     if dataset == "dfl":
         return clean_dfl(df)
+    if dataset == "twos":
+        return clean_twos(df)
     raise ValueError(dataset)
 
 
@@ -299,7 +302,7 @@ def main():
             "per-user screen draw (same as XYPlot_per_user)."
         ),
     )
-    parser.add_argument("--dataset", required=True, choices=["balabit", "chaoshen", "dfl"])
+    parser.add_argument("--dataset", required=True, choices=["balabit", "chaoshen", "dfl", "twos"])
     parser.add_argument(
         "--training_root",
         default=None,

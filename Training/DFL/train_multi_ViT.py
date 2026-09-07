@@ -188,7 +188,7 @@ if __name__ == "__main__":
 
     train_loader = DataLoader(
         train_dataset,
-        batch_size=96,
+        batch_size=128,
         shuffle=True,
         num_workers=8,
         pin_memory=True,
@@ -198,7 +198,7 @@ if __name__ == "__main__":
 
     test_loader = DataLoader(
         test_dataset,
-        batch_size=96,
+        batch_size=128,
         shuffle=False,
         num_workers=8,
         pin_memory=True,
@@ -232,7 +232,7 @@ if __name__ == "__main__":
         learning_rate_decay=0.1,
         verbose=True,
         checkpoint_dir=str(ckpt_dir),
-        checkpoint_every=3,
+        checkpoint_every=1,
         resume_path=resume_path,
     )
 

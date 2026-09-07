@@ -228,13 +228,13 @@ if __name__ == "__main__":
 
     _, best_model, *_ = trainer.train(
         optim_name="adamw",
-        num_epochs=34,
+        num_epochs=17,
         learning_rate=0.0001,
         step_size=5,
-        learning_rate_decay=0.5,
+        learning_rate_decay=0.1,
         verbose=True,
         checkpoint_dir=str(ckpt_dir),
-        checkpoint_every=3,
+        checkpoint_every=1,
         resume_path=resume_path,
     )
 
