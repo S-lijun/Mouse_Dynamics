@@ -1,0 +1,9 @@
+{
+  "model": "saved_models/checkpoints/DFL_ViT_P1_20260908_175738/epoch_010.pt",
+  "test_tensor": "DFL2/XYPlot_chunk_protocol1/Chong",
+  "num_users": 21,
+  "scores_shape": [
+    345589,
+    21
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "model": "saved_models/checkpoints/ChaoShen_CNN_P1_20260811_065758/latest.pt",
+  "test_tensor": "ChaoShen/SRP_uc_r_gxy_b_vxvy_diag_protocol1/event125",
+  "num_users": 28,
+  "scores_shape": [
+    160946,
+    28
+  ]
+}

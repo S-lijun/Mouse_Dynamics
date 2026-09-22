@@ -1,0 +1,9 @@
+{
+  "model": "saved_models/multilabel_P1_best_20260810_070851.pth",
+  "test_tensor": "ChaoShen/XYPlot_chunk_protocol1/Chong",
+  "num_users": 28,
+  "scores_shape": [
+    161606,
+    28
+  ]
+}

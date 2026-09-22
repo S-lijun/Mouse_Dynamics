@@ -27,6 +27,9 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 from models.pretrained_googlenet_multi import (
     PretrainedGoogLeNet_Multilabel as insiderThreatCNN,
 )
+from models.pretrained_VIT_B16_multi import (
+    PretrainedViT_B16_Multilabel as insiderThreatViT,
+)
 from Training.Score_Fusion.Score_Fusion_Multi_82 import multilabel_score_fusion
 
 
@@ -126,8 +129,19 @@ def parse_args():
         default="DFL/SRP_vxvy_protocol1/event125",
         help="Test tensor folder relative to ImagesTensors/",
     )
+    p.add_argument(
+        "--arch",
+        choices=["cnn", "vit"],
+        default="cnn",
+        help="Must match the checkpoint (this DFL run is ViT).",
+    )
     p.add_argument("--num_users", type=int, default=21)
-    p.add_argument("--batch_size", type=int, default=20)
+    p.add_argument(
+        "--batch_size",
+        type=int,
+        default=None,
+        help="Default: 256 for --arch vit, 20 for cnn.",
+    )
     p.add_argument(
         "--num_workers",
         type=int,
@@ -156,9 +170,14 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # benchmark + AMP has been flaky (misaligned address) with GoogLeNet here
     torch.backends.cudnn.benchmark = False
+    if args.batch_size is None:
+        args.batch_size = 256 if args.arch == "vit" else 20
+
     print("[INFO] device:", device)
+    print("[INFO] arch:", args.arch)
     print("[INFO] model:", args.model)
     print("[INFO] test_tensor:", args.test_tensor)
+    print("[INFO] batch_size:", args.batch_size)
     print("[INFO] num_workers:", args.num_workers, "| amp:", args.amp)
 
     test_root = Path(project_root) / "ImagesTensors" / args.test_tensor
@@ -171,8 +190,11 @@ def main():
         pin_memory=False,
     )
 
-    model = insiderThreatCNN(num_users=args.num_users)
-    state = torch.load(args.model, map_location=device, weights_only=False)
+    if args.arch == "vit":
+        model = insiderThreatViT(num_users=args.num_users)
+    else:
+        model = insiderThreatCNN(num_users=args.num_users)
+    state = torch.load(args.model, map_location="cpu", weights_only=False)
     # Plain .pth is a state_dict; trainer checkpoints are dicts with model_state /
     # best_model_state (prefer best if present).
     if isinstance(state, dict) and (

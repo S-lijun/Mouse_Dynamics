@@ -1,0 +1,9 @@
+{
+  "model": "/storage1/fs1/sibai/Active/jayden/VMD/MD/saved_models/checkpoints/ChaoShen_CNN_P1_20260812_155535/latest.pt",
+  "test_tensor": "ChaoShen/XYPlot_chunk_per_user_vxvy_protocol1/Chong_chunk_per_user_vxvy",
+  "num_users": 28,
+  "scores_shape": [
+    161606,
+    28
+  ]
+}

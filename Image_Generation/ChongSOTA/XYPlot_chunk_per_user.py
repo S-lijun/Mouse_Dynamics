@@ -163,7 +163,15 @@ def bgr_to_tensor_chw(img):
 # Dataset Processing
 # ============================================================
 
-def process_dataset_tensors(dataset, data_root, out_dir, user_max_xy, user_min_xy, chunk_size):
+def _written_count(labels):
+    row_sum = np.asarray(labels).sum(axis=1)
+    nz = np.flatnonzero(row_sum)
+    return int(nz[-1]) + 1 if len(nz) else 0
+
+
+def process_dataset_tensors(
+    dataset, data_root, out_dir, user_max_xy, user_min_xy, chunk_size, resume=False
+):
     users = list_users(data_root)
     num_users = len(users)
     user_to_idx = {u: i for i, u in enumerate(users)}
@@ -182,21 +190,32 @@ def process_dataset_tensors(dataset, data_root, out_dir, user_max_xy, user_min_x
     H = W = int(TARGET_SIZE)
     print(f"\n[{TENSOR_SUBDIR}] Total samples: {total_samples} | Tensor size: {H}x{W}")
 
-    images = np.memmap(
-        os.path.join(tensor_root, "images.npy"),
-        dtype=np.uint8,
-        mode="w+",
-        shape=(total_samples, 3, H, W),
-    )
-    labels = np.memmap(
-        os.path.join(tensor_root, "labels.npy"),
-        dtype=np.uint8,
-        mode="w+",
-        shape=(total_samples, num_users),
-    )
+    img_path = os.path.join(tensor_root, "images.npy")
+    lab_path = os.path.join(tensor_root, "labels.npy")
+    mmap_shape_img = (total_samples, 3, H, W)
+    mmap_shape_lab = (total_samples, num_users)
+
+    if resume:
+        if not (os.path.isfile(img_path) and os.path.isfile(lab_path)):
+            raise FileNotFoundError(
+                "resume requested but images.npy/labels.npy missing under " + tensor_root
+            )
+        images = np.memmap(img_path, dtype=np.uint8, mode="r+", shape=mmap_shape_img)
+        labels = np.memmap(lab_path, dtype=np.uint8, mode="r+", shape=mmap_shape_lab)
+        start_idx = _written_count(labels)
+        print("[resume] already written:", start_idx, "/", total_samples)
+    else:
+        if os.path.isfile(img_path):
+            raise FileExistsError(
+                img_path + " already exists. Re-run with --resume, do not overwrite."
+            )
+        images = np.memmap(img_path, dtype=np.uint8, mode="w+", shape=mmap_shape_img)
+        labels = np.memmap(lab_path, dtype=np.uint8, mode="w+", shape=mmap_shape_lab)
+        start_idx = 0
 
     sessions = []
     idx = 0
+    catching_up = start_idx > 0
 
     for user in users:
         user_dir = os.path.join(data_root, user)
@@ -216,6 +235,15 @@ def process_dataset_tensors(dataset, data_root, out_dir, user_max_xy, user_min_x
             print(f"   Session: {session} -> {len(sequences)} chunks")
 
             for seq in sequences:
+                if idx < start_idx:
+                    sessions.append(session)
+                    idx += 1
+                    continue
+
+                if catching_up:
+                    print("[resume] rendering from idx", idx, "user", user, "session", session)
+                    catching_up = False
+
                 img = render_sequence(_shift_seq(seq, min_x, min_y), canvas_w, canvas_h)
                 if img is None:
                     continue
@@ -236,12 +264,18 @@ def process_dataset_tensors(dataset, data_root, out_dir, user_max_xy, user_min_x
         os.path.join(tensor_root, "sessions.npy"),
         np.array(sessions, dtype=object),
     )
-    print(f"\nTensor dataset saved to: {tensor_root}")
+    print(f"\nTensor dataset saved to: {tensor_root} (wrote {idx} samples)")
 
 
-def process_dataset(dataset, data_root, out_dir, user_max_xy, user_min_xy, chunk_size, tensors=False):
+def process_dataset(
+    dataset, data_root, out_dir, user_max_xy, user_min_xy, chunk_size,
+    tensors=False, resume=False,
+):
     if tensors:
-        process_dataset_tensors(dataset, data_root, out_dir, user_max_xy, user_min_xy, chunk_size)
+        process_dataset_tensors(
+            dataset, data_root, out_dir, user_max_xy, user_min_xy, chunk_size,
+            resume=resume,
+        )
         return
 
     users = list_users(data_root)
@@ -339,6 +373,12 @@ def main():
         default=False,
         help="Output images.npy / labels.npy / sessions.npy instead of PNG.",
     )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        default=False,
+        help="Continue an interrupted --tensors run without wiping images.npy.",
+    )
     args = parser.parse_args()
 
     training_rel = args.training_root or DEFAULT_TRAINING_ROOT[args.dataset]
@@ -376,6 +416,7 @@ def main():
         user_min_xy,
         args.sizes,
         tensors=args.tensors,
+        resume=args.resume,
     )
     print("\nChunk + per-user XYPlot generation finished.")
 

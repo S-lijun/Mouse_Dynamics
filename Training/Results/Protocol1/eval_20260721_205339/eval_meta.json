@@ -1,0 +1,9 @@
+{
+  "model": "/storage1/fs1/sibai/Active/jayden/VMD/MD/saved_models/multilabel_P1_best_20260721_170002.pth",
+  "test_tensor": "DFL/SRP_vxvy_protocol1/event125",
+  "num_users": 21,
+  "scores_shape": [
+    345179,
+    21
+  ]
+}
