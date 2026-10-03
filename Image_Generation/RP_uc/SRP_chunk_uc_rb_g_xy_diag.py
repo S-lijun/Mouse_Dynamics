@@ -32,11 +32,12 @@ import numpy as np
 
 from srp_uc_common import (
     DEFAULT_SCAN_ROOT,
+    N_FOLDS,
     count_windows,
     default_bounds_json,
-    generate_windows,
     get_or_scan_bounds,
     get_user_bounds,
+    is_skipped_user_dir,
     list_session_csvs,
     list_users,
     load_events,
@@ -44,11 +45,12 @@ from srp_uc_common import (
     render_srp_rb_g_xy_diag,
     resolve_path,
     rgb_to_tensor_chw,
+    session_window_groups,
 )
 
 
 def process_dataset_tensors(
-    dataset, data_root, out_dir, sizes, epsilon, output_size, bounds
+    dataset, data_root, out_dir, sizes, epsilon, output_size, bounds, five_fold=False
 ):
     users = list_users(data_root)
     num_users = len(users)
@@ -58,12 +60,15 @@ def process_dataset_tensors(
     print("Users:", num_users)
     print("Mode: R=B=SRP global-diag coord norm (no local dist stretch), G=xy stripes")
     print("Per-user bounds loaded for", len(bounds.get("users", {})), "users.")
-    print("\n[Phase] Generating SRP RGB (R=B=global-diag, G=xy) tensors...")
+    if five_fold:
+        print("\n[Phase] Generating SRP RGB (R=B=global-diag, G=xy) tensors, {} contiguous folds per session...".format(N_FOLDS))
+    else:
+        print("\n[Phase] Generating SRP RGB (R=B=global-diag, G=xy) tensors...")
 
     for chunk_size in sizes:
         H = int(output_size) if output_size and int(output_size) > 0 else chunk_size
         W = H
-        total_samples, _ = count_windows(dataset, data_root, chunk_size)
+        total_samples, _ = count_windows(dataset, data_root, chunk_size, five_fold=five_fold)
         tensor_root = os.path.join(out_dir, "event{}".format(chunk_size))
         os.makedirs(tensor_root, exist_ok=True)
 
@@ -82,6 +87,14 @@ def process_dataset_tensors(
             mode="w+",
             shape=(total_samples, num_users),
         )
+        folds = None
+        if five_fold:
+            folds = np.memmap(
+                os.path.join(tensor_root, "folds.npy"),
+                dtype=np.uint8,
+                mode="w+",
+                shape=(total_samples,),
+            )
 
         sessions = []
         idx = 0
@@ -103,38 +116,46 @@ def process_dataset_tensors(
                 path = os.path.join(user_dir, file)
                 session = os.path.splitext(file)[0]
                 events = load_events(dataset, path)
-                windows = generate_windows(events, chunk_size, data_root)
+                groups = session_window_groups(events, chunk_size, data_root, five_fold)
+                n_windows = sum(len(windows) for _, windows in groups)
                 print("  Session {} | chunk={} -> {} windows".format(
-                    session, chunk_size, len(windows)))
+                    session, chunk_size, n_windows))
 
-                for seq in windows:
-                    img = render_srp_rb_g_xy_diag(
-                        seq, epsilon, output_size, user_bounds
-                    )
-                    if img is None:
-                        continue
-                    if img.shape[:2] != (H, W):
-                        img = cv2.resize(img, (W, H), interpolation=cv2.INTER_NEAREST)
+                for fold, windows in groups:
+                    for seq in windows:
+                        img = render_srp_rb_g_xy_diag(
+                            seq, epsilon, output_size, user_bounds
+                        )
+                        if img is None:
+                            continue
+                        if img.shape[:2] != (H, W):
+                            img = cv2.resize(img, (W, H), interpolation=cv2.INTER_NEAREST)
 
-                    images[idx] = rgb_to_tensor_chw(img)
-                    y = np.zeros(num_users, dtype=np.uint8)
-                    y[user_to_idx[user]] = 1
-                    labels[idx] = y
-                    sessions.append(session)
-                    idx += 1
+                        images[idx] = rgb_to_tensor_chw(img)
+                        y = np.zeros(num_users, dtype=np.uint8)
+                        y[user_to_idx[user]] = 1
+                        labels[idx] = y
+                        sessions.append(session)
+                        if folds is not None:
+                            folds[idx] = fold
+                        idx += 1
 
         images.flush()
         labels.flush()
+        if folds is not None:
+            folds.flush()
         np.save(os.path.join(tensor_root, "sessions.npy"), np.array(sessions, dtype=object))
         print("\nTensor dataset saved to: {} (wrote {} samples)".format(tensor_root, idx))
 
 
 def process_dataset(
-    dataset, data_root, out_dir, sizes, epsilon, output_size, bounds, tensors=False
+    dataset, data_root, out_dir, sizes, epsilon, output_size, bounds,
+    tensors=False, five_fold=False,
 ):
     if tensors:
         process_dataset_tensors(
-            dataset, data_root, out_dir, sizes, epsilon, output_size, bounds
+            dataset, data_root, out_dir, sizes, epsilon, output_size, bounds,
+            five_fold=five_fold,
         )
         return
 
@@ -164,24 +185,29 @@ def process_dataset(
             events = load_events(dataset, path)
 
             for chunk_size in sizes:
-                windows = generate_windows(events, chunk_size, data_root)
+                groups = session_window_groups(events, chunk_size, data_root, five_fold)
+                n_windows = sum(len(windows) for _, windows in groups)
                 print("  Session {} | chunk={} -> {} windows".format(
-                    session, chunk_size, len(windows)))
+                    session, chunk_size, n_windows))
 
-                for i, seq in enumerate(windows):
-                    img = render_srp_rb_g_xy_diag(
-                        seq, epsilon, output_size, user_bounds
-                    )
-                    if img is None:
-                        continue
-                    save_path = os.path.join(
-                        out_dir,
-                        "event{}".format(chunk_size),
-                        user,
-                        "{}-{}.png".format(session, i),
-                    )
-                    os.makedirs(os.path.dirname(save_path), exist_ok=True)
-                    cv2.imwrite(save_path, cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
+                for fold, windows in groups:
+                    for i, seq in enumerate(windows):
+                        img = render_srp_rb_g_xy_diag(
+                            seq, epsilon, output_size, user_bounds
+                        )
+                        if img is None:
+                            continue
+                        parts = [out_dir]
+                        if fold is not None:
+                            parts.append("fold{}".format(fold))
+                        parts.extend([
+                            "event{}".format(chunk_size),
+                            user,
+                            "{}-{}.png".format(session, i),
+                        ])
+                        save_path = os.path.join(*parts)
+                        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+                        cv2.imwrite(save_path, cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
 
 
 def main():
@@ -233,6 +259,12 @@ def main():
         default=False,
         help="输出 images.npy / labels.npy / sessions.npy。",
     )
+    parser.add_argument(
+        "--five-fold",
+        action="store_true",
+        default=False,
+        help="每个 session 按事件顺序切成 5 段连续事件再开窗。tensors 时多写 folds.npy，取值 0–4。",
+    )
     args = parser.parse_args()
 
     data_root = resolve_path(args.data_root)
@@ -249,6 +281,15 @@ def main():
     print("Resolved out_dir:", out_dir)
     print("Resolved scan_root:", scan_root)
     print("Bounds JSON:", bounds_json)
+    skipped = sorted(
+        [
+            name for name in os.listdir(data_root)
+            if os.path.isdir(os.path.join(data_root, name)) and is_skipped_user_dir(name)
+        ],
+        key=natural_key,
+    )
+    if skipped:
+        print("Excluded dirs:", ", ".join(skipped))
 
     bounds = get_or_scan_bounds(
         dataset=args.dataset,
@@ -275,6 +316,7 @@ def main():
         output_size=args.output_size,
         bounds=bounds,
         tensors=args.tensors,
+        five_fold=args.five_fold,
     )
     print("\nDone.")
 

@@ -42,7 +42,8 @@ def find_tensor_dir(path):
         raise FileNotFoundError("No images.npy under " + str(path))
     preferred = {
         "event125", "event60", "Chong",
-        "Chong_chunk_per_user", "Chong_chunk_per_user_vxvy",
+        "Chong_chunk_per_user", "Chong_chunk_per_user_velocity",
+        "Chong_chunk_per_user_vxvy",
     }
     for c in candidates:
         if c.name in preferred:
@@ -358,46 +359,6 @@ def run_single_experiment(dataset_cfg):
 # ======================================================
 DATASETS = [
     {
-        "name": "SRP_chunk",
-        "train": "Balabit/SRP_chunk",
-        "test": "Balabit/SRP_chunk_protocol2",
-    },
-    {
-        "name": "SRP_chunk_velocity",
-        "train": "Balabit/SRP_chunk_velocity",
-        "test": "Balabit/SRP_chunk_velocity_protocol2",
-    },
-    {
-        "name": "SRP_chunk_vxvy",
-        "train": "Balabit/SRP_chunk_vxvy",
-        "test": "Balabit/SRP_chunk_vxvy_protocol2",
-    },
-    {
-        "name": "SRP_uc_r_gxy_b_vel_diag",
-        "train": "Balabit/SRP_uc_r_gxy_b_vel_diag",
-        "test": "Balabit/SRP_uc_r_gxy_b_vel_diag_protocol2",
-    },
-    {
-        "name": "SRP_uc_r_gxy_b_vxvy_diag",
-        "train": "Balabit/SRP_uc_r_gxy_b_vxvy_diag",
-        "test": "Balabit/SRP_uc_r_gxy_b_vxvy_diag_protocol2",
-    },
-    {
-        "name": "SRP_uc_rb_g_xy_diag",
-        "train": "Balabit/SRP_uc_rb_g_xy_diag",
-        "test": "Balabit/SRP_uc_rb_g_xy_diag_protocol2",
-    },
-    {
-        "name": "XYPlot_chunk",
-        "train": "Balabit/XYPlot_chunk",
-        "test": "Balabit/XYPlot_chunk_protocol2",
-    },
-    {
-        "name": "XYPlot_chunk_per_user",
-        "train": "Balabit/XYPlot_chunk_per_user",
-        "test": "Balabit/XYPlot_chunk_per_user_protocol2",
-    },
-    {
         "name": "XYPlot_chunk_per_user_velocity",
         "train": "Balabit/XYPlot_chunk_per_user_velocity",
         "test": "Balabit/XYPlot_chunk_per_user_velocity_protocol2",
@@ -406,16 +367,6 @@ DATASETS = [
         "name": "XYPlot_chunk_per_user_vxvy",
         "train": "Balabit/XYPlot_chunk_per_user_vxvy",
         "test": "Balabit/XYPlot_chunk_per_user_vxvy_protocol2",
-    },
-    {
-        "name": "XYPlot_chunk_velocity",
-        "train": "Balabit/XYPlot_chunk_velocity",
-        "test": "Balabit/XYPlot_chunk_velocity_protocol2",
-    },
-    {
-        "name": "XYPlot_chunk_vxvy",
-        "train": "Balabit/XYPlot_chunk_vxvy",
-        "test": "Balabit/XYPlot_chunk_vxvy_protocol2",
     },
 ]
 

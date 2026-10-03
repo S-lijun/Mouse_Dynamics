@@ -118,9 +118,21 @@ def _clean_df(dataset, df):
     raise ValueError(dataset)
 
 
+N_FOLDS = 5
+
+
+def is_skipped_user_dir(name):
+    """Data/TWOS 下面还有划分目录，不能当成用户。"""
+    lower = name.lower()
+    return lower == "training_files" or lower.startswith("testing_files")
+
+
 def list_users(data_root):
     return sorted(
-        [u for u in os.listdir(data_root) if os.path.isdir(os.path.join(data_root, u))],
+        [
+            u for u in os.listdir(data_root)
+            if os.path.isdir(os.path.join(data_root, u)) and not is_skipped_user_dir(u)
+        ],
         key=natural_key,
     )
 
@@ -146,6 +158,26 @@ def generate_windows(events, chunk_size, data_root):
     for i in range(0, len(events) - chunk_size + 1, stride):
         windows.append(events[i:i + chunk_size])
     return windows
+
+
+def contiguous_fold_bounds(n_events, n_folds=N_FOLDS):
+    """把一个 session 的事件按顺序切成 n_folds 段，段与段首尾相接、不重叠。"""
+    return [
+        (i * n_events // n_folds, (i + 1) * n_events // n_folds)
+        for i in range(n_folds)
+    ]
+
+
+def iter_session_fold_windows(events, chunk_size, data_root, n_folds=N_FOLDS):
+    """每一折只在自己那段连续事件里开窗，窗口不会跨到别的折。"""
+    for fold, (start, end) in enumerate(contiguous_fold_bounds(len(events), n_folds)):
+        yield fold, generate_windows(events[start:end], chunk_size, data_root)
+
+
+def session_window_groups(events, chunk_size, data_root, five_fold):
+    if five_fold:
+        return list(iter_session_fold_windows(events, chunk_size, data_root))
+    return [(None, generate_windows(events, chunk_size, data_root))]
 
 
 # ChongSOTA SRP_per_user / XYPlot_per_user segmentation (not fixed-size chunking).
@@ -1278,14 +1310,15 @@ def render_srp_with_bias(
     return _maybe_resize_gray(img, output_size)
 
 
-def count_windows(dataset, data_root, chunk_size):
+def count_windows(dataset, data_root, chunk_size, five_fold=False):
     total = 0
     users = list_users(data_root)
     for user in users:
         user_dir = os.path.join(data_root, user)
         for file in list_session_csvs(user_dir):
             events = load_events(dataset, os.path.join(user_dir, file))
-            total += len(generate_windows(events, chunk_size, data_root))
+            for _, windows in session_window_groups(events, chunk_size, data_root, five_fold):
+                total += len(windows)
     return total, users
 
 

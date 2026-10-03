@@ -67,9 +67,17 @@ def _clean_df(dataset, df):
     raise ValueError(dataset)
 
 
+def is_skipped_user_dir(name):
+    lower = name.lower()
+    return lower == "training_files" or lower.startswith("testing_files")
+
+
 def list_users(data_root):
     return sorted(
-        [u for u in os.listdir(data_root) if os.path.isdir(os.path.join(data_root, u))],
+        [
+            u for u in os.listdir(data_root)
+            if os.path.isdir(os.path.join(data_root, u)) and not is_skipped_user_dir(u)
+        ],
         key=natural_key,
     )
 

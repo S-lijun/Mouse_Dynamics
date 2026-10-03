@@ -34,6 +34,7 @@ from XYPlot import (  # noqa: E402
 )
 
 TENSOR_SUBDIR = "Chong"
+N_FOLDS = 5
 GLOBAL_VX_CDF = None
 GLOBAL_VY_CDF = None
 
@@ -116,9 +117,18 @@ def _clean_df(dataset, df):
     raise ValueError(dataset)
 
 
+def is_skipped_user_dir(name):
+    """Data/TWOS 下面还有划分目录，不能当成用户。"""
+    lower = name.lower()
+    return lower == "training_files" or lower.startswith("testing_files")
+
+
 def list_users(data_root):
     return sorted(
-        [u for u in os.listdir(data_root) if os.path.isdir(os.path.join(data_root, u))],
+        [
+            u for u in os.listdir(data_root)
+            if os.path.isdir(os.path.join(data_root, u)) and not is_skipped_user_dir(u)
+        ],
         key=natural_key,
     )
 
@@ -138,6 +148,14 @@ def split_by_chunk_size(events, chunk_size):
     if chunk_size <= 0:
         raise ValueError("chunk_size must be a positive integer.")
     return [events[i:i + chunk_size] for i in range(0, len(events), chunk_size)]
+
+
+def contiguous_fold_bounds(n_events, n_folds=N_FOLDS):
+    """把一个 session 的事件按顺序切成 n_folds 段，段与段首尾相接、不重叠。"""
+    return [
+        (i * n_events // n_folds, (i + 1) * n_events // n_folds)
+        for i in range(n_folds)
+    ]
 
 
 # ============================================================
@@ -264,25 +282,39 @@ def draw_xyplot_chunk_vxvy(seq, save_path):
     cv2.imwrite(save_path, img_bgr)
 
 
-def _session_sequences(dataset, path, chunk_size):
+def load_events(dataset, path):
     df = pd.read_csv(path)
     df = _clean_df(dataset, df)
+    return df.to_dict("records")
 
-    events = df.to_dict("records")
+
+def sequences_from_events(events, chunk_size):
     if len(events) < 2:
         return []
-
-    sequences = split_by_chunk_size(events, chunk_size)
-    return [seq for seq in sequences if len(seq) >= 2]
+    return [seq for seq in split_by_chunk_size(events, chunk_size) if len(seq) >= 2]
 
 
-def count_samples(dataset, data_root, chunk_size):
+def iter_session_fold_sequences(events, chunk_size, n_folds=N_FOLDS):
+    """每一折只在自己那段连续事件里切 chunk，chunk 不会跨到别的折。"""
+    for fold, (start, end) in enumerate(contiguous_fold_bounds(len(events), n_folds)):
+        yield fold, sequences_from_events(events[start:end], chunk_size)
+
+
+def _session_sequences(dataset, path, chunk_size):
+    return sequences_from_events(load_events(dataset, path), chunk_size)
+
+
+def count_samples(dataset, data_root, chunk_size, five_fold=False):
     total = 0
     for user in list_users(data_root):
         user_dir = os.path.join(data_root, user)
         for file in list_session_files(user_dir):
-            path = os.path.join(user_dir, file)
-            total += len(_session_sequences(dataset, path, chunk_size))
+            events = load_events(dataset, os.path.join(user_dir, file))
+            if five_fold:
+                for _, sequences in iter_session_fold_sequences(events, chunk_size):
+                    total += len(sequences)
+            else:
+                total += len(sequences_from_events(events, chunk_size))
     return total
 
 
@@ -290,7 +322,25 @@ def count_samples(dataset, data_root, chunk_size):
 # Dataset Processing
 # ============================================================
 
-def process_dataset_tensors(dataset, data_root, out_dir, chunk_size):
+def _write_chunk(images, labels, sessions, folds, idx, seq, H, W, user_idx, num_users, session, fold):
+    img_rgb = render_xyplot_chunk_vxvy(seq)
+    if img_rgb is None:
+        return idx
+
+    if img_rgb.shape[:2] != (H, W):
+        img_rgb = cv2.resize(img_rgb, (W, H), interpolation=cv2.INTER_NEAREST)
+
+    images[idx] = rgb_to_tensor_chw(img_rgb)
+    y = np.zeros(num_users, dtype=np.uint8)
+    y[user_idx] = 1
+    labels[idx] = y
+    sessions.append(session)
+    if folds is not None:
+        folds[idx] = fold
+    return idx + 1
+
+
+def process_dataset_tensors(dataset, data_root, out_dir, chunk_size, five_fold=False):
     users = list_users(data_root)
     num_users = len(users)
     user_to_idx = {u: i for i, u in enumerate(users)}
@@ -299,9 +349,12 @@ def process_dataset_tensors(dataset, data_root, out_dir, chunk_size):
     print("Users:", num_users)
     print("Chunk size:", chunk_size)
     print("Rendering: white bg, stroke colored by vx/vy (R=0, G=vx, B=vy) |", TARGET_SIZE, "x", TARGET_SIZE)
-    print("\n[Phase] Generating XYPlot vx/vy-colored trajectory tensors...")
+    if five_fold:
+        print(f"\n[Phase] Generating XYPlot vx/vy-colored trajectory tensors, {N_FOLDS} contiguous folds per session...")
+    else:
+        print("\n[Phase] Generating XYPlot vx/vy-colored trajectory tensors...")
 
-    total_samples = count_samples(dataset, data_root, chunk_size)
+    total_samples = count_samples(dataset, data_root, chunk_size, five_fold=five_fold)
     tensor_root = os.path.join(out_dir, TENSOR_SUBDIR)
     os.makedirs(tensor_root, exist_ok=True)
 
@@ -320,6 +373,14 @@ def process_dataset_tensors(dataset, data_root, out_dir, chunk_size):
         mode="w+",
         shape=(total_samples, num_users),
     )
+    folds = None
+    if five_fold:
+        folds = np.memmap(
+            os.path.join(tensor_root, "folds.npy"),
+            dtype=np.uint8,
+            mode="w+",
+            shape=(total_samples,),
+        )
 
     sessions = []
     idx = 0
@@ -333,26 +394,30 @@ def process_dataset_tensors(dataset, data_root, out_dir, chunk_size):
         for file in list_session_files(user_dir):
             path = os.path.join(user_dir, file)
             session = os.path.splitext(file)[0]
-            sequences = _session_sequences(dataset, path, chunk_size)
-            print(f"   Session: {session} -> {len(sequences)} chunks")
-
-            for seq in sequences:
-                img_rgb = render_xyplot_chunk_vxvy(seq)
-                if img_rgb is None:
-                    continue
-
-                if img_rgb.shape[:2] != (H, W):
-                    img_rgb = cv2.resize(img_rgb, (W, H), interpolation=cv2.INTER_NEAREST)
-
-                images[idx] = rgb_to_tensor_chw(img_rgb)
-                y = np.zeros(num_users, dtype=np.uint8)
-                y[user_to_idx[user]] = 1
-                labels[idx] = y
-                sessions.append(session)
-                idx += 1
+            events = load_events(dataset, path)
+            if five_fold:
+                fold_sequences = list(iter_session_fold_sequences(events, chunk_size))
+                n_chunks = sum(len(sequences) for _, sequences in fold_sequences)
+                print(f"   Session: {session} -> {n_chunks} chunks")
+                for fold, sequences in fold_sequences:
+                    for seq in sequences:
+                        idx = _write_chunk(
+                            images, labels, sessions, folds, idx, seq,
+                            H, W, user_to_idx[user], num_users, session, fold,
+                        )
+            else:
+                sequences = sequences_from_events(events, chunk_size)
+                print(f"   Session: {session} -> {len(sequences)} chunks")
+                for seq in sequences:
+                    idx = _write_chunk(
+                        images, labels, sessions, folds, idx, seq,
+                        H, W, user_to_idx[user], num_users, session, 0,
+                    )
 
     images.flush()
     labels.flush()
+    if folds is not None:
+        folds.flush()
     np.save(
         os.path.join(tensor_root, "sessions.npy"),
         np.array(sessions, dtype=object),
@@ -360,9 +425,9 @@ def process_dataset_tensors(dataset, data_root, out_dir, chunk_size):
     print(f"\nTensor dataset saved to: {tensor_root}")
 
 
-def process_dataset(dataset, data_root, out_dir, chunk_size, tensors=False):
+def process_dataset(dataset, data_root, out_dir, chunk_size, tensors=False, five_fold=False):
     if tensors:
-        process_dataset_tensors(dataset, data_root, out_dir, chunk_size)
+        process_dataset_tensors(dataset, data_root, out_dir, chunk_size, five_fold=five_fold)
         return
 
     users = list_users(data_root)
@@ -383,27 +448,22 @@ def process_dataset(dataset, data_root, out_dir, chunk_size, tensors=False):
             session = os.path.splitext(file)[0]
             print("   Session:", session)
 
-            df = pd.read_csv(path)
-            df = _clean_df(dataset, df)
-            events = df.to_dict("records")
+            events = load_events(dataset, path)
 
             print("      Events:", len(events))
-            if len(events) < 2:
-                continue
+            if five_fold:
+                groups = list(iter_session_fold_sequences(events, chunk_size))
+            else:
+                groups = [(None, sequences_from_events(events, chunk_size))]
+            print("      Chunks:", sum(len(sequences) for _, sequences in groups))
 
-            sequences = split_by_chunk_size(events, chunk_size)
-            print("      Chunks:", len(sequences))
-
-            for i, seq in enumerate(sequences):
-                if len(seq) < 2:
-                    continue
-                save_path = os.path.join(
-                    out_dir,
-                    TENSOR_SUBDIR,
-                    user,
-                    f"{session}-{i}.png",
-                )
-                draw_xyplot_chunk_vxvy(seq, save_path)
+            for fold, sequences in groups:
+                for i, seq in enumerate(sequences):
+                    parts = [out_dir]
+                    if fold is not None:
+                        parts.append("fold%d" % fold)
+                    parts.extend([TENSOR_SUBDIR, user, f"{session}-{i}.png"])
+                    draw_xyplot_chunk_vxvy(seq, os.path.join(*parts))
 
 
 # ============================================================
@@ -443,6 +503,12 @@ def main():
         default=False,
         help="Output images.npy / labels.npy / sessions.npy instead of PNG.",
     )
+    parser.add_argument(
+        "--five-fold",
+        action="store_true",
+        default=False,
+        help="每个 session 按事件顺序切成 5 段连续事件再切 chunk。tensors 时多写 folds.npy，取值 0–4。",
+    )
     args = parser.parse_args()
 
     data_root = resolve_path(args.data_root)
@@ -452,6 +518,15 @@ def main():
     print("[data_root]", data_root)
     print("[out_dir]", out_dir)
     print("[velocity_dist]", dist_path)
+    skipped = sorted(
+        [
+            name for name in os.listdir(data_root)
+            if os.path.isdir(os.path.join(data_root, name)) and is_skipped_user_dir(name)
+        ],
+        key=natural_key,
+    )
+    if skipped:
+        print("Excluded dirs:", ", ".join(skipped))
 
     vx_raw, vy_raw = load_raw_directional_velocity_distribution(dist_path)
     GLOBAL_VX_CDF = build_runtime_cdf_signed(vx_raw, args.v_percentile)
@@ -463,6 +538,7 @@ def main():
         out_dir,
         args.sizes,
         tensors=args.tensors,
+        five_fold=args.five_fold,
     )
     print("\nCentered chunk XYPlot vx/vy-colored trajectory finished.")
 
